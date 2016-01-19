@@ -1,6 +1,7 @@
 .idea
 .jshintrc
 .project
+*.iml
 Settings.json
 log
 node_modules/
