@@ -1,0 +1,11 @@
+{
+  "dependencies": {
+    "accesslog": "",
+    "async": "",
+    "restify": "",
+    "winston": "",
+    "winston-syslog": "",
+    "ssh2": "",
+    "underscore": ""
+  }
+}
