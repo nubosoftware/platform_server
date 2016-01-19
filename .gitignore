@@ -1,0 +1,6 @@
+.idea
+.jshintrc
+.project
+Settings.json
+log
+node_modules/

@@ -1,0 +1,9 @@
+- Settings.json
+- *.log
+- .git
+- .jshintrc
+- .project
+- .idea
+- log
+- platform_server.iml
+
