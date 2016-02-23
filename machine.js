@@ -159,7 +159,10 @@ var afterInitAndroid = function(reqestObj, logger, callback) {
     async.series(
         [
             function(callback) {
-                var timeoutSec = 140;
+                setTimeout(function() {callback(null);}, 10*1000);
+            },
+            function(callback) {
+                var timeoutSec = 300;
                 logger.info("Waiting upto " + timeoutSec + " seconds for 1st boot of android...");
                 waitwaitForBootWithTimeout(platform, timeoutSec, callback);
             },
@@ -179,7 +182,7 @@ var afterInitAndroid = function(reqestObj, logger, callback) {
                 });
             },
             function(callback) {
-                var timeoutSec = 140;
+                var timeoutSec = 300;
                 logger.info("Waiting upto " + timeoutSec + " seconds for restart of android...");
                 waitwaitForBootWithTimeout(platform, timeoutSec, callback);
             },
