@@ -24,10 +24,9 @@ function refreshMedia(req, res) {
             function(reqestObj, callback) {
                 processRefreshMedia(reqestObj, logger, callback);
             },
-            function(tasksResult, errFlag, callback) {
+            function(callback) {
                 var resobj = {
-                    status: errFlag ? 0 : 1,
-                    results: tasksResult
+                    status: 1
                 };
                 res.end(JSON.stringify(resobj, null, 2));
                 callback(null);
