@@ -182,12 +182,7 @@ var afterInitAndroid = function(reqestObj, logger, callback) {
                 });
             },
             function(callback) {
-                var timeoutSec = 300;
-                logger.info("Waiting upto " + timeoutSec + " seconds for restart of android...");
-                waitwaitForBootWithTimeout(platform, timeoutSec, callback);
-            },
-            function(callback) {
-                setTimeout(function() {callback(null);}, 90*1000);
+                setTimeout(function() {callback(null);}, 30*1000);
             },
             function(callback) {
                 var cmd = "enable_houdini;pm refresh 0";
@@ -195,6 +190,14 @@ var afterInitAndroid = function(reqestObj, logger, callback) {
                 platform.exec(cmd, function(err, code, signal, sshout) {
                     callback(null);
                 });
+            },
+            function(callback) {
+                var timeoutSec = 300;
+                logger.info("Waiting upto " + timeoutSec + " seconds for restart of android...");
+                waitwaitForBootWithTimeout(platform, timeoutSec, callback);
+            },
+            function(callback) {
+                setTimeout(function() {callback(null);}, 10*1000);
             }
         ], function(err) {
             callback(err);
@@ -215,7 +218,7 @@ var waitwaitForBootWithTimeout = function(platform, timeoutSec, callback) {
                     if(err) {
                         waitForBoot(callback);
                     } else {
-                        if(sshout.indexOf("com.android.settings") === -1) {
+                        if(sshout.indexOf("android.process.acore") === -1) {
                             waitForBoot(callback);
                         } else {
                             callback(null);
