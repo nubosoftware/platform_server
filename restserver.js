@@ -111,6 +111,7 @@ function buildServerObject(server) {
     server.post("/attachApps", appModule.attachApps);
     server.get("/getPackagesList", appModule.getPackagesList);
     server.post("/refreshMedia", filesModule.refreshMedia);
+    server.get("/checkPlatformStatus", machineModule.checkPlatformStatus);
 }
 
 Common.loadCallback = mainFunction;
