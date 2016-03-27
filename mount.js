@@ -218,38 +218,36 @@ function fullMount(session, keys, callback) {
     var UserName = login.userName;
     var deviceID = login.deviceID;
     var re = new RegExp('(.*)@(.*)');
-    var nfs = null;
-    var nfshomefolder;
+    var nfs, nfs_slow;
+    var nfshomefolder, nfshomefolder_slow;
     logger.info("mount.js - fullMount");
     logger.info("createUser obj:", JSON.stringify(session, null, 2));
     if (session.nfs) {
         nfs = session.nfs.nfs_ip;
         nfshomefolder = session.nfs.nfs_path;
     } else {
-        var nfsserver;
-        if (Common.syncToLocalNFS) {
-            nfsserver = Common.localNFS.nfsserver;
-            nfshomefolder = Common.localNFS.nfshomefolder;
-        } else {
-            nfsserver = Common.nfsserver;
-            nfshomefolder = Common.nfshomefolder;
-        }
-        var m = re.exec(nfsserver);
-        if (m!==null && m.length>=3) {
-            nfs = m[2];
-        } else {
-            nfs = nfsserver;
-        }
+        logger.error("Missed nfs");
+        callback("Missed nfs");
+        return;
+    }
+
+    if (session.nfs_slow) {
+        nfs_slow = session.nfs_slow.nfs_ip;
+        nfshomefolder_slow = session.nfs_slow.nfs_path_slow || session.nfs_slow.nfs_path;
+    } else {
+        nfs_slow = nfs;
+        nfshomefolder_slow = session.nfs.nfs_path_slow || nfshomefolder;
     }
 
     var nfsprefix = nfs + ":" + nfshomefolder + "/";
+    var nfsprefix_sd = nfs_slow + ":" + nfshomefolder_slow + "/";
     var userDeviceDataFolder = getUserHomeFolder(UserName) + deviceID + "/";
     var userStorageFolder = getUserHomeFolder(UserName) + "storage/";
 
     var src = [
         nfsprefix + userDeviceDataFolder,
         nfsprefix + userDeviceDataFolder + 'system',
-        nfsprefix + userStorageFolder + 'media'
+        nfsprefix_sd + userStorageFolder + 'media'
     ];
     var ecryptsrc = [
         '/data/mnt/ecrypt/' + localid + '/data',
