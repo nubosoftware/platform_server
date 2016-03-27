@@ -160,27 +160,24 @@ var afterInitAndroid = function(reqestObj, logger, callback) {
     async.series(
         [
             function(callback) {
-                setTimeout(function() {callback(null);}, 10*1000);
-            },
-            function(callback) {
-                var timeoutSec = 300;
-                logger.info("Waiting upto " + timeoutSec + " seconds for 1st boot of android...");
-                waitwaitForBootWithTimeout(platform, timeoutSec, callback);
-            },
-            function(callback) {
-                var tmpDir = "/data/tmp";
                 var nfsoptions = "nolock,hard,intr,vers=3,nosharecache,noatime,async"; //user 0
-                var mask = [false];
-                var pathToNfs = reqestObj.nfs.nfs_ip + ":" + reqestObj.nfs.nfs_path +"/apks/";
-                var src = [pathToNfs];
-                var dst = [tmpDir];
-
-                require('./mount.js').mountnfs(src, dst, mask, null, null, platform, nfsoptions, function(err) {
+                var src = [
+                    reqestObj.nfs.nfs_ip + ":" + reqestObj.nfs.nfs_path +"/apks"
+                ];
+                var dst = [
+                    "/Android/data/tmp"
+                ];
+                require('./mount.js').mountHostNfs(src, dst, nfsoptions, function(err) {
                     if (err) {
                         logger.info(err);
                     }
                     callback(err);
                 });
+            },
+            function(callback) {
+                var timeoutSec = 300;
+                logger.info("Waiting upto " + timeoutSec + " seconds for 1st boot of android...");
+                waitwaitForBootWithTimeout(platform, timeoutSec, callback);
             },
             function(callback) {
                 setTimeout(function() {callback(null);}, 30*1000);
