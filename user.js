@@ -35,13 +35,6 @@ function attachUser(req, res) {
             //create workable android user
             function (reqestObj, callback) {
                 console.log("reqestObj: ", reqestObj);
-                if (true) {
-                    if (reqestObj.login.deviceID.indexOf("web") > -1) {
-                        reqestObj.login.deviceID = "virtualDeviceWeb";
-                    } else {
-                        reqestObj.login.deviceID = "virtualDevice";
-                    }
-                }
                 createUser(reqestObj, logger, callback);
             },
             //response to request on success
