@@ -19,3 +19,6 @@ img: $(LINUX_IMG_FULL_PATH)
 	sudo losetup -d $(LOOPDEVICE)
 	rmdir mnt
 
+$(LINUX_IMG_FULL_PATH):
+	scp nubo@lab2.nubosoftware.com:N4.4/linux.img $(LINUX_IMG_FULL_PATH)
+
