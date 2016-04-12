@@ -195,6 +195,28 @@ var afterInitAndroid = function(reqestObj, logger, callback) {
                 waitwaitForBootWithTimeout(platform, timeoutSec, callback);
             },
             function(callback) {
+                if(reqestObj.settings.withService){
+                    var cmd = "setprop ro.kernel.withService withService";
+                    logger.info("cmd: " + cmd);
+                    platform.exec(cmd, function(err, code, signal, sshout) {
+                        callback(null);
+                    });
+                }
+                else
+                    callback(null);
+            },
+            function(callback) {
+                if(reqestObj.settings.showOnlyControlPanel){
+                    var cmd = "setprop ro.kernel.showOnlyControlPanel showOnlyControlPanel";
+                    logger.info("cmd: " + cmd);
+                    platform.exec(cmd, function(err, code, signal, sshout) {
+                        callback(null);
+                    });
+                }
+                else
+                    callback(null);
+            },
+            function(callback) {
                 setTimeout(function() {callback(null);}, 10*1000);
             }
         ], function(err) {
