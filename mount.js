@@ -216,7 +216,7 @@ function fullMount(session, keys, callback) {
     var localid = session.params.localid;
     var platform = session.platform;
     var UserName = login.userName;
-    var deviceID = login.deviceID;
+    var deviceID = session.params.deviceid;
     var re = new RegExp('(.*)@(.*)');
     var nfs, nfs_slow;
     var nfshomefolder, nfshomefolder_slow;

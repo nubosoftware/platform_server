@@ -246,8 +246,8 @@ function createUser(obj, logger, callback) {
     async.series([
         function (callback) {
             session.params = {
-                email: obj.login.userName,
-                deviceid: obj.login.deviceID
+                email: obj.session.email,
+                deviceid: obj.session.deviceid
             };
             callback(null);
         },
