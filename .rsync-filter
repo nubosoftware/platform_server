@@ -1,10 +1,12 @@
 - Settings.json
 - *.log
 - .git
+- .gitignore
 - .jshintrc
 - .project
 - .idea
-- log
+- log/*
 - platform_server.iml
 - mnt
+- Makefile
 
