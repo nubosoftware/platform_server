@@ -206,8 +206,8 @@ var afterInitAndroid = function(reqestObj, logger, callback) {
                     callback(null);
             },
             function(callback) {
-                if(reqestObj.settings.showOnlyControlPanel){
-                    var cmd = "setprop ro.kernel.showOnlyControlPanel showOnlyControlPanel";
+                if(reqestObj.settings.hideControlPanel){
+                    var cmd = "setprop ro.kernel.hideControlPanel hideControlPanel";
                     logger.info("cmd: " + cmd);
                     platform.exec(cmd, function(err, code, signal, sshout) {
                         callback(null);
