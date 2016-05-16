@@ -57,6 +57,7 @@ function startPlatformPost(req, res) {
             var res = validateStartPlatformRequest(obj);
             if (res) {
                 reqestObj = obj;
+                logger.info("startPlatform reqestObj:" + JSON.stringify(reqestObj));
                 callback(null);
             } else {
                 callback("Bad request");
@@ -177,7 +178,7 @@ var afterInitAndroid = function(reqestObj, logger, callback) {
             function(callback) {
                 var timeoutSec = 300;
                 logger.info("Waiting upto " + timeoutSec + " seconds for 1st boot of android...");
-                waitwaitForBootWithTimeout(platform, timeoutSec, callback);
+                waitForProcessWithTimeout("android.process.acore", timeoutSec, callback);
             },
             function(callback) {
                 setTimeout(function() {callback(null);}, 30*1000);
@@ -192,7 +193,7 @@ var afterInitAndroid = function(reqestObj, logger, callback) {
             function(callback) {
                 var timeoutSec = 300;
                 logger.info("Waiting upto " + timeoutSec + " seconds for restart of android...");
-                waitwaitForBootWithTimeout(platform, timeoutSec, callback);
+                waitForProcessWithTimeout("android.process.acore", timeoutSec, callback);
             },
             function(callback) {
                 if(reqestObj.settings.withService){
@@ -225,30 +226,27 @@ var afterInitAndroid = function(reqestObj, logger, callback) {
     );
 };
 
-var waitwaitForBootWithTimeout = function(platform, timeoutSec, callback) {
+var waitForProcessWithTimeout = function(name, timeoutSec, callback) {
     var timeoutFlag = false;
     var timeoutObj = setTimeout(function() {
         timeoutFlag = true;
     }, timeoutSec * 1000); // setTimeout
-    var waitForBoot = function(callback) {
+    var getPid = function(callback) {
         if (timeoutFlag) callback("timeout");
         else {
             setTimeout(function() {
-                platform.exec("ps", function(err, code, signal, sshout) {
-                    if (err) {
-                        waitForBoot(callback);
+                exec("pidof " + name, function(error, stdout, stderr) {
+                    if (error) {
+                        getPid(callback);
                     } else {
-                        if(sshout.indexOf("android.process.acore") === -1) {
-                            waitForBoot(callback);
-                        } else {
-                            callback(null);
-                        }
+                        clearTimeout(timeoutObj);
+                        callback(null);
                     }
                 });
             }, 4 * 1000);
         }
     };
-    waitForBoot(callback);
+    getPid(callback);
 };
 
 function checkPlatformStatus(req, res) {
@@ -256,8 +254,8 @@ function checkPlatformStatus(req, res) {
     var logger = new ThreadedLogger();
     var platform = new Platform(logger);
     var userName = req.params.username ? req.params.username : null;
-    var deviceID = req.params.deviceid ? req.params.deviceid : null;;
-    var platformIP = req.params.platformip ? req.params.platformip : null;;
+    var deviceID = req.params.deviceid ? req.params.deviceid : null;
+    var platformIP = req.params.platformip ? req.params.platformip : null;
     var resobj = {
         status: 0,
         error: 'no error'
