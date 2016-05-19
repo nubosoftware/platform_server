@@ -12,6 +12,7 @@ var machineModule = require('./machine.js');
 var userModule = require('./user.js');
 var appModule = require('./app.js');
 var filesModule = require('./files.js');
+var firewallModule = require('./firewall.js');
 
 
 var mainFunction = function(err, firstTimeLoad) {
@@ -112,6 +113,7 @@ function buildServerObject(server) {
     server.get("/getPackagesList", appModule.getPackagesList);
     server.post("/refreshMedia", filesModule.refreshMedia);
     server.get("/checkPlatformStatus", machineModule.checkPlatformStatus);
+    server.post("/applyFirewall", firewallModule.post);
 }
 
 Common.loadCallback = mainFunction;
