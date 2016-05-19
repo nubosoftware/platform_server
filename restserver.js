@@ -89,8 +89,12 @@ function nocache(req, res, next) {
 function buildServerObject(server) {
 
     server.on('uncaughtException', function(request, response, route, error) {
-        logger.error("Exception in http server: " + (error && error.stack || error));
-        response.send(error);
+        logger.error("Exception in http server: request url: " + request.url + " error: " + JSON.stringify(error && error.stack || error));
+        try {
+            response.send(error);
+        } catch(e) {
+            logger.warn("response already done");
+        }
         return true;
     });
     server.use(restify.queryParser());
