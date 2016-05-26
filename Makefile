@@ -9,12 +9,14 @@ default: img
 img: $(LINUX_IMG_FULL_PATH)
 	mkdir mnt
 	$(eval LOOPDEVICE := $(shell sudo losetup -f --show $(LINUX_IMG_FULL_PATH) -o $$((2048 * 512)) ))
-	echo LOOPDEVICE $(LOOPDEVICE)
+	@echo "LOOPDEVICE=$(LOOPDEVICE)"
 	sudo mount $(LOOPDEVICE) mnt
 	cat ~/.ssh/id_rsa.pub > mnt/home/nubo/.ssh/authorized_keys
 	cat ~/.ssh/id_rsa.pub > mnt/opt/Android/authorized_keys
 	cat mnt/home/nubo/.ssh/id_rsa.pub >> mnt/opt/Android/authorized_keys
 	rsync ./ mnt/opt/platform_server/ -raF
+	@echo "You can change files on platform. Please enter any key to continue and close image";
+	@bash -c "read -sn 1";
 	sudo umount mnt
 	sudo losetup -d $(LOOPDEVICE)
 	rmdir mnt
