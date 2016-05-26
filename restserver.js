@@ -4,6 +4,7 @@ var accesslog = require('accesslog');
 var url = require("url");
 var restify = require("restify");
 var fs = require("fs");
+var async = require("async");
 var Common = require('./common.js');
 var logger = Common.logger;
 var ThreadedLogger = require('./ThreadedLogger.js');
@@ -25,47 +26,82 @@ var mainFunction = function(err, firstTimeLoad) {
     if(!firstTimeLoad)// execute the following code only in the first time
         return;
 
-    var listenFunc = function(server, port, host) {
-        server.listen(port, host, function() {
-            logger.info('%s listening at %s', server.name, server.url);
-        });
+    var initPortListener = function(listenAddress, callback) {
+        async.waterfall(
+            [
+                function(callback) {
+                    var urlObj = url.parse(listenAddress);
+                    // logger.info("protocol: "+urlObj.protocol+", hostname:"+urlObj.hostname+", port: "+urlObj.port);
+                    var isSSL = urlObj.protocol === "https:";
+                    var port = urlObj.port;
+                    if(!port)
+                        port = ( isSSL ? 443 : 80);
+                    var host = urlObj.hostname;
+                    callback(null, host, port, isSSL);
+                },
+                function(host, port, isSSL, callback) {
+                    if(isSSL) {
+                        readCerts(function(err, opts) {
+                            if(err) {
+                                callback(err);
+                                return;
+                            } else {
+                                opts.requestCert = true;
+                                opts.rejectUnauthorized = true;
+                                callback(null, host, port, opts);
+                            }
+                        });
+                    } else {
+                        callback(null, host, port, null);
+                    }
+                },
+                function(host, port, server_options, callback) {
+                    var myserver = restify.createServer(server_options);
+                    buildServerObject(myserver);
+                    myserver.listen(port, host, function() {
+                        logger.info('%s listening at %s', myserver.name, myserver.url);
+                    });
+                    var closeListener = function(callback) {
+                        myserver.close(callback);
+                    };
+                    Common.exitJobs.push(closeListener);
+                    callback(null);
+                }
+            ], function(err) {
+                if(err) {
+                    logger.error("Cannot open listener for " + listenAddress + ", err: " + err);
+                }
+                if(typeof callback === "function") callback(err);
+            }
+        );
     };
-
-    var initPortListener = function(port, host) {
-        var myserver = restify.createServer(server_options);
-        buildServerObject(myserver);
-        myserver.listen(port, host, function() {
-            logger.info('%s listening at %s', myserver.name, myserver.url);
-        });
-        var closeListener = function(callback) {
-            myserver.close(callback);
-        };
-        Common.exitJobs.push(closeListener);
-    };
-
-    for(var i = 0; i < Common.listenAddresses.length; i++) {
-        // logger.info("address: "+Common.listenAddresses[i]);
-        var urlObj = url.parse(Common.listenAddresses[i]);
-        // logger.info("protocol: "+urlObj.protocol+", hostname:"+urlObj.hostname+", port: "+urlObj.port);
-        var isSSL = urlObj.protocol === "https:";
-        var port = urlObj.port;
-        if(!port)
-            port = ( isSSL ? 443 : 80);
-        var host = urlObj.hostname;
-
-        var server_options;
-        if(isSSL) {
-            server_options = {
-                key: fs.readFileSync('../cert/server.key'),
-                certificate: fs.readFileSync('../cert/server.cert'),
-                ca: fs.readFileSync('../cert/server.ca')
-            };
-        } else {
-            server_options = null;
-        }
-
-        initPortListener(port, host);
+    var readCerts = function(callback) {
+        if(!Common.sslCerts || !Common.sslCerts.ca || !Common.sslCerts.cert || !Common.sslCerts.key) return callback("bad parameter Common.sslCerts");
+        var sslCerts = {};
+        async.forEachOf(
+            Common.sslCerts,
+            function(item, key, callback) {
+                fs.readFile(item, function(err, data) {
+                    if(err) {
+                        logger.error("Cannot read " + item + " file, err: " + err);
+                    } else {
+                        sslCerts[key] = data;
+                    }
+                    callback(err);
+                });
+            },
+            function(err) {
+                callback(err, sslCerts);
+            }
+        );
     }
+
+    async.eachSeries(
+        Common.listenAddresses,
+        function(item, callback) {
+        }
+    );
+    Common.listenAddresses.forEach(initPortListener);
 
     process.on('SIGINT', function() {
         logger.info("restserver caught interrupt signal");
@@ -86,6 +122,14 @@ function nocache(req, res, next) {
     next();
 }
 
+function validateCertificate(req, res, next) {
+    if(res.socket.authorized) {
+        logger.info('Authorized request');
+        logger.debug(JSON.stringify(res.socket.getPeerCertificate()));
+    }
+    next();
+}
+
 function buildServerObject(server) {
 
     server.on('uncaughtException', function(request, response, route, error) {
@@ -97,6 +141,7 @@ function buildServerObject(server) {
         }
         return true;
     });
+    server.use(validateCertificate);
     server.use(restify.queryParser());
     server.use(function(req, res, next) {
         req.realIP = req.headers['x-real-ip'] || req.connection.remoteAddress;
