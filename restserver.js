@@ -15,6 +15,36 @@ var appModule = require('./app.js');
 var filesModule = require('./files.js');
 var firewallModule = require('./firewall.js');
 
+var filterModule = require('permission-parser');
+var filterOpts = {
+    loge: logger.error
+};
+var filterObj = new filterModule([], filterOpts);
+var filterFile = "./parameters-map.js";
+Common.fs.watchFile(filterFile, {
+    persistent : false,
+    interval : 5007
+}, function(curr, prev) {
+    logger.info(filterFile + ' been modified');
+    refresh_filter();
+});
+
+var refresh_filter = function() {
+    try {
+        delete require.cache[require.resolve(filterFile)];
+    } catch(e) {}
+
+    var obj;
+    try {
+        obj = require(filterFile);
+    } catch(e) {
+        logger.error('Error: Cannot load ' + filterFile + ' file, err: ' + e);
+        return;
+    }
+    console.log("obj: " + JSON.stringify(obj));
+    filterObj.reload(obj.rules, {permittedMode: obj.permittedMode});
+};
+refresh_filter();
 
 var mainFunction = function(err, firstTimeLoad) {
     if(err) {
@@ -94,7 +124,7 @@ var mainFunction = function(err, firstTimeLoad) {
                 callback(err, sslCerts);
             }
         );
-    }
+    };
 
     async.eachSeries(
         Common.listenAddresses,
@@ -143,6 +173,7 @@ function buildServerObject(server) {
     });
     server.use(validateCertificate);
     server.use(restify.queryParser());
+    server.use(filterObj.useHandler);
     server.use(function(req, res, next) {
         req.realIP = req.headers['x-real-ip'] || req.connection.remoteAddress;
         next();
