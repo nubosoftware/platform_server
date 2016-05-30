@@ -2,6 +2,7 @@
 
 var async = require('async');
 var _ = require('underscore');
+var validate = require("validate.js");
 var exec = require('child_process').exec;
 var http = require('./http.js');
 var ThreadedLogger = require('./ThreadedLogger.js');
@@ -16,6 +17,9 @@ function post(req, res, next) {
                 http.getObjFromRequest(req, function(err, obj) {
                     callback(err, obj);
                 });
+            },
+            function (reqestObj, callback) {
+                validateApplyFirewallRequestObj(reqestObj, logger, callback);
             },
             function(obj, callback) {
                 logger.info("applyFirewall input: " + JSON.stringify(obj));
@@ -195,5 +199,12 @@ var applyIptables = function(version, input, callback) {
     } else {
         callback(null);
     }
-}
+};
+
+var validateApplyFirewallRequestObj = function(RequestObj, logger, callback) {
+    logger.warn("validateApplyFirewallRequestObj not implemented");
+    callback(null, RequestObj);
+};
+
 module.exports = {post: post};
+
