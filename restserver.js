@@ -90,12 +90,12 @@ var mainFunction = function(err, firstTimeLoad) {
                     buildServerObject(myserver);
                     myserver.listen(port, host, function() {
                         logger.info('%s listening at %s', myserver.name, myserver.url);
+                        callback(null);
                     });
                     var closeListener = function(callback) {
                         myserver.close(callback);
                     };
                     Common.exitJobs.push(closeListener);
-                    callback(null);
                 }
             ], function(err) {
                 if(err) {
@@ -128,10 +128,8 @@ var mainFunction = function(err, firstTimeLoad) {
 
     async.eachSeries(
         Common.listenAddresses,
-        function(item, callback) {
-        }
+        initPortListener
     );
-    Common.listenAddresses.forEach(initPortListener);
 
     process.on('SIGINT', function() {
         logger.info("restserver caught interrupt signal");
