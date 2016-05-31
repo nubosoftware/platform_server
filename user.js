@@ -48,6 +48,7 @@ function attachUser(req, res) {
                     status: 1,
                     localid: unum
                 };
+                resDone = true;
                 res.end(JSON.stringify(resobj,null,2));
                 callback(null, session);
             },
