@@ -2,10 +2,11 @@
   "dependencies": {
     "accesslog": "",
     "async": "",
+    "permission-parser": "http://nubolab.nubosoftware.com:4873/permission-parser/-/permission-parser-0.0.2.tgz",
     "restify": "",
-    "winston": "",
-    "winston-syslog": "",
     "ssh2": "",
-    "underscore": ""
+    "underscore": "",
+    "winston": "",
+    "winston-syslog": ""
   }
 }
