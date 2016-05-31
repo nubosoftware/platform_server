@@ -1,6 +1,7 @@
 "use strict";
 
 var async = require('async');
+var validate = require("validate.js");
 var Platform = require('./platform.js');
 var ThreadedLogger = require('./ThreadedLogger.js');
 var http = require('./http.js');
@@ -20,6 +21,9 @@ function refreshMedia(req, res) {
                 http.getObjFromRequest(req, function(err, obj) {
                     callback(err, obj);
                 });
+            },
+            function (reqestObj, callback) {
+                validateRefreshMediaRequestObj(reqestObj, logger, callback);
             },
             function(reqestObj, callback) {
                 processRefreshMedia(reqestObj, logger, callback);
@@ -59,3 +63,9 @@ var processRefreshMedia = function(obj, logger, callback) {
         }
     );
 };
+
+var validateRefreshMediaRequestObj = function(RequestObj, logger, callback) {
+    logger.warn("validateRefreshMediaRequestObj not implemented");
+    callback(null, RequestObj);
+};
+

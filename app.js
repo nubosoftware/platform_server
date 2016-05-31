@@ -1,6 +1,7 @@
 "use strict";
 
 var async = require('async');
+var validate = require("validate.js");
 var Platform = require('./platform.js');
 var ThreadedLogger = require('./ThreadedLogger.js');
 var http = require('./http.js');
@@ -75,6 +76,9 @@ function attachApps(req, res) {
                 http.getObjFromRequest(req, function(err, obj) {
                     callback(err, obj);
                 });
+            },
+            function (reqestObj, callback) {
+                validateAttachAppsRequestObj(reqestObj, logger, callback);
             },
             //create workable android user
             function(reqestObj, callback) {
@@ -200,3 +204,9 @@ function getPackagesList(req,res) {
         }
     );
 }
+
+var validateAttachAppsRequestObj = function(RequestObj, logger, callback) {
+    logger.warn("validateAttachAppsRequestObj not implemented");
+    callback(null, RequestObj);
+};
+

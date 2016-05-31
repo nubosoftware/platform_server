@@ -2,6 +2,7 @@
 
 var fs = require('fs');
 var async = require('async');
+var validate = require("validate.js");
 //var Common = require('./common.js');
 //var logger = Common.logger;
 var ThreadedLogger = require('./ThreadedLogger.js');
@@ -31,6 +32,9 @@ function attachUser(req, res) {
                 http.getObjFromRequest(req, function(err, obj) {
                     callback(err, obj);
                 });
+            },
+            function (reqestObj, callback) {
+                validateAttachUserRequestObj(reqestObj, logger, callback);
             },
             //create workable android user
             function (reqestObj, callback) {
@@ -461,3 +465,9 @@ function createFile(file, data, permissions, uid, gid, callback) {
         }
     );
 }
+
+var validateAttachUserRequestObj = function(RequestObj, logger, callback) {
+    logger.warn("validateAttachUserRequestObj not implemented");
+    callback(null, RequestObj);
+};
+
