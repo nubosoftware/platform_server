@@ -26,7 +26,7 @@ function post(req, res, next) {
                 callback(null, obj.tasks);
             },
             function(tasks, callback) {
-                var tasks_ip4 = _.filter(tasks, function(item) {return item.v === "v4"});
+                var tasks_ip4 = _.filter(tasks, function(item) {return item.v === "v4";});
                 var tasks_ip6 = []; //_.filter(tasks, function(item) {return item.v === "v6"});
                 //logger.info("ip4 tasks: " + JSON.stringify(tasks_ip4));
                 callback(null, tasks_ip4, tasks_ip6);
@@ -82,7 +82,7 @@ var convertTasksToRestoreBlock = function(tasks, err) {
     });
     restore += "COMMIT\n";
     return restore;
-}
+};
 
 
 var convertTaskObjToRestoreLine = function(obj, err) {
@@ -100,7 +100,7 @@ var convertTaskObjToRestoreLine = function(obj, err) {
         "delete-chain": "-X",
         "policy": "-P",
         "rename-chain": "-E"
-    }
+    };
     var res = "";
     var block = "";
 
@@ -160,7 +160,7 @@ var convertTaskObjToRestoreLine = function(obj, err) {
     }
 
     return res;
-} 
+};
 
 var applyIptables = function(version, input, callback) {
     var logger = new ThreadedLogger();
