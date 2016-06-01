@@ -21,7 +21,7 @@ var filterOpts = {
 };
 var filterObj = new filterModule([], filterOpts);
 var filterFile = "./parameters-map.js";
-Common.fs.watchFile(filterFile, {
+fs.watchFile(filterFile, {
     persistent : false,
     interval : 5007
 }, function(curr, prev) {

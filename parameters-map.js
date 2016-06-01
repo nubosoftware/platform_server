@@ -1,4 +1,4 @@
-{
+var filter = {
   "permittedMode": true,
   "rules" : [
     {"path": "/", "constraints": {}},
@@ -67,4 +67,7 @@
     },
     {"path": "/applyFirewall", "constraints": {}}
   ]
-}
+};
+
+module.exports = filter;
+
