@@ -1,8 +1,11 @@
 "use strict";
 
+var path = require("path");
 var async = require('async');
+var _ = require('underscore');
 var http = require('./http.js');
 var exec = require('child_process').exec;
+var execFile = require('child_process').execFile;
 var ThreadedLogger = require('./ThreadedLogger.js');
 var Platform = require('./platform.js');
 
@@ -62,6 +65,9 @@ function startPlatformPost(req, res) {
             } else {
                 callback("Bad request");
             }
+        },
+        function(callback) {
+            getFiles(reqestObj, logger, callback);
         },
         function(callback) {
             logger.info("preset platform parameters");
@@ -170,7 +176,7 @@ var afterInitAndroid = function(reqestObj, logger, callback) {
                 ];
                 require('./mount.js').mountHostNfs(src, dst, nfsoptions, function(err) {
                     if (err) {
-                        logger.info(err);
+                        logger.error("Cannot mount apks, err: " + err);
                     }
                     callback(err);
                 });
@@ -330,3 +336,49 @@ function checkPlatformStatus(req, res) {
         res.end(JSON.stringify(resobj, null, 2));
     });
 }
+
+
+//remove symbol / from end of management url
+var normalizeServerURL = function(url) {
+    return url.replace(/[\/]+$/, "");
+};
+
+var getFiles = function(reqestObj, logger, callback) {
+    var wgetArgsList;
+    if(reqestObj.downloadFilesList) {
+        wgetArgsList = _.map(reqestObj.downloadFilesList, function(item) {
+            var wgetInput = normalizeServerURL(reqestObj.management.url) + item;
+            var wgetOutput = "/opt/Android/" + path.basename(item);
+            return [wgetInput, "-qO", wgetOutput];
+        });
+    } else {
+        logger.info("Start android without files updating");
+        return callback(null);
+    }
+    logger.info("wget arguments: " + JSON.stringify(wgetArgsList));
+
+    async.series(
+        [
+            function(callback) {
+                async.eachSeries(
+                    wgetArgsList,
+                    function(item, callback) {
+                        execFile("wget", item, function(error, stdout, stderr) {
+                            if(error) {
+                                logger.error("Cannot download file " + item[0] + ", err: " + error);
+                            }
+                            callback(error);
+                        });
+                    },
+                    callback
+                );
+            }
+        ], function(err) {
+            if(err) {
+                logger.error("getFiles failed with err: " + err);
+            }
+            callback(err);
+        }
+    );
+};
+
