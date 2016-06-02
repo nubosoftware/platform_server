@@ -1,13 +1,13 @@
 {
   "dependencies": {
-    "accesslog": "",
-    "async": "",
-    "permission-parser": "http://nubolab.nubosoftware.com:4873/permission-parser/-/permission-parser-0.0.2.tgz",
-    "restify": "",
-    "ssh2": "",
-    "underscore": "",
+    "accesslog": "0.0.2",
+    "async": "^2.0.0-rc.3",
+    "permission-parser": "http://nubolab.nubosoftware.com:4873/permission-parser/-/permission-parser-0.0.4.tgz",
+    "restify": "4.0.4",
+    "ssh2": "0.4.15",
+    "underscore": "1.8.3",
     "validate.js": "^0.9.0",
-    "winston": "",
-    "winston-syslog": ""
+    "winston": "2.2.0",
+    "winston-syslog": "1.2.1"
   }
 }
