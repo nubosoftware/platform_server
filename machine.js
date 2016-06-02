@@ -11,17 +11,12 @@ var Platform = require('./platform.js');
 
 
 var flagInitAndroidStatus = 0; // 0: not yet done, 1: in progress, 2: done
-
-module.exports = {
-    startPlatformGet: startPlatformGet,
-    startPlatformPost: startPlatformPost,
-    killPlatform: killPlatform,
-    checkPlatformStatus: checkPlatformStatus
-};
+var RESTfull_message = "the platform not yet initialized";
 
 function startPlatformGet(req, res) {
     var resobj = {
         status: 1,
+        msg: RESTfull_message,
         androidStatus: flagInitAndroidStatus
     };
     res.end(JSON.stringify(resobj, null, 2));
@@ -29,7 +24,7 @@ function startPlatformGet(req, res) {
 
 function startPlatformPost(req, res) {
     var logger = new ThreadedLogger();
-    var reqestObj;
+    var requestObj;
     var requestInProgress = true;
 
     if (flagInitAndroidStatus > 0) {
@@ -53,42 +48,43 @@ function startPlatformPost(req, res) {
         //get data from post request
         function(callback) {
             http.getObjFromRequest(req, function(err, obj) {
+                requestObj = obj;
                 callback(err, obj);
             });
         },
-        function(obj, callback) {
-            var res = validateStartPlatformRequest(obj);
-            if (res) {
-                reqestObj = obj;
-                logger.info("startPlatform reqestObj:" + JSON.stringify(reqestObj));
-                callback(null);
-            } else {
-                callback("Bad request");
-            }
+        function (requestObj, callback) {
+            logger.info("startPlatform request data: " + JSON.stringify(requestObj));
+            validateStartPlatformRequestObj(requestObj, logger, callback);
         },
         function(callback) {
-            getFiles(reqestObj, logger, callback);
+            getFiles(requestObj, logger, callback);
         },
         function(callback) {
-            logger.info("preset platform parameters");
-            setParametersOnMachine(reqestObj, logger, callback);
+            RESTfull_message = "preset platform parameters";
+            logger.info(RESTfull_message);
+            setParametersOnMachine(requestObj, logger, callback);
         },
         function(callback) {
-            logger.info("init android");
-            initAndroid(reqestObj, logger, callback);
+            RESTfull_message = "init android";
+            logger.info(RESTfull_message);
+            initAndroid(requestObj, logger, callback);
         },
         function(callback) {
-            logger.info("post boot procedures");
-            afterInitAndroid(reqestObj, logger, callback);
+            RESTfull_message = "post boot procedures";
+            logger.info(RESTfull_message);
+            afterInitAndroid(requestObj, logger, callback);
         }
     ], function(err) {
         clearInterval(requestKeepAliveInterval);
         var resobj = {};
         if (err) {
+            RESTfull_message = "Start android failed";
+            logger.error("Error during start platform: " + err);
             resobj.status = 0;
             resobj.msg = err;
             flagInitAndroidStatus = 3;
         } else {
+            RESTfull_message = "Android run";
             resobj.status = 1;
             flagInitAndroidStatus = 2;
         }
@@ -97,8 +93,36 @@ function startPlatformPost(req, res) {
     });
 }
 
-var validateStartPlatformRequest = function(obj) {
-    return true;
+var validateStartPlatformRequestObj = function(reqestObj, logger, callback) {
+    var validate = require("validate.js");
+    var constraints = require("./validateConstraintsPredefine.js");
+
+    var constraint = {
+        platid: constraints.requestedIndexConstr,
+        gateway: {presence: true},
+        "gateway.apps_port": constraints.portConstr,
+        "gateway.external_ip": {},                      //not in use
+        "gateway.player_port": {},                      //not in use
+        "gateway.ssl": {},                              //not in use
+        "gateway.index": {},                            //not in use
+        "gateway.internal_ip": constraints.ipConstr,
+        "gateway.isGWDisabled": {},                     //not in use
+        "gateway.controller_port": constraints.portConstr,
+        management: {presence: true},
+        "management.url": constraints.hostConstr,
+        nfs: {presence: true},
+        "nfs.nfs_ip": constraints.ipConstr,
+        "nfs.ssh_ip": {},                               //not in use
+        "nfs.ssh_user": {},                             //not in use
+        "nfs.key_path": {},                             //not in use
+        "nfs.nfs_path": constraints.pathConstr,
+        downloadFilesList: {array: constraints.pathConstr},
+        settings: {presence: true},
+        "settings.withService": constraints.boolConstr,
+        "settings.hideControlPanel": constraints.boolConstr,
+    };
+    var res = validate(reqestObj, constraint);
+    callback(res);
 };
 
 function killPlatform(req, res) {
@@ -380,5 +404,12 @@ var getFiles = function(reqestObj, logger, callback) {
             callback(err);
         }
     );
+};
+
+module.exports = {
+    startPlatformGet: startPlatformGet,
+    startPlatformPost: startPlatformPost,
+    killPlatform: killPlatform,
+    checkPlatformStatus: checkPlatformStatus
 };
 

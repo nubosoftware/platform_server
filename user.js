@@ -436,7 +436,7 @@ function endSessionByUnum(unum, logger, callback) {
             }
         ], function (err, results) {
             if(err) {
-                logger.error("ERROR during user detach: " + err);
+                logger.error("Error during user detach: " + err);
             }
             callback(err);
         }
