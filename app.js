@@ -178,7 +178,7 @@ function getPackagesList(req,res) {
                 var packagesObjArray = [];
                 var lines = rawdata.split("\n");
                 lines.forEach(function(line) {
-                    if(line !== "") {
+                    if((line !== "") && (line !== "void endpwent()(3) is not implemented on Android")) {
                         var fields = line.split(" ");
                         var packagesObj = {
                             packageName: fields[0],
