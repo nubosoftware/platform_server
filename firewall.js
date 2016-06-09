@@ -43,12 +43,18 @@ function post(req, res, next) {
             //function(restore4, restore6, callback) {
             //    logger.info("apply iptables6");
             //    applyIptables("v6", restore6, function(err) {
+            //        if(err) {
+            //            logger.error("Cannot apply iptables6 rules.\nInput:\n" + restore6 + "\nOutput:\n" + err);
+            //        }
             //        callback(null, restore4, restore6);
             //    });
             //},
             function(restore4, restore6, callback) {
                 logger.info("apply iptables");
                 applyIptables("v4", restore4, function(err) {
+                    if(err) {
+                        logger.error("Cannot apply iptables rules.\nInput:\n" + restore4 + "\nOutput:\n" + err);
+                    }
                     callback(err);
                 });
             }
@@ -123,6 +129,12 @@ var convertTaskObjToRestoreLine = function(obj, err) {
         return "";
     }
 
+    if(obj.protocol) {
+        if(obj.protocol) {
+            res += " -p " + obj.protocol;
+        }
+    }
+
     if(obj.source) {
         if(obj.source.ip) {
             res += " -s " + obj.source.ip;
@@ -138,12 +150,6 @@ var convertTaskObjToRestoreLine = function(obj, err) {
         }
         if(obj.destination.port) {
             res += " --dport " + obj.destination.port;
-        }
-    }
-
-    if(obj.protocol) {
-        if(obj.protocol) {
-            res += " -p " + obj.protocol;
         }
     }
 
@@ -163,8 +169,6 @@ var convertTaskObjToRestoreLine = function(obj, err) {
 };
 
 var applyIptables = function(version, input, callback) {
-    var logger = new ThreadedLogger();
-    logger.info("Version " + version + " input:\n" + input);
     var Commands = {
         "v4": "iptables-restore",
         "v6": "iptables6-restore"
@@ -188,6 +192,8 @@ var applyIptables = function(version, input, callback) {
 
             proc.on("close", function(code) {
                 if(code === 0) {
+                    callback(null);
+                } else if(output === "") {
                     callback(null);
                 } else {
                     callback("exit code " + code + " output:" + output);
