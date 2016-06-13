@@ -5,6 +5,7 @@ var filter = {
     {"path": "/startPlatform", "constraints": {}},
     {"path": "/killPlatform", "constraints": {}},
     {"path": "/attachUser", "constraints": {}},
+    {"path": "/createNewUserTarGz", "constraints": {}},
     {
       "path": "/detachUser",
       "constraints": {
