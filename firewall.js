@@ -183,17 +183,15 @@ var applyIptables = function(version, input, callback) {
             proc.stdin.end();
 
             proc.stdout.on("data", function(data) {
-                output += output;
+                output += data;
             });
 
             proc.stderr.on("data", function(data) {
-                output += output;
+                output += data;
             });
 
             proc.on("close", function(code) {
                 if(code === 0) {
-                    callback(null);
-                } else if(output === "") {
                     callback(null);
                 } else {
                     callback("exit code " + code + " output:" + output);
