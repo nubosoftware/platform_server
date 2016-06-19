@@ -95,7 +95,7 @@ function startPlatformPost(req, res) {
 
 var validateStartPlatformRequestObj = function(reqestObj, logger, callback) {
     var validate = require("validate.js");
-    var constraints = require("./validateConstraintsPredefine.js");
+    var constraints = require("nubo-validateConstraints");
 
     var constraint = {
         platid: constraints.requestedIndexConstr,
