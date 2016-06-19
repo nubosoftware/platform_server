@@ -5,6 +5,7 @@ GatewayURL=
 PlatformID=
 ManagementHostName=
 ManagementURL=
+PlatformUID=
 
 NFSPREF=
 ExchangeID=0
@@ -47,6 +48,7 @@ sed "s,PARAM_GATEWAY_URL,$GatewayURL," -i /Android/data/data/Session.xml
 sed "s,PARAM_PLATFORM_ID,$PlatformID," -i /Android/data/data/Session.xml
 sed "s,PARAM_MANAGEMENT_URL,$ManagementURL," -i /Android/data/data/Session.xml
 sed "s,PARAM_EXCHANGE_ID,$ExchangeID," -i /Android/data/data/Session.xml
+sed "s,PARAM_PLATFORM_UID,$PlatformUID," -i /Android/data/data/Session.xml
 mkdir /Android/data/tmp
 
 cat $IMGHOME/dhcpcd.conf > /Android/system/etc/dhcpcd/dhcpcd.conf
