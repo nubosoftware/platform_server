@@ -14,6 +14,7 @@ var userModule = require('./user.js');
 var appModule = require('./app.js');
 var filesModule = require('./files.js');
 var firewallModule = require('./firewall.js');
+var createNewUserTarGzModule = require('./createNewUserTarGz.js');
 
 var filterModule = require('permission-parser');
 var filterOpts = {
@@ -192,6 +193,7 @@ function buildServerObject(server) {
     server.post("/refreshMedia", filesModule.refreshMedia);
     server.get("/checkPlatformStatus", machineModule.checkPlatformStatus);
     server.post("/applyFirewall", firewallModule.post);
+    server.get("/createNewUserTarGz",createNewUserTarGzModule.create);
 }
 
 Common.loadCallback = mainFunction;
