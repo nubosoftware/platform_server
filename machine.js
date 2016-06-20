@@ -95,10 +95,11 @@ function startPlatformPost(req, res) {
 
 var validateStartPlatformRequestObj = function(reqestObj, logger, callback) {
     var validate = require("validate.js");
-    var constraints = require("./validateConstraintsPredefine.js");
+    var constraints = require("nubo-validateConstraints");
 
     var constraint = {
         platid: constraints.requestedIndexConstr,
+        platUID: constraints.requestedPlatformUIDConstr,
         gateway: {presence: true},
         "gateway.apps_port": constraints.portConstr,
         "gateway.external_ip": {},                      //not in use
@@ -156,6 +157,10 @@ var setParametersOnMachine = function(obj, logger, callback) {
             if (obj.nfs) {
                 cmd += sed_replacer("NFSPREF", obj.nfs.nfs_ip + ":" + obj.nfs.nfs_path) + " && ";
             }
+            if(obj.platUID) {
+                cmd += sed_replacer("PlatformUID", obj.platUID) + " && ";
+            }
+
             cmd += "true";
             exec(cmd, function(error, stdout, stderr) {
                 if (error) {
