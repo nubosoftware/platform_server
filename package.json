@@ -2,7 +2,7 @@
   "dependencies": {
     "accesslog": "0.0.2",
     "async": "^2.0.0-rc.3",
-    "permission-parser": "https://nubolab.nubosoftware.com:4873/permission-parser/-/permission-parser-0.0.4.tgz",
+    "permission-parser": "https://nubolab.nubosoftware.com:4874/permission-parser/-/permission-parser-0.0.4.tgz",
     "restify": "4.0.4",
     "ssh2": "0.4.15",
     "underscore": "1.8.3",
