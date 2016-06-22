@@ -149,7 +149,7 @@ var setParametersOnMachine = function(obj, logger, callback) {
             }
             if (obj.management) {
                 var url = obj.management.url;
-                var re = new RegExp('http[s]?://([^/]*)/?');
+                var re = new RegExp('http[s]?://([^/:]*)/?');
                 var m = re.exec(url);
                 cmd += sed_replacer("ManagementURL", url) + " && ";
                 cmd += sed_replacer("ManagementHostName", m[1]) + " && ";
