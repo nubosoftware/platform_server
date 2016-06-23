@@ -111,6 +111,7 @@ var validateStartPlatformRequestObj = function(reqestObj, logger, callback) {
         "gateway.controller_port": constraints.portConstr,
         management: {presence: true},
         "management.url": constraints.hostConstr,
+        "management.ip": constraints.ipConstr,
         nfs: {presence: true},
         "nfs.nfs_ip": constraints.ipConstr,
         "nfs.ssh_ip": {},                               //not in use
@@ -153,6 +154,9 @@ var setParametersOnMachine = function(obj, logger, callback) {
                 var m = re.exec(url);
                 cmd += sed_replacer("ManagementURL", url) + " && ";
                 cmd += sed_replacer("ManagementHostName", m[1]) + " && ";
+                if(obj.management.ip) {
+                    cmd += sed_replacer("ManagementIP", obj.management.ip) + " && ";
+                }
             }
             if (obj.nfs) {
                 cmd += sed_replacer("NFSPREF", obj.nfs.nfs_ip + ":" + obj.nfs.nfs_path) + " && ";

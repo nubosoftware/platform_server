@@ -3,6 +3,7 @@
 IMGHOME="/opt/Android/"
 GatewayURL=
 PlatformID=
+ManagementIP=
 ManagementHostName=
 ManagementURL=
 PlatformUID=
@@ -52,7 +53,7 @@ sed "s,PARAM_PLATFORM_UID,$PlatformUID," -i /Android/data/data/Session.xml
 mkdir /Android/data/tmp
 
 cat $IMGHOME/dhcpcd.conf > /Android/system/etc/dhcpcd/dhcpcd.conf
-#echo "172.16.1.202 $ManagementHostName" >> /Android/system/etc/hosts
+#echo "$ManagementIP $ManagementHostName" >> /Android/system/etc/hosts
 
 echo > /proc/sys/kernel/hotplug
 chroot /Android /init &
