@@ -31,7 +31,7 @@ var logger = new (winston.Logger)({
                 json: false
             }),
             new winston.transports.Syslog({
-                app_name: "nubomanagement",
+                app_name: "platform_server",
                 handleExceptions: true,
                 json: true
             })
@@ -73,7 +73,8 @@ function parse_configs() {
         }
         msg = data.toString().replace(/[\n|\t]/g, '');
         var settings = JSON.parse(msg);
-        Common.logger.info(settings);
+        if(settings.logLevel && (settings.logLevel !== Common.logLevel)) logger.level = settings.logLevel;
+        Common.logger.debug(settings);
 
         // load all attributes of settings in to Common
         for(var attrname in settings) {
