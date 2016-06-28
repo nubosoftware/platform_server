@@ -5,7 +5,15 @@ var fs = require('fs');
 var path = require('path');
 var async = require('async');
 
-var Common = {};
+var Common = {
+    "sslCerts": {
+        "ca": "../cert/root.crt",
+        "key": "../cert/platform.key",
+        "cert": "../cert/platformFull.crt"
+    },
+    managementCertsFingerprint: [],
+    managementCertIssuerFingerprint: "B9:60:12:5A:15:AE:6A:5B:09:12:24:04:DC:0A:1E:E0:6B:15:93:85"
+};
 
 try {
     fs.mkdirSync("./log");

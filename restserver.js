@@ -152,11 +152,24 @@ function nocache(req, res, next) {
 }
 
 function validateCertificate(req, res, next) {
+    var certObj;
     if(res.socket.authorized) {
-        logger.info('Authorized request');
-        logger.debug(JSON.stringify(res.socket.getPeerCertificate()));
+        certObj = res.socket.getPeerCertificate(true);
+        //sometime (next time: 2nd, 3rd) certObj come without certObj.issuerCertificate, so we keep fingerprints of known certificates
+        if(Common.managementCertsFingerprint.indexOf(certObj.fingerprint) !== -1) {
+            //Certificate in list of known certificates
+            next();
+        } else if(certObj.issuerCertificate && Common.managementCertIssuerFingerprint && (certObj.issuerCertificate.fingerprint === Common.managementCertIssuerFingerprint)) {
+            //Certificate is not in list of known certificates, but it's issuer is known issuer, then add certificate to list of  known certificates
+            Common.managementCertsFingerprint.push(certObj.fingerprint);
+            next();
+        } else {
+            logger.error("Reject try access to " + req.url + " with wrong nubo certificate: " + JSON.stingify(certObj.subject));
+            res.send(401);
+        }
+    } else {
+        next();
     }
-    next();
 }
 
 function buildServerObject(server) {
