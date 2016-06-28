@@ -106,7 +106,7 @@ var validateStartPlatformRequestObj = function(reqestObj, logger, callback) {
         "gateway.player_port": {},                      //not in use
         "gateway.ssl": {},                              //not in use
         "gateway.index": {},                            //not in use
-        "gateway.internal_ip": constraints.ipConstr,
+        "gateway.internal_ip": constraints.ipOptionalConstr,
         "gateway.isGWDisabled": {},                     //not in use
         "gateway.controller_port": constraints.portConstr,
         management: {presence: true},
@@ -122,6 +122,9 @@ var validateStartPlatformRequestObj = function(reqestObj, logger, callback) {
         settings: {presence: true},
         "settings.withService": constraints.boolConstr,
         "settings.hideControlPanel": constraints.boolConstr,
+        rsyslog: {},
+        "rsyslog.ip": constraints.ipOptionalConstr,
+        "rsyslog.port": constraints.ipOptionalConstr
     };
     var res = validate(reqestObj, constraint);
     callback(res);
@@ -213,6 +216,22 @@ var afterInitAndroid = function(reqestObj, logger, callback) {
                     }
                     callback(err);
                 });
+            },
+            function(callback) {
+                var timeoutSec = 30;
+                logger.info("Waiting upto " + timeoutSec + " seconds for android ssh server...");
+                waitForProcessWithTimeout("/system/bin/sshd", timeoutSec, callback);
+            },
+            function(callback) {
+                if(reqestObj.rsyslog && reqestObj.rsyslog.ip) {
+                    var cmd = "busybox syslogd -R " + reqestObj.rsyslog.ip + " ; busybox klogd";
+                    logger.info("cmd: " + cmd);
+                    platform.exec(cmd, function(err, code, signal, sshout) {
+                        callback(null);
+                    });
+                } else {
+                    callback(null);
+                }
             },
             function(callback) {
                 var timeoutSec = 300;
