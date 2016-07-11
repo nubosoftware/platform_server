@@ -164,10 +164,11 @@ function validateCertificate(req, res, next) {
             Common.managementCertsFingerprint.push(certObj.fingerprint);
             next();
         } else {
-            logger.error("Reject try access to " + req.url + " with wrong nubo certificate: " + JSON.stingify(certObj.subject));
+            logger.error("Reject try access to " + req.url + " with wrong nubo certificate: " + JSON.stringify(certObj.subject));
             res.send(401);
         }
     } else {
+        // https listener request authorization with certificate, so if it is not authorized, it can been only http listener
         next();
     }
 }
