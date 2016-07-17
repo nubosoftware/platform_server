@@ -205,9 +205,70 @@ var applyIptables = function(version, input, callback) {
     }
 };
 
-var validateApplyFirewallRequestObj = function(RequestObj, logger, callback) {
-    logger.warn("validateApplyFirewallRequestObj not implemented");
-    callback(null, RequestObj);
+var validateApplyFirewallRequestObj = function(reqestObj, logger, callback) {
+    var validate = require("validate.js");
+    var constraints = require("nubo-validateConstraints");
+
+    var constraint = {
+        tasks: {
+            isArray: true,
+            array : {
+                v: {
+                    presence: true,
+                    inclusion: {
+                        within: ["v4", "v6"]
+                    }
+                },
+                cmd: {
+                    presence: true,
+                    inclusion: {
+                        within: [
+                            "append", "check", "delete", "insert",
+                            "replace", "list", "list-rules", "flush",
+                            "zero", "new", "delete-chain", "policy",
+                            "rename-chain"
+                        ]
+                    }
+                },
+                chain: {
+                    presence: true,
+                    format: "[A-Z0-9\_]+",
+                    length: {
+                        "minimum" : 1,
+                        "maximum" : 1000
+                    }
+                },
+                protocol: {
+                    inclusion: {
+                        within: ["TCP", "UDP"]
+                    }
+                },
+                source: {},
+                "source.ip": constraints.ipOptionalConstr,
+                "source.port": constraints.portOptionalConstr,
+                destination: {},
+                "destination.ip": constraints.ipOptionalConstr,
+                "destination.port": constraints.portOptionalConstr,
+                match: {
+                    format: "[\ A-Za-z0-9\,\.\_\-]+",
+                    length: {
+                        "minimum" : 1,
+                        "maximum" : 1000
+                    }
+                },
+                job: {
+                    format: "[A-Z0-9\_]+",
+                    length: {
+                        "minimum" : 1,
+                        "maximum" : 1000
+                    }
+                }
+            }
+        }
+    };
+    var res = validate(reqestObj, constraint);
+    if(res) logger.error("input is not valid: " + JSON.stringify(res));
+    callback(res, reqestObj);
 };
 
 module.exports = {post: post};
