@@ -206,7 +206,26 @@ function getPackagesList(req,res) {
 }
 
 var validateAttachAppsRequestObj = function(RequestObj, logger, callback) {
-    logger.warn("validateAttachAppsRequestObj not implemented");
-    callback(null, RequestObj);
+    var validate = require("validate.js");
+    var constraints = require("nubo-validateConstraints");
+
+    var constraint = {
+        tasks: {
+            isArray: true,
+            array : {
+                packageName: constraints.packagenameConstrRequested,
+                unum: constraints.requestedIndexConstr,
+                task: {
+                    presence: true,
+                    inclusion: {
+                        within: [0, 1]
+                    }
+                }
+            }
+        }
+    };
+    var res = validate(reqestObj, constraint);
+    if(res) logger.error("input is not valid: " + JSON.stringify(res));
+    callback(res, RequestObj);
 };
 
