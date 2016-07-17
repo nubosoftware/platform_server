@@ -65,7 +65,18 @@ var processRefreshMedia = function(obj, logger, callback) {
 };
 
 var validateRefreshMediaRequestObj = function(RequestObj, logger, callback) {
-    logger.warn("validateRefreshMediaRequestObj not implemented");
-    callback(null, RequestObj);
+    var validate = require("validate.js");
+    var constraints = require("nubo-validateConstraints");
+
+    var constraint = {
+        unum: constraints.requestedIndexConstr,
+        paths: {
+            isArray: true,
+            array : constraints.pathConstrRequested
+        }
+    };
+    var res = validate(reqestObj, constraint);
+    if(res) logger.error("input is not valid: " + JSON.stringify(res));
+    callback(res, RequestObj);
 };
 
