@@ -468,7 +468,32 @@ function createFile(file, data, permissions, uid, gid, callback) {
 }
 
 var validateAttachUserRequestObj = function(RequestObj, logger, callback) {
-    logger.warn("validateAttachUserRequestObj not implemented");
-    callback(null, RequestObj);
+    var validate = require("validate.js");
+    var constraints = require("nubo-validateConstraints");
+
+    var constraint = {
+        timeZone: constraints.excludeSpecialCharacters,
+        login: {presence: true},
+        "login.userName": constraints.requestedExcludeSpecialCharacters,
+        "login.email": {presence: true, email: true},
+        "login.lang": constraints.excludeSpecialCharacters,
+        "login.countrylang": constraints.excludeSpecialCharacters,
+        "login.localevar": constraints.excludeSpecialCharacters,
+        "login.deviceType": constraints.excludeSpecialCharacters,
+        session: {presence: true},
+        "session.email": {presence: true, email: true},
+        "session.deviceid": constraints.requestedExcludeSpecialCharacters,
+        nfs: {presence: true},
+        "nfs.nfs_ip": constraints.ipConstr,
+        "nfs.nfs_path": constraints.pathConstrRequested,
+        "nfs.nfs_path_slow": constraints.pathConstrOptional,
+        nfs_slow: {},
+        "nfs_slow.nfs_ip": constraints.ipOptionalConstr,
+        "nfs_slow.nfs_path": constraints.pathConstrOptional,
+        "nfs_slow.nfs_path_slow": constraints.pathConstrOptional
+    };
+    var res = validate(reqestObj, constraint);
+    if(res) logger.error("input is not valid: " + JSON.stringify(res));
+    callback(res, reqestObj);
 };
 
