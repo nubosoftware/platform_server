@@ -467,7 +467,7 @@ function createFile(file, data, permissions, uid, gid, callback) {
     );
 }
 
-var validateAttachUserRequestObj = function(RequestObj, logger, callback) {
+var validateAttachUserRequestObj = function(reqestObj, logger, callback) {
     var validate = require("validate.js");
     var constraints = require("nubo-validateConstraints");
 
