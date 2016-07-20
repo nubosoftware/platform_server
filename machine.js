@@ -218,7 +218,7 @@ var afterInitAndroid = function(reqestObj, logger, callback) {
                 });
             },
             function(callback) {
-                var timeoutSec = 30;
+                var timeoutSec = 90;
                 logger.info("Waiting upto " + timeoutSec + " seconds for android ssh server...");
                 waitForProcessWithTimeout("/system/bin/sshd", timeoutSec, callback);
             },
@@ -234,7 +234,7 @@ var afterInitAndroid = function(reqestObj, logger, callback) {
                 }
             },
             function(callback) {
-                var timeoutSec = 300;
+                var timeoutSec = 900;
                 logger.info("Waiting upto " + timeoutSec + " seconds for 1st boot of android...");
                 waitForProcessWithTimeout("android.process.acore", timeoutSec, callback);
             },
