@@ -492,8 +492,8 @@ var validateAttachUserRequestObj = function(reqestObj, logger, callback) {
         "nfs_slow.nfs_path": constraints.pathConstrOptional,
         "nfs_slow.nfs_path_slow": constraints.pathConstrOptional
     };
-    var res = validate(reqestObj, constraint);
+    var res = validate(RequestObj, constraint);
     if(res) logger.error("input is not valid: " + JSON.stringify(res));
-    callback(res, reqestObj);
+    callback(res, RequestObj);
 };
 
