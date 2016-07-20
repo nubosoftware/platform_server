@@ -472,13 +472,37 @@ var validateAttachUserRequestObj = function(reqestObj, logger, callback) {
     var constraints = require("nubo-validateConstraints");
 
     var constraint = {
-        timeZone: constraints.excludeSpecialCharacters,
+        timeZone: {
+            format: "[a-zA-Z0-9\.\_\-\/]+",
+            length: {
+                "minimum" : 1,
+                "maximum" : 256
+            }
+        },
         login: {presence: true},
         "login.userName": constraints.requestedExcludeSpecialCharacters,
         "login.email": {presence: true, email: true},
-        "login.lang": constraints.excludeSpecialCharacters,
-        "login.countrylang": constraints.excludeSpecialCharacters,
-        "login.localevar": constraints.excludeSpecialCharacters,
+        "login.lang": {
+            format: "[a-zA-Z0-9\.\_\-]+",
+            length: {
+                "minimum" : 1,
+                "maximum" : 256
+            }
+        },
+        "login.countrylang": {
+            format: "[a-zA-Z0-9\.\_\-]+",
+            length: {
+                "minimum" : 1,
+                "maximum" : 256
+            }
+        },
+        "login.localevar": {
+            format: "[a-zA-Z0-9\.\_\-]+",
+            length: {
+                "minimum" : 1,
+                "maximum" : 256
+            }
+        },
         "login.deviceType": constraints.excludeSpecialCharacters,
         session: {presence: true},
         "session.email": {presence: true, email: true},
