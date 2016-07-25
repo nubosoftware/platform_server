@@ -1,0 +1,6 @@
+{
+  "sshPrivateKey": "/root/.ssh/id_rsa",
+  "listenAddresses": [
+    "http://:3333"
+  ]
+}

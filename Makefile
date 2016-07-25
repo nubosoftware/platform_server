@@ -3,8 +3,12 @@ mkfile_path := $(word $(words $(MAKEFILE_LIST)),$(MAKEFILE_LIST))
 nubo_proj_dir:=$(shell cd $(shell dirname $(mkfile_path))/..; pwd)
 LINUX_IMG_FULL_PATH:=$(nubo_proj_dir)/nuboplatform/out/target/product/x86_platform/linux.img
 
-default: img
+current_dir := $(shell pwd)
 
+include NuboVersion.txt
+VERSIONLINE=$(MAJOR).$(MINOR).$(PATCHLEVEL)
+
+default: img
 
 img: $(LINUX_IMG_FULL_PATH)
 	mkdir mnt
@@ -21,6 +25,17 @@ img: $(LINUX_IMG_FULL_PATH)
 	sudo losetup -d $(LOOPDEVICE)
 	rmdir mnt
 
+rpm:
+	PROJ_PATH=$(current_dir) \
+	rpmbuild -v \
+	--define "_topdir $(current_dir)/rpmbuild" \
+	--define "_version $(VERSIONLINE)" \
+	--define "_release $(BUILDID)" \
+	-ba rpmbuild/platform_server.spec
+	cp $(nubo_proj_dir)/platform_server/rpmbuild/RPMS/noarch/nuboplatform_server-$(VERSIONLINE)-$(BUILDID).noarch.rpm $(nubo_proj_dir)/rpms/latest/
+
 $(LINUX_IMG_FULL_PATH):
 	scp nubo@lab2.nubosoftware.com:N4.4/linux.img $(LINUX_IMG_FULL_PATH)
+
+.PHONY: img rpm
 

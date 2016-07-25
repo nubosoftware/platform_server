@@ -1,12 +1,12 @@
 Summary: platform service
-Name: platform_server
+Name: nuboplatform_server
 Version: %{_version}
 Release: %{_release}
 Group: System Environment/Daemons
 BuildArch: noarch
 #BuildArch: x86_64
 License: none
-Requires: forever, nodejs >= 4.4.5, nubo-common
+Requires: node-forever, nodejs >= 4.4.5, nubo-common, wget
 
 %description
 Service that implement api of possible requests to nubo platform
@@ -16,8 +16,6 @@ Service that implement api of possible requests to nubo platform
 #%patch -p1 -b .buildroot
 
 %build
-#make -C $NUBO_PROJ_PATH clean
-make -C $NUBO_PROJ_PATH
 
 %install
 rm -rf $RPM_BUILD_ROOT
@@ -25,9 +23,14 @@ mkdir -p $RPM_BUILD_ROOT/opt/platform_server
 mkdir -p $RPM_BUILD_ROOT/etc/rc.d/init.d
 mkdir -p $RPM_BUILD_ROOT/etc/rsyslog.d
 
-rsync -raF $NUBO_PROJ_PATH/*.js $RPM_BUILD_ROOT/opt/platform_server/
-install -m 744 $NUBO_PROJ_PATH/rh-platform_server $RPM_BUILD_ROOT/etc/rc.d/init.d/platform_server
-install -m 644 $NUBO_PROJ_PATH/rsyslog-platform_server.conf $RPM_BUILD_ROOT/etc/rsyslog.d/18-nubo-platform_server.conf
+#Copy js files from git project
+FILES=`git ls-tree --full-tree -r HEAD | awk '$4 ~ /.+\.js$/ {print $4}'`
+for file in ${FILES}; do
+    install -D -m 644 $PROJ_PATH/$file $RPM_BUILD_ROOT/opt/platform_server/$file
+done
+install -m 644 $PROJ_PATH/Settings.json.init $RPM_BUILD_ROOT/opt/platform_server/Settings.json
+install -m 744 $PROJ_PATH/rh-platform_server $RPM_BUILD_ROOT/etc/rc.d/init.d/platform_server
+install -m 644 $PROJ_PATH/rsyslog-platform_server.conf $RPM_BUILD_ROOT/etc/rsyslog.d/18-nubo-platform_server.conf
 
 %post
 /sbin/chkconfig --add platform_server
@@ -58,5 +61,5 @@ rm -rf $RPM_BUILD_ROOT
 %config(noreplace) /opt/platform_server/Settings.json
 
 /etc/rc.d/init.d/platform_server
-%config(noreplace) /etc/rsyslog.d/18-platform_server.conf
+%config(noreplace) /etc/rsyslog.d/18-nubo-platform_server.conf
 

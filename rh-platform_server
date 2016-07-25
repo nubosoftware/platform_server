@@ -1,0 +1,130 @@
+#!/bin/bash
+#
+# nubomanagement                Start up the nubo management
+#
+# chkconfig: 2345 95 25
+# description: Nubo management control clients and platforms
+#
+# processname: nubomanagement
+# pidfile: /var/run/nubomanagement.pid
+
+### BEGIN INIT INFO
+# Provides: nubogw
+# Required-Start: $local_fs $network $syslog $redis-server $cassandra
+# Required-Stop: $local_fs $syslog
+# Should-Start: $syslog
+# Should-Stop: $network $syslog
+# Default-Start: 2 3 4 5
+# Default-Stop: 0 1 6
+# Short-Description: Start up the nubo management
+# Description:       Nubo management control clients with platforms
+### END INIT INFO
+
+NUBOROOT=/opt
+# source function library
+. /etc/rc.d/init.d/functions
+
+
+RETVAL=0
+prog="platform_server"
+lockfile=/var/lock/subsys/$prog
+
+# Some functions to make the below more readable
+PID_FILE=/var/run/${prog}.pid
+
+runlevel=$(set -- $(runlevel); eval "echo \$$#" )
+
+forever_pid()
+{
+	PID=`/usr/bin/forever list | awk '/restserver.js/ {print $6}'`
+	if [ -n "$PID" ]; then
+		echo ${PID} > $PID_FILE
+	else
+		rm -f "$PID_FILE"
+	fi
+}
+
+start()
+{
+	if [ -f "$PID_FILE" ]; then
+		echo "$prog already run"
+		exit 1
+	fi
+	cd ${NUBOROOT}/${prog}
+	log_daemon_msg "Starting $prog: " || true
+	/usr/bin/forever --killSignal=SIGINT -s -l /dev/null -a start restserver.js > /dev/null
+	cd - > /dev/null
+	sleep 1
+	forever_pid
+	PID=`cat "$PID_FILE"`
+	if [ -z "$PID" ]; then
+		failure
+		RETVAL=1
+		echo
+	else
+        	ps `cat $PID_FILE` > /dev/null && success || failure
+        	RETVAL=$?
+        	echo
+	fi
+        [ $RETVAL -eq 0 ] && touch $lockfile
+        return $RETVAL
+}
+
+stop()
+{
+	if [ ! -f "$PID_FILE" ]; then
+		# not running; per LSB standards this is "ok"
+		action $"Stopping $prog: " /bin/true
+		return 0
+	fi
+	cd ${NUBOROOT}/${prog}
+	/usr/bin/forever stop restserver.js > /dev/null
+	cd - > /dev/null
+	sleep 1
+	forever_pid
+	PID=`cat "$PID_FILE"`
+	if [ -n "$PID" ]; then
+		action $"Stopping $prog: " /bin/false
+		RETVAL=1
+	else
+		 # failed to read pidfile - it is good
+		action $"Stopping $prog: " /bin/true
+	fi
+	[ $RETVAL -eq 0 ] && rm -f $lockfile
+	rm -f "$PID_FILE"
+        return $RETVAL
+}
+
+restart() {
+	stop
+	start
+}
+
+#status() {
+#	ps `cat $PID_FILE` > /dev/null
+#	exit $?
+#}
+
+case "$1" in
+	start)
+		start
+		;;
+	stop)
+		stop
+		;;
+	restart)
+		restart
+		;;
+	reload)
+		reload
+		;;
+	status)
+		forever_pid
+		status -p $PID_FILE $prog
+		;;
+	*)
+		echo $"Usage: $0 {start|stop|restart|status}"
+		RETVAL=2
+esac
+exit $RETVAL
+
