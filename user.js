@@ -467,13 +467,13 @@ function createFile(file, data, permissions, uid, gid, callback) {
     );
 }
 
-var validateAttachUserRequestObj = function(reqestObj, logger, callback) {
+var validateAttachUserRequestObj = function(requestObj, logger, callback) {
     var validate = require("validate.js");
     var constraints = require("nubo-validateConstraints");
 
     var constraint = {
         timeZone: {
-            format: "[a-zA-Z0-9\.\_\-\/]+",
+            format: "[a-zA-Z0-9\\.\\_\\-\\/]+",
             length: {
                 "minimum" : 1,
                 "maximum" : 256
@@ -483,21 +483,21 @@ var validateAttachUserRequestObj = function(reqestObj, logger, callback) {
         "login.userName": constraints.requestedExcludeSpecialCharacters,
         "login.email": {presence: true, email: true},
         "login.lang": {
-            format: "[a-zA-Z0-9\.\_\-]+",
+            format: "[a-zA-Z0-9\\.\\_\\-]+",
             length: {
                 "minimum" : 1,
                 "maximum" : 256
             }
         },
         "login.countrylang": {
-            format: "[a-zA-Z0-9\.\_\-]+",
+            format: "[a-zA-Z0-9\\.\\_\\-]+",
             length: {
                 "minimum" : 1,
                 "maximum" : 256
             }
         },
         "login.localevar": {
-            format: "[a-zA-Z0-9\.\_\-]+",
+            format: "[a-zA-Z0-9\\.\\_\\-]+",
             length: {
                 "minimum" : 1,
                 "maximum" : 256
@@ -516,8 +516,8 @@ var validateAttachUserRequestObj = function(reqestObj, logger, callback) {
         "nfs_slow.nfs_path": constraints.pathConstrOptional,
         "nfs_slow.nfs_path_slow": constraints.pathConstrOptional
     };
-    var res = validate(RequestObj, constraint);
+    var res = validate(requestObj, constraint);
     if(res) logger.error("input is not valid: " + JSON.stringify(res));
-    callback(res, RequestObj);
+    callback(res, requestObj);
 };
 
