@@ -25,6 +25,12 @@ img: $(LINUX_IMG_FULL_PATH)
 	sudo losetup -d $(LOOPDEVICE)
 	rmdir mnt
 
+deb:
+	PROJ_PATH=$(current_dir) \
+	Version=$(VERSIONLINE).$(BUILDID) \
+	./debbuilder/platform_server/debbuilder.sh && \
+	fakeroot dpkg-deb -b debbuild/platform_server $(nubo_proj_dir)/debs/latest/platform-server-$(VERSIONLINE)-$(BUILDID).deb
+
 rpm:
 	PROJ_PATH=$(current_dir) \
 	rpmbuild -v \

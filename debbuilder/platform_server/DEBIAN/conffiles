@@ -1,0 +1,2 @@
+/etc/rsyslog.d/18-nubo-platform_server.conf
+/opt/platform_server/Settings.json

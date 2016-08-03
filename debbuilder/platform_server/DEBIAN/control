@@ -1,0 +1,8 @@
+Package: nuboplatform-server
+Version: %Version%
+Architecture: all
+Depends: nodejs, wget, node-forever, nubo-common
+Recommends:
+Maintainer: NuboSoftware <alexander@nubosoftware.com>
+Section: main
+Description: RESTful api that provide possible actions with platform

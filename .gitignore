@@ -6,3 +6,4 @@ Settings.json
 log
 node_modules/
 rpmbuild
+debbuild

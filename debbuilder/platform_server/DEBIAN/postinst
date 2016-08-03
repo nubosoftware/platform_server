@@ -1,0 +1,14 @@
+#!/bin/sh
+
+service rsyslog reload > /dev/null 2>&1 ||:
+
+if [ -x "/etc/init.d/platform_server" ]; then
+	update-rc.d platform_server defaults >/dev/null
+
+	if [ -n "$2" ]; then
+		_dh_action=restart
+	else
+		_dh_action=start
+	fi
+	invoke-rc.d platform_server $_dh_action || exit $?
+fi
