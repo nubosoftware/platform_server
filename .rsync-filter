@@ -1,12 +1,19 @@
-- Settings.json
-- *.log
+- debbuilder
+- debbuild
 - .git
 - .gitignore
-- .jshintrc
-- .project
 - .idea
+- .jshintrc
 - log/*
-- platform_server.iml
 - mnt
 - Makefile
-
+- NuboVersion.txt
+- platform_server
+- platform_server.iml
+- .project
+- rh-platform_server
+- rpmbuild
+- rsyslog-platform_server.conf
+- Settings.json
+- Settings.json.init
+- *.log

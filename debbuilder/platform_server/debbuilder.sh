@@ -6,6 +6,7 @@ echo "BUILD_ROOT $BUILD_ROOT"
 
 rm -rf $BUILD_ROOT
 mkdir -p $BUILD_ROOT/opt/platform_server
+mkdir -p $BUILD_ROOT/opt/platform_server/log
 mkdir -p $BUILD_ROOT/etc/init.d
 mkdir -p $BUILD_ROOT/etc/rsyslog.d
 
