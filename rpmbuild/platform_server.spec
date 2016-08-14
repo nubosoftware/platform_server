@@ -29,7 +29,7 @@ for file in ${FILES}; do
     install -D -m 644 $PROJ_PATH/$file $RPM_BUILD_ROOT/opt/platform_server/$file
 done
 install -m 644 $PROJ_PATH/Settings.json.init $RPM_BUILD_ROOT/opt/platform_server/Settings.json
-install -m 744 $PROJ_PATH/rh-platform_server $RPM_BUILD_ROOT/etc/rc.d/init.d/platform_server
+install -m 755 $PROJ_PATH/scripts/rootfs/etc/init.d/platform_server-rh $RPM_BUILD_ROOT/etc/rc.d/init.d/platform_server
 install -m 644 $PROJ_PATH/rsyslog-platform_server.conf $RPM_BUILD_ROOT/etc/rsyslog.d/18-nubo-platform_server.conf
 
 %post
