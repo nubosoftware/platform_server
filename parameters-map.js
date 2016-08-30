@@ -66,7 +66,8 @@ var filter = {
         }
       }
     },
-    {"path": "/applyFirewall", "constraints": {}}
+    {"path": "/applyFirewall", "constraints": {}},
+    {"path": "/connectToVpn", "constraints": {}}
   ]
 };
 
