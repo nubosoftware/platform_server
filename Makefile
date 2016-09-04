@@ -26,12 +26,14 @@ img: $(LINUX_IMG_FULL_PATH)
 	rmdir mnt
 
 deb:
+	NUBO_PROJ_PATH=$(nubo_proj_dir) \
 	PROJ_PATH=$(current_dir) \
 	Version=$(VERSIONLINE).$(BUILDID) \
 	./debbuilder/platform_server/debbuilder.sh && \
 	fakeroot dpkg-deb -b debbuild/platform_server $(nubo_proj_dir)/debs/latest/platform-server-$(VERSIONLINE)-$(BUILDID).deb
 
 rpm:
+	NUBO_PROJ_PATH=$(nubo_proj_dir) \
 	PROJ_PATH=$(current_dir) \
 	rpmbuild -v \
 	--define "_topdir $(current_dir)/rpmbuild" \
