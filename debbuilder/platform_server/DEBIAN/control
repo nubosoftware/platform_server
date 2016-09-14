@@ -1,7 +1,7 @@
 Package: nuboplatform-server
 Version: %Version%
 Architecture: all
-Depends: nodejs(>= 4.4.5), wget, node-forever, nubo-common
+Depends: node-forever, nodejs(>= 4.4.5), nubo-common, wget, nfs-common
 Recommends:
 Maintainer: NuboSoftware <alexander@nubosoftware.com>
 Section: main

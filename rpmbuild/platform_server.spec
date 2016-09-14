@@ -6,7 +6,7 @@ Group: System Environment/Daemons
 BuildArch: noarch
 #BuildArch: x86_64
 License: none
-Requires: node-forever, nodejs >= 4.4.5, nubo-common, wget
+Requires: node-forever, nodejs >= 4.4.5, nubo-common, wget, nfs-utils
 
 %description
 Service that implement api of possible requests to nubo platform
