@@ -31,6 +31,8 @@ done
 install -m 644 $PROJ_PATH/Settings.json.init $RPM_BUILD_ROOT/opt/platform_server/Settings.json
 install -m 755 $NUBO_PROJ_PATH/scripts/rootfs/etc/init.d/platform_server-rh $RPM_BUILD_ROOT/etc/rc.d/init.d/platform_server
 install -m 644 $PROJ_PATH/rsyslog-platform_server.conf $RPM_BUILD_ROOT/etc/rsyslog.d/18-nubo-platform_server.conf
+install -m 644 $PROJ_PATH/package.json $RPM_BUILD_ROOT/opt/platform_server/package.json
+install -m 755 $PROJ_PATH/init-files.sh $RPM_BUILD_ROOT/opt/platform_server/init-files.sh
 
 cd $RPM_BUILD_ROOT/opt/platform_server
 npm install
