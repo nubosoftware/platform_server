@@ -65,6 +65,10 @@ function startPlatformPost(req, res) {
             setParametersOnMachine(requestObj, logger, callback);
         },
         function(callback) {
+            logger.debug("startPlatform: preconfigure vpn");
+            preVpnConfiguration(logger, callback);
+        },
+        function(callback) {
             RESTfull_message = "init android";
             logger.info(RESTfull_message);
             initAndroid(requestObj, logger, callback);
@@ -433,6 +437,81 @@ var getFiles = function(reqestObj, logger, callback) {
         }
     );
 };
+
+function preVpnConfiguration(logger, callback){
+        async.series([
+            //must load iptables before android platform starts, so netd can config init rules
+            function(callback) {
+                execFile("modprobe", ["iptable_nat"], function(error, stdout, stderr) {
+                    if(error){
+                        logger.debug("preVpnConfiguration: stdout: " + stdout);
+                    }
+                    callback(error);
+                });
+            },
+            function(callback) {
+                execFile("modprobe", ["iptable_raw"], function(error, stdout, stderr) {
+                    if(error){
+                        logger.error("preVpnConfiguration: stdout: " + stdout);
+                    }
+                    callback(error);
+                });
+            },
+            function(callback) {
+                execFile("modprobe", ["iptable_mangle"], function(error, stdout, stderr) {
+                    if(error){
+                        logger.error("preVpnConfiguration: stdout: " + stdout);
+                    }
+                    callback(error);
+                });
+            },
+            function(callback) {
+                execFile("modprobe", ["iptable_filter"], function(error, stdout, stderr) {
+                    if(error){
+                        logger.error("preVpnConfiguration: stdout: " + stdout);
+                    }
+                    callback(error);
+                });
+            },
+            function(callback) {
+                execFile("modprobe", ["tun"], function(error, stdout, stderr) {
+                    if(error){
+                        logger.error("preVpnConfiguration: stdout: " + stdout);
+                    }
+                    callback(error);
+                });
+            },
+            // need to load for legacy vpn
+            function(callback) {
+                execFile("modprobe", ["pppolac"], function(error, stdout, stderr) {
+                    if(error){
+                        logger.error("preVpnConfiguration: stdout: " + stdout);
+                    }
+                    callback(error);
+                });
+            },
+            // need to load for legacy vpn
+            function(callback) {
+                execFile("modprobe", ["pppopns"], function(error, stdout, stderr) {
+                    if(error){
+                        logger.error("preVpnConfiguration: stdout: " + stdout);
+                    }
+                    callback(error);
+                });
+            },
+            // since vpn requires asymetric routing this parameter need to be set so
+            // each new interface will be set with it (only vpn new interfaces should created)
+            function(callback) {
+                execFile("sysctl", ["net.ipv4.conf.default.rp_filter=2"], callback);
+            }
+        ], function(err) {
+            if(err) {
+                logger.error("preVpnConfiguration: " + err);
+            }
+            callback(err);
+        }
+    );
+}
 
 module.exports = {
     startPlatformGet: startPlatformGet,

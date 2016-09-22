@@ -15,6 +15,7 @@ var appModule = require('./app.js');
 var filesModule = require('./files.js');
 var firewallModule = require('./firewall.js');
 var createNewUserTarGzModule = require('./createNewUserTarGz.js');
+var vpn = require('./vpn.js');
 
 var filterModule = require('permission-parser');
 var filterOpts = {
@@ -208,6 +209,8 @@ function buildServerObject(server) {
     server.get("/checkPlatformStatus", machineModule.checkPlatformStatus);
     server.post("/applyFirewall", firewallModule.post);
     server.get("/createNewUserTarGz",createNewUserTarGzModule.create);
+    server.post("/connectToVpn",vpn.connectToVpn);
+
 }
 
 Common.loadCallback = mainFunction;
