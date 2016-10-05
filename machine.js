@@ -65,6 +65,12 @@ function startPlatformPost(req, res) {
             setParametersOnMachine(requestObj, logger, callback);
         },
         function(callback) {
+            if(!requestObj.vpnEnabled){
+                logger.debug("startPlatform: vpn disabled");
+                callback(null);
+                return;
+            }
+
             logger.debug("startPlatform: preconfigure vpn");
             preVpnConfiguration(logger, callback);
         },
