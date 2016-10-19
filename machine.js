@@ -65,12 +65,6 @@ function startPlatformPost(req, res) {
             setParametersOnMachine(requestObj, logger, callback);
         },
         function(callback) {
-            if(!requestObj.vpnEnabled){
-                logger.debug("startPlatform: vpn disabled");
-                callback(null);
-                return;
-            }
-
             logger.debug("startPlatform: preconfigure vpn");
             preVpnConfiguration(logger, callback);
         },
@@ -486,7 +480,7 @@ function preVpnConfiguration(logger, callback){
                     }
                     callback(error);
                 });
-            },
+            },/*
             // need to load for legacy vpn
             function(callback) {
                 execFile("modprobe", ["pppolac"], function(error, stdout, stderr) {
@@ -504,7 +498,7 @@ function preVpnConfiguration(logger, callback){
                     }
                     callback(error);
                 });
-            },
+            },*/
             // since vpn requires asymetric routing this parameter need to be set so
             // each new interface will be set with it (only vpn new interfaces should created)
             function(callback) {
