@@ -26,7 +26,7 @@ var filter = {
             "minimum": 4
           },
           "format": {
-            "pattern": "^[A-Za-z0-9\\.\\-_]+\\.apk$"
+            "pattern": "^[A-Za-z0-9\\.\\-_\/]+\\.apk$"
           }
         }
       }
