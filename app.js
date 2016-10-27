@@ -18,7 +18,13 @@ var UNINSTALL_TASK = [0, "u", "uninstall"];
 function installApk(req, res) {
     var logger = new ThreadedLogger();
     var apk = req.params.apk;
-
+    // Test for path manipulation
+    if ((apk.indexOf('..') >= 0) || (!apk.startsWith('/data/tmp/'))) {
+        var resobj = {status: 0, msg: 'Invalid file name'};
+        res.end(JSON.stringify(resobj, null, 2));
+        logger.logTime("Finish process request installApk");
+        return;
+    }
     logger.logTime("Start process request installApk");
 
     tryInstallApk(apk, 1, 0, logger, function(err, msg) {
