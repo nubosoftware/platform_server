@@ -219,7 +219,7 @@ var validateAttachAppsRequestObj = function(reqestObj, logger, callback) {
         tasks: {
             isArray: true,
             array : {
-                packageName: constraints.packagenameConstrRequested,
+                packageName: constraints.packageNameConstrRequested,
                 unum: constraints.requestedIndexConstr,
                 task: {
                     presence: true,

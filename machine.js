@@ -124,8 +124,8 @@ var validateStartPlatformRequestObj = function(reqestObj, logger, callback) {
         "nfs.nfs_path": constraints.pathConstr,
         downloadFilesList: {array: constraints.pathConstr},
         settings: {presence: true},
-        "settings.withService": constraints.boolConstr,
-        "settings.hideControlPanel": constraints.boolConstr,
+        "settings.withService": constraints.boolConstrOptional,
+        "settings.hideControlPanel": constraints.boolConstrOptional,
         rsyslog: {},
         "rsyslog.ip": constraints.ipOptionalConstr,
         "rsyslog.port": constraints.ipOptionalConstr
