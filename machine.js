@@ -102,22 +102,22 @@ var validateStartPlatformRequestObj = function(reqestObj, logger, callback) {
     var constraints = require("nubo-validateConstraints");
 
     var constraint = {
-        platid: constraints.requestedIndexConstr,
+        platid: constraints.platIdConstrRequested,
         platUID: constraints.requestedPlatformUIDConstr,
         gateway: {presence: true},
-        "gateway.apps_port": constraints.portConstr,
+        "gateway.apps_port": constraints.portNumberConstrRequested,
         "gateway.external_ip": {},                      //not in use
         "gateway.player_port": {},                      //not in use
         "gateway.ssl": {},                              //not in use
         "gateway.index": {},                            //not in use
-        "gateway.internal_ip": constraints.ipOptionalConstr,
+        "gateway.internal_ip": constraints.ipConstrOptional,
         "gateway.isGWDisabled": {},                     //not in use
-        "gateway.controller_port": constraints.portConstr,
+        "gateway.controller_port": constraints.portNumberConstrRequested,
         management: {presence: true},
         "management.url": constraints.hostConstr,
-        "management.ip": constraints.ipConstr,
+        "management.ip": constraints.ipConstrRequested,
         nfs: {presence: true},
-        "nfs.nfs_ip": constraints.ipConstr,
+        "nfs.nfs_ip": constraints.ipConstrRequested,
         "nfs.ssh_ip": {},                               //not in use
         "nfs.ssh_user": {},                             //not in use
         "nfs.key_path": {},                             //not in use
@@ -127,8 +127,8 @@ var validateStartPlatformRequestObj = function(reqestObj, logger, callback) {
         "settings.withService": constraints.boolConstrOptional,
         "settings.hideControlPanel": constraints.boolConstrOptional,
         rsyslog: {},
-        "rsyslog.ip": constraints.ipOptionalConstr,
-        "rsyslog.port": constraints.ipOptionalConstr
+        "rsyslog.ip": constraints.ipConstrOptional,
+        "rsyslog.port": constraints.ipConstrOptional
     };
     var res = validate(reqestObj, constraint);
     callback(res);

@@ -508,7 +508,7 @@ var validateAttachUserRequestObj = function(requestObj, logger, callback) {
         "session.email": {presence: true, email: true},
         "session.deviceid": constraints.requestedExcludeSpecialCharacters,
         nfs: {presence: true},
-        "nfs.nfs_ip": constraints.ipConstr,
+        "nfs.nfs_ip": constraints.ipConstrConstrRequested,
         "nfs.nfs_path": constraints.pathConstrRequested,
         "nfs.nfs_path_slow": constraints.pathConstrOptional,
         nfs_slow: {},
