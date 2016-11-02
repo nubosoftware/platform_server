@@ -10,18 +10,10 @@ var ThreadedLogger = require('./ThreadedLogger.js');
 function post(req, res, next) {
     var logger = new ThreadedLogger();
     var reqestObj;
+    var obj = req.body;
     async.waterfall(
         [
-            //get data from post request
             function(callback) {
-                http.getObjFromRequest(req, function(err, obj) {
-                    callback(err, obj);
-                });
-            },
-            function (reqestObj, callback) {
-                validateApplyFirewallRequestObj(reqestObj, logger, callback);
-            },
-            function(obj, callback) {
                 logger.info("applyFirewall input: " + JSON.stringify(obj));
                 callback(null, obj.tasks);
             },

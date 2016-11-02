@@ -75,21 +75,14 @@ var tryInstallApk = function(apkPath, retries, wait, logger, callback) {
 function attachApps(req, res) {
     var logger = new ThreadedLogger();
     logger.logTime("Start process request attachApps");
+    var obj = req.body;
+
     async.waterfall(
         [
-            //get data from post request
-            function(callback) {
-                http.getObjFromRequest(req, function(err, obj) {
-                    callback(err, obj);
-                });
-            },
-            function (reqestObj, callback) {
-                validateAttachAppsRequestObj(reqestObj, logger, callback);
-            },
             //create workable android user
-            function(reqestObj, callback) {
-                if(reqestObj.tasks.length > 0) {
-                    processTasks(reqestObj.tasks, logger, callback);
+            function(callback) {
+                if(obj.tasks.length > 0) {
+                    processTasks(obj.tasks, logger, callback);
                 } else {
                     callback(null, [], true);
                 }

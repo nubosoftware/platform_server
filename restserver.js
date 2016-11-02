@@ -18,10 +18,18 @@ var createNewUserTarGzModule = require('./createNewUserTarGz.js');
 var vpn = require('./vpn.js');
 
 var filterModule = require('permission-parser');
-var filterOpts = {
-    loge: logger.error
+
+var urlFilterOpts = {
+    loge: logger.error,
+    mode: filterModule.mode.URL
 };
-var filterObj = new filterModule([], filterOpts);
+
+var bodyFilterOpts = {
+    loge: logger.error,
+    mode: filterModule.mode.BODY
+};
+var urlFilterObj = new filterModule.filter([], urlFilterOpts);
+var bodyFilterObj = new filterModule.filter([], bodyFilterOpts);
 var filterFile = "./parameters-map.js";
 fs.watchFile(filterFile, {
     persistent : false,
@@ -44,7 +52,8 @@ var refresh_filter = function() {
         return;
     }
     console.log("obj: " + JSON.stringify(obj));
-    filterObj.reload(obj.rules, {permittedMode: obj.permittedMode});
+    urlFilterObj.reload(obj.rules, {permittedMode: obj.permittedMode});
+    bodyFilterObj.reload(obj.rules, {permittedMode: obj.permittedMode});
 };
 refresh_filter();
 
@@ -187,7 +196,9 @@ function buildServerObject(server) {
     });
     server.use(validateCertificate);
     server.use(restify.queryParser());
-    server.use(filterObj.useHandler);
+    server.use(urlFilterObj.useHandler);
+    server.use(restify.bodyParser({mapParams: false}));
+    server.use(bodyFilterObj.useHandler);
     server.use(function(req, res, next) {
         req.realIP = req.headers['x-real-ip'] || req.connection.remoteAddress;
         next();

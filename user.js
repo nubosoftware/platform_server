@@ -23,23 +23,15 @@ function attachUser(req, res) {
     var resDone = false;
     var logger = new ThreadedLogger();
     var unum = 0;
+    var obj = req.body;
     logger.logTime("Start process request attachUser");
 
     async.waterfall(
         [
-            //get data from post request
-            function (callback) {
-                http.getObjFromRequest(req, function(err, obj) {
-                    callback(err, obj);
-                });
-            },
-            function (reqestObj, callback) {
-                validateAttachUserRequestObj(reqestObj, logger, callback);
-            },
             //create workable android user
-            function (reqestObj, callback) {
-                console.log("reqestObj: ", reqestObj);
-                createUser(reqestObj, logger, callback);
+            function (callback) {
+                console.log("reqestObj: ", obj);
+                createUser(obj, logger, callback);
             },
             //response to request on success
             function (session, callback) {
@@ -506,7 +498,7 @@ var validateAttachUserRequestObj = function(requestObj, logger, callback) {
         "login.deviceType": constraints.excludeSpecialCharacters,
         session: {presence: true},
         "session.email": {presence: true, email: true},
-        "session.deviceid": constraints.requestedExcludeSpecialCharacters,
+        "session.deviceid": constraints.deviceIdConstrRequested,
         nfs: {presence: true},
         "nfs.nfs_ip": constraints.ipConstrConstrRequested,
         "nfs.nfs_path": constraints.pathConstrRequested,

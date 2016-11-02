@@ -24,7 +24,6 @@ function startPlatformGet(req, res) {
 
 function startPlatformPost(req, res) {
     var logger = new ThreadedLogger();
-    var requestObj;
     var requestInProgress = true;
 
     if (flagInitAndroidStatus > 0) {
@@ -43,19 +42,10 @@ function startPlatformPost(req, res) {
     );
 
     logger.logTime("Start process request startPlatform");
+    var requestObj = req.body;
+    
     async.waterfall(
         [
-        //get data from post request
-        function(callback) {
-            http.getObjFromRequest(req, function(err, obj) {
-                requestObj = obj;
-                callback(err, obj);
-            });
-        },
-        function (requestObj, callback) {
-            logger.info("startPlatform request data: " + JSON.stringify(requestObj));
-            validateStartPlatformRequestObj(requestObj, logger, callback);
-        },
         function(callback) {
             getFiles(requestObj, logger, callback);
         },

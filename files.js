@@ -14,19 +14,11 @@ function refreshMedia(req, res) {
     var logger = new ThreadedLogger();
     logger.logTime("Start process request refreshMedia");
     var platform = new Platform(logger);
+    var obj = req.body;
     async.waterfall(
         [
-            //get data from post request
             function(callback) {
-                http.getObjFromRequest(req, function(err, obj) {
-                    callback(err, obj);
-                });
-            },
-            function (reqestObj, callback) {
-                validateRefreshMediaRequestObj(reqestObj, logger, callback);
-            },
-            function(reqestObj, callback) {
-                processRefreshMedia(reqestObj, logger, callback);
+                processRefreshMedia(obj, logger, callback);
             },
             function(callback) {
                 var resobj = {
