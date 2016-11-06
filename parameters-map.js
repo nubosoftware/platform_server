@@ -26,7 +26,7 @@ var filter = {
             "management": {
                 "presence": true
             },
-            "management.url": constraints.hostConstr,
+            "management.url": constraints.hostConstrRequested,
             "management.ip": constraints.ipConstrRequested,
             "nfs": {
                 "presence": true
@@ -65,7 +65,7 @@ var filter = {
             "login": {
                 presence: true
             },
-            "login.userName": constraints.requestedExcludeSpecialCharacters,
+            "login.userName": constraints.ExcludeSpecialCharactersRequested,
             "login.email": constraints.emailConstrRequested,
             "login.lang": {
                 "format": "^([a-zA-Z0-9\\_\\-]+\.?)+$",
@@ -88,12 +88,12 @@ var filter = {
                     "maximum": 256
                 }
             },
-            "login.deviceType": constraints.excludeSpecialCharacters,
+            "login.deviceType": constraints.ExcludeSpecialCharactersOptional,
             "session": {
                 presence: true
             },
             "session.email": constraints.emailConstrRequested,
-            "session.deviceid": constraints.requestedExcludeSpecialCharacters,
+            "session.deviceid": constraints.ExcludeSpecialCharactersRequested,
             "nfs": {
                 presence: true
             },
