@@ -56,7 +56,7 @@ var filter = {
         "constraints": {},
         "bodyConstraints": {
             "timeZone": {
-                "format": "^([a-zA-Z0-9\\_\\-\\/]+\.?)+$",
+                "format": "^[a-zA-Z0-9_-\/]+$",
                 "length": {
                     "minimum": 1,
                     "maximum": 256
@@ -68,21 +68,21 @@ var filter = {
             "login.userName": constraints.ExcludeSpecialCharactersRequested,
             "login.email": constraints.emailConstrRequested,
             "login.lang": {
-                "format": "^([a-zA-Z0-9\\_\\-]+\.?)+$",
+                "format": "^[a-zA-Z0-9_-.]+$",
                 "length": {
                     "minimum": 1,
                     "maximum": 256
                 }
             },
             "login.countrylang": {
-                "format": "^([a-zA-Z0-9\\_\\-]+\.?)+$",
+                "format": "^[a-zA-Z0-9_-.]+$",
                 "length": {
                     "minimum": 1,
                     "maximum": 256
                 }
             },
             "login.localevar": {
-                "format": "^([a-zA-Z0-9\\_\\-]+\.?)+$",
+                "format": "^[a-zA-Z0-9_-.]+$",
                 "length": {
                     "minimum": 1,
                     "maximum": 256
@@ -149,7 +149,7 @@ var filter = {
         "constraints": {
             "filter": {
                 "format": {
-                    "pattern": "^([A-Za-z0-9\\-_\\*]+\.?)+$"
+                    "pattern": "^[A-Za-z0-9-_*.]+$"
                 }
             }
         }
@@ -169,7 +169,7 @@ var filter = {
             "username": {
                 "presence": true,
                 "format": {
-                    "pattern": "^([A-Za-z0-9\\-_@]+\.?)+$"
+                    "pattern": "^[A-Za-z0-9-_@.]+$"
                 }
             },
             "deviceid": constraints.deviceIdConstrRequested,
@@ -201,7 +201,7 @@ var filter = {
                     },
                     "chain": {
                         "presence": true,
-                        "format": "^[A-Z0-9\_]+$",
+                        "format": "^[A-Z0-9_]+$",
                         "length": {
                             "minimum": 1,
                             "maximum": 1000
@@ -219,14 +219,14 @@ var filter = {
                     "destination.ip": constraints.ipOptionalConstr,
                     "destination.port": constraints.portOptionalConstr,
                     "match": {
-                        "format": "^([\ A-Za-z0-9\,\_\-]+\.?)+$",
+                        "format": "^[\ A-Za-z0-9,_-.]+$",
                         "length": {
                             "minimum": 1,
                             "maximum": 1000
                         }
                     },
                     "job": {
-                        "format": "^([A-Z0-9\_]+\.?)+$",
+                        "format": "^[A-Z0-9_.]+$",
                         "length": {
                             "minimum": 1,
                             "maximum": 1000
