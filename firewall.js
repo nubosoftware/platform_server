@@ -3,7 +3,6 @@
 var async = require('async');
 var _ = require('underscore');
 var validate = require("validate.js");
-var exec = require('child_process').exec;
 var http = require('./http.js');
 var ThreadedLogger = require('./ThreadedLogger.js');
 

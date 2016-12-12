@@ -6,7 +6,6 @@ var validate = require("validate.js");
 //var Common = require('./common.js');
 //var logger = Common.logger;
 var ThreadedLogger = require('./ThreadedLogger.js');
-var exec = require('child_process').exec;
 var mount = require('./mount.js');
 var Platform = require('./platform.js');
 var http = require('./http.js');
