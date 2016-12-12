@@ -1,17 +1,7 @@
 #!/bin/sh
 
 IMGHOME="/opt/Android/"
-GatewayURL=
-PlatformID=
-ManagementIP=
-ManagementHostName=
-ManagementURL=
-PlatformUID=
 
-NFSPREF=
-ExchangeID=0
-
-#rsync -a -e "ssh -o StrictHostKeyChecking=no" --inplace --progress nubo@$ManagementHostName:/opt/Android-KitKat/ $IMGHOME/ || exit 1
 dd if=/dev/zero of=$IMGHOME/cache.img bs=1M count=2048 && mkfs.ext4 -F $IMGHOME/cache.img || exit 1
 
 mount -t tmpfs tmpfs /Android/ || exit 1
@@ -45,15 +35,9 @@ mkdir /Android/data/data/
 chown 1000.1000 /Android/data/data/
 chmod 771 /Android/data/data/
 cp $IMGHOME/Session.xml /Android/data/data/
-sed "s,PARAM_GATEWAY_URL,$GatewayURL," -i /Android/data/data/Session.xml
-sed "s,PARAM_PLATFORM_ID,$PlatformID," -i /Android/data/data/Session.xml
-sed "s,PARAM_MANAGEMENT_URL,$ManagementURL," -i /Android/data/data/Session.xml
-sed "s,PARAM_EXCHANGE_ID,$ExchangeID," -i /Android/data/data/Session.xml
-sed "s,PARAM_PLATFORM_UID,$PlatformUID," -i /Android/data/data/Session.xml
 mkdir /Android/data/tmp
 
 cat $IMGHOME/dhcpcd.conf > /Android/system/etc/dhcpcd/dhcpcd.conf
-#echo "$ManagementIP $ManagementHostName" >> /Android/system/etc/hosts
 
 echo > /proc/sys/kernel/hotplug
 chroot /Android /init &

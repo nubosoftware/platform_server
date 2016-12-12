@@ -4,11 +4,11 @@ var path = require("path");
 var async = require('async');
 var _ = require('underscore');
 var http = require('./http.js');
-var exec = require('child_process').exec;
 var execFile = require('child_process').execFile;
 var ThreadedLogger = require('./ThreadedLogger.js');
 var Platform = require('./platform.js');
-
+var fs = require('fs');
+var common = require('./common.js');
 
 var flagInitAndroidStatus = 0; // 0: not yet done, 1: in progress, 2: done
 var RESTfull_message = "the platform not yet initialized";
@@ -132,56 +132,45 @@ function killPlatform(req, res) {
 }
 
 var setParametersOnMachine = function(obj, logger, callback) {
-    var sed_replacer = function(key, value) {
-        return "sed \"s,\\(^" + key + "=\\).*,\\1" + value + ",\" -i /opt/Android/init-files.sh";
-    };
-    async.series(
-        [
-        function(callback) {
-            var cmd = "";
-            if (obj.platid) {
-                cmd += sed_replacer("PlatformID", obj.platid) + " && ";
-            }
-            if (obj.gateway) {
-                cmd += sed_replacer("GatewayURL", obj.gateway.internal_ip) + " && ";
-            }
-            if (obj.management) {
-                var url = obj.management.url;
-                var re = new RegExp('http[s]?://([^/:]*)/?');
-                var m = re.exec(url);
-                cmd += sed_replacer("ManagementURL", url) + " && ";
-                cmd += sed_replacer("ManagementHostName", m[1]) + " && ";
-                if(obj.management.ip) {
-                    cmd += sed_replacer("ManagementIP", obj.management.ip) + " && ";
-                }
-            }
-            if (obj.nfs) {
-                cmd += sed_replacer("NFSPREF", obj.nfs.nfs_ip + ":" + obj.nfs.nfs_path) + " && ";
-            }
-            if(obj.platUID) {
-                cmd += sed_replacer("PlatformUID", obj.platUID) + " && ";
-            }
 
-            cmd += "true";
-            exec(cmd, function(error, stdout, stderr) {
-                if (error) {
-                    logger.error("cmd: " + cmd);
-                    logger.error("error: " + JSON.stringify(error, null, 2));
-                    logger.error("stdout: " + stdout);
-                    logger.error("stderr: " + stderr);
-                }
-                callback(error);
-            });
+    var xml =  "<?xml version='1.0' encoding='utf-8' standalone='yes' ?>\n" + 
+               '<session>\n'+
+               '<gateway_controller_port>8891</gateway_controller_port>\n' +
+               '<gateway_apps_port>8890</gateway_apps_port>\n';
+
+    if(obj.gateway){
+        xml += '<gateway_url>' + obj.gateway.internal_ip + '</gateway_url>\n';
+    }
+
+    if (obj.platid) {  
+        xml +=   '<platformID>' + obj.platid + '</platformID>\n';
+    }
+
+    if (obj.management) {
+        xml += '<management_url>' + obj.management.url + '</management_url>\n';
+    }
+
+    if(obj.platUID) {
+        xml += '<platform_uid>' + obj.platUID + '</platform_uid>\n';
+    }
+
+    xml += '</session>\n';
+
+    fs.writeFile("/opt/Android/Session.xml", xml, function(err){
+        if(err){
+            logger.error('setParametersOnMachine: ' + err);
+            callback(err);
+            return;
         }
-    ], function(err) {
-        callback(err);
-        }
-    );
+
+        logger.info("setParametersOnMachine: Session.xml created");
+        callback(null);
+    });
 };
 
 var initAndroid = function(reqestObj, logger, callback) {
     var cmd = "/opt/Android/init-files.sh";
-    exec(cmd, function(error, stdout, stderr) {
+    execFile(cmd, [], function(error, stdout, stderr) {
         if (error) {
             logger.error("cmd: " + cmd);
             logger.error("error: " + JSON.stringify(error, null, 2));
@@ -196,6 +185,35 @@ var afterInitAndroid = function(reqestObj, logger, callback) {
     var platform = new Platform(logger);
     async.series(
         [
+            function(callback) {
+                if (!common.setMgmtHostName) {
+                    callback(null);
+                    return;
+                }
+
+                var url = reqestObj.management.url;
+                var re = new RegExp('http[s]?://([^/:]*)/?');
+                var m = re.exec(url);
+
+                var ManagementHostName = m[1];
+
+                var ManagementIP;
+                if (reqestObj.management.ip) {
+                    ManagementIP = reqestObj.management.ip;
+                }
+
+                var mgmtHostName = ManagementIP + ' ' + ManagementHostName + '\n';
+                fs.appendFile('/Android/system/etc/hosts', mgmtHostName, function(err) {
+                    if (err) {
+                        logger.error('afterInitAndroid: ' + err);
+                        callback(err);
+                        return;
+                    }
+
+                    callback(null);
+                });
+
+            },
             function(callback) {
                 var nfsoptions = "nolock,hard,intr,vers=3,nosharecache,noatime,async"; //user 0
                 var src = [
@@ -287,7 +305,7 @@ var waitForProcessWithTimeout = function(name, timeoutSec, callback) {
         if (timeoutFlag) callback("timeout");
         else {
             setTimeout(function() {
-                exec("pidof " + name, function(error, stdout, stderr) {
+                execFile("pidof", [name], function(error, stdout, stderr) {
                     if (error) {
                         getPid(callback);
                     } else {

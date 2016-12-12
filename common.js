@@ -12,7 +12,8 @@ var Common = {
         "cert": "../cert/platformFull.crt"
     },
     managementCertsFingerprint: [],
-    managementCertIssuerFingerprint: "B9:60:12:5A:15:AE:6A:5B:09:12:24:04:DC:0A:1E:E0:6B:15:93:85"
+    managementCertIssuerFingerprint: "B9:60:12:5A:15:AE:6A:5B:09:12:24:04:DC:0A:1E:E0:6B:15:93:85",
+    setMgmtHostName: false
 };
 
 try {
