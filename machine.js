@@ -301,19 +301,34 @@ var waitForProcessWithTimeout = function(name, timeoutSec, callback) {
     var timeoutObj = setTimeout(function() {
         timeoutFlag = true;
     }, timeoutSec * 1000); // setTimeout
+    var re1 = new RegExp("^" + name + "\\b");
+    var re2 = new RegExp("^[^ ]*/" + name + "\\b");
+    var re3 = new RegExp("^\\[" + name + "\\]");
+
     var getPid = function(callback) {
         if (timeoutFlag) callback("timeout");
         else {
-            setTimeout(function() {
-                execFile("pidof", [name], function(error, stdout, stderr) {
-                    if (error) {
-                        getPid(callback);
-                    } else {
+            execFile("ps", ["-aux"], function(error, stdout, stderr) {
+                var lines;
+                var doneFlag = false;
+                if (error) stdout = "";
+                lines = stdout.split("\n");
+                var cmdStartPos = lines[0].indexOf("COMMAND");
+                lines.forEach(function(row) {
+                    var cmdLine = row.slice(cmdStartPos);
+                    if(re1.exec(cmdLine) || re2.exec(cmdLine) || re3.exec(cmdLine)) {
                         clearTimeout(timeoutObj);
-                        callback(null);
+                        doneFlag = true;
+                        console.log("row: " + row);
                     }
                 });
-            }, 4 * 1000);
+                if(doneFlag) callback(null);
+                else {
+                    setTimeout(function() {
+                        getPid(callback);
+                    }, 4 * 1000);
+                }
+            });
         }
     };
     getPid(callback);
