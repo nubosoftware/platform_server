@@ -3,9 +3,10 @@
 var async = require('async');
 var util = require('util');
 var underscore = require('underscore');
-var exec = require('child_process').exec;
+var execFile = require('child_process').execFile;
 var Common = require('./common.js');
 var logger = Common.logger;
+var fs = require('fs');
 
 /*
  * Check is directories in mount points
@@ -327,44 +328,98 @@ function getUserHomeFolder(email) {
  */
 function mountHostNfs(src, dst, options, callback) {
     function do_mountnfs(retries, src, dst, mask, options, callback) {
-    console.log("mountHostNfs do_mountnfs retries=" + retries);
-        var cmd = "";
-        var msg;
-        for (var i=0; i<src.length; i++) {
-            if(!mask[i]) {
-                cmd = cmd + "mkdir -p " + dst[i] + " ; timeout 10 mount -t nfs -o " + options + " " + src[i] + " " + dst[i] + " && \\\n";
-            }
-        }
-        cmd += "cat /proc/mounts | cut -f 2 -d \" \"";
-        logger.info("cmd:\n" + cmd);
-        exec(cmd, function(err, stdout, stderr) {
-            if (err) {
-                msg = "Error in shell: " + err;
-                callback(msg, mask);
-                return;
-            } else {
-                var mounts = stdout.split(/[\r\n]+/);
-                var res = underscore.map(dst, function(dir){ return mounts.indexOf(dir) !== -1; });
-                if ((mounts.indexOf("/") === -1) || (res.indexOf(false) !== -1)) {
-                    if (retries <= 1) {
-                        msg = "Error: cannot mount all nfs folders, err: " + err;
-                        callback(msg, res);
-                    } else {
-                        setTimeout(function() {
-                            do_mountnfs(retries-1, src, dst, res, options, callback);
-                        }, 100);
-                    }
-                } else {
-                    callback(null, res);
+        console.log("mountHostNfs do_mountnfs retries=" + retries);
+        var i = 0;
+
+        async.eachSeries(src,
+            function(source, callback) {
+
+                if (mask[i]) {
+                    callback(null);
+                    return;
                 }
+
+                async.series([
+                    function(callback) {
+                        var mkdirParams = ['-p', dst[i]];
+                        execFile('mkdir', mkdirParams, function(err, stdout, stderr) {
+                            if (err) {
+                                logger.error("do_mountnfs: mkdir: " + err);
+                                logger.error("do_mountnfs: mkdir: " + stderr);
+                                callback(err);
+                                return;
+                            }
+
+                            callback(null);
+                        });
+                    },
+                    function(callback) {
+
+                        var mountParams = ['-t', 'nfs', '-o', options, src[i], dst[i]];
+                        var mountOpts = {
+                            timeout: 10000
+                        };
+                        execFile('mount', mountParams, mountOpts, function(err, stdout, stderr) {
+                            if (err) {
+                                logger.error("do_mountnfs: mount: " + err);
+                                logger.error("do_mountnfs: mount: " + stderr);
+                                callback(err);
+                                return;
+                            }
+
+                            i++;
+                            callback(null);
+                        });
+                    }
+                ], callback);
+            },
+            function(err) {
+                if (err) {
+                    callback(err);
+                    return;
+                }
+
+                fs.readFile('/proc/mounts', 'utf8', function(err, data) {
+                    if (err) {
+                        logger.error("do_mountnfs: mounts: " + err);
+                        callback("couldn't open mounts file");
+                        return;
+                    }
+
+                    var dataArray = data.split(/[\r\n]+/);
+                    var mounts = underscore.map(dataArray, function(mnt) {
+                        return mnt.split(" ")[1];
+                    });
+
+                    var res = underscore.map(dst, function(dir) {
+                        return mounts.indexOf(dir) !== -1;
+                    });
+
+
+                    if ((mounts.indexOf("/") === -1) || (res.indexOf(false) !== -1)) {
+                        if (retries <= 1) {
+                            var errMsg = "cannot mount all nfs folders";
+                            logger.error("do_mountnfs: " + errMsg);
+                            callback(errMsg, res);
+                            return;
+                        }
+
+                        setTimeout(function() {
+                            do_mountnfs(retries - 1, src, dst, res, options, callback);
+                        }, 100);
+                    } else {
+                        callback(null, res);
+                    }
+                });
             }
-        });
+        );
     }
 
-    var mask = underscore.map(src, function(dir){ return false; });
+    var mask = underscore.map(src, function(dir) {
+        return false;
+    });
     do_mountnfs(4, src, dst, mask, options, callback);
 }
-
 
 module.exports = {
     isMounted : isMounted,
