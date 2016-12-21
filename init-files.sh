@@ -34,7 +34,6 @@ chmod 600 /Android/data/ssh/authorized_keys
 mkdir /Android/data/data/
 chown 1000.1000 /Android/data/data/
 chmod 771 /Android/data/data/
-cp $IMGHOME/Session.xml /Android/data/data/
 mkdir /Android/data/tmp
 
 cat $IMGHOME/dhcpcd.conf > /Android/system/etc/dhcpcd/dhcpcd.conf

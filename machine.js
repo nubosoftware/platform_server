@@ -147,27 +147,6 @@ var setParametersOnMachine = function(obj, logger, callback) {
     async.series(
         [
             function(callback) {
-                var sessionXmlContent = 
-                    "<?xml version='1.0' encoding='utf-8' standalone='yes' ?>\n" +
-                    '<session>\n'+
-                        '<gateway_controller_port>8891</gateway_controller_port>\n' +
-                        '<gateway_apps_port>8890</gateway_apps_port>\n' +
-                        '<gateway_url>' + obj.gateway.internal_ip + '</gateway_url>\n' +
-                        '<platformID>' + obj.platid + '</platformID>\n' +
-                        '<management_url>' + obj.management.url + '</management_url>\n' +
-                        '<platform_uid>' + obj.platUID + '</platform_uid>\n' +
-                    '</session>\n';
-                fs.writeFile("/opt/Android/Session.xml", sessionXmlContent, function(err) {
-                    if(err) {
-                        logger.error('setParametersOnMachine: ' + err);
-                        callback(err);
-                    } else {
-                        logger.info("setParametersOnMachine: Session.xml created");
-                        callback(null);
-                    }
-                });
-            },
-            function(callback) {
                 fixHostsFile("/etc/hosts", obj.management.ip, obj.management.url, callback);
             }
         ], function(err) {
@@ -189,6 +168,27 @@ var initAndroid = function(reqestObj, logger, callback) {
                         logger.error("stderr: " + stderr);
                     }
                     callback(error);
+                });
+            },
+            function(callback) {
+                var sessionXmlContent =
+                    "<?xml version='1.0' encoding='utf-8' standalone='yes' ?>\n" +
+                    '<session>\n'+
+                        '<gateway_controller_port>8891</gateway_controller_port>\n' +
+                        '<gateway_apps_port>8890</gateway_apps_port>\n' +
+                        '<gateway_url>' + obj.gateway.internal_ip + '</gateway_url>\n' +
+                        '<platformID>' + obj.platid + '</platformID>\n' +
+                        '<management_url>' + obj.management.url + '</management_url>\n' +
+                        '<platform_uid>' + obj.platUID + '</platform_uid>\n' +
+                    '</session>\n';
+                fs.writeFile("/Android/data/data/Session.xml", sessionXmlContent, function(err) {
+                    if(err) {
+                        logger.error('setParametersOnMachine: ' + err);
+                        callback(err);
+                    } else {
+                        logger.info("setParametersOnMachine: Session.xml created");
+                        callback(null);
+                    }
                 });
             },
             function(callback) {
