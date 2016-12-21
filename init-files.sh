@@ -40,5 +40,4 @@ mkdir /Android/data/tmp
 cat $IMGHOME/dhcpcd.conf > /Android/system/etc/dhcpcd/dhcpcd.conf
 
 echo > /proc/sys/kernel/hotplug
-chroot /Android /init &
 

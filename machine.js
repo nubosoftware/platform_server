@@ -1,6 +1,8 @@
 "use strict";
 
+var net = require("net");
 var path = require("path");
+var url = require("url");
 var async = require('async');
 var _ = require('underscore');
 var http = require('./http.js');
@@ -47,12 +49,12 @@ function startPlatformPost(req, res) {
     async.waterfall(
         [
         function(callback) {
-            getFiles(requestObj, logger, callback);
-        },
-        function(callback) {
             RESTfull_message = "preset platform parameters";
             logger.info(RESTfull_message);
             setParametersOnMachine(requestObj, logger, callback);
+        },
+        function(callback) {
+            getFiles(requestObj, logger, callback);
         },
         function(callback) {
             logger.debug("startPlatform: preconfigure vpn");
@@ -131,89 +133,91 @@ function killPlatform(req, res) {
     res.end(JSON.stringify(resobj, null, 2));
 }
 
-var setParametersOnMachine = function(obj, logger, callback) {
-
-    var xml =  "<?xml version='1.0' encoding='utf-8' standalone='yes' ?>\n" + 
-               '<session>\n'+
-               '<gateway_controller_port>8891</gateway_controller_port>\n' +
-               '<gateway_apps_port>8890</gateway_apps_port>\n';
-
-    if(obj.gateway){
-        xml += '<gateway_url>' + obj.gateway.internal_ip + '</gateway_url>\n';
-    }
-
-    if (obj.platid) {  
-        xml +=   '<platformID>' + obj.platid + '</platformID>\n';
-    }
-
-    if (obj.management) {
-        xml += '<management_url>' + obj.management.url + '</management_url>\n';
-    }
-
-    if(obj.platUID) {
-        xml += '<platform_uid>' + obj.platUID + '</platform_uid>\n';
-    }
-
-    xml += '</session>\n';
-
-    fs.writeFile("/opt/Android/Session.xml", xml, function(err){
-        if(err){
-            logger.error('setParametersOnMachine: ' + err);
-            callback(err);
-            return;
+function fixHostsFile(path, ip, managementUrl, callback) {
+    var managementUrlObj = url.parse(managementUrl);
+        if(net.isIP(managementUrlObj.hostname)) {
+            callback(null);
+        } else {
+            var hostsLine = ip + ' ' + managementUrlObj.hostname + '\n';
+            fs.appendFile(path, hostsLine, callback);
         }
+}
 
-        logger.info("setParametersOnMachine: Session.xml created");
-        callback(null);
-    });
+var setParametersOnMachine = function(obj, logger, callback) {
+    async.series(
+        [
+            function(callback) {
+                var sessionXmlContent = 
+                    "<?xml version='1.0' encoding='utf-8' standalone='yes' ?>\n" +
+                    '<session>\n'+
+                        '<gateway_controller_port>8891</gateway_controller_port>\n' +
+                        '<gateway_apps_port>8890</gateway_apps_port>\n' +
+                        '<gateway_url>' + obj.gateway.internal_ip + '</gateway_url>\n' +
+                        '<platformID>' + obj.platid + '</platformID>\n' +
+                        '<management_url>' + obj.management.url + '</management_url>\n' +
+                        '<platform_uid>' + obj.platUID + '</platform_uid>\n' +
+                    '</session>\n';
+                fs.writeFile("/opt/Android/Session.xml", sessionXmlContent, function(err) {
+                    if(err) {
+                        logger.error('setParametersOnMachine: ' + err);
+                        callback(err);
+                    } else {
+                        logger.info("setParametersOnMachine: Session.xml created");
+                        callback(null);
+                    }
+                });
+            },
+            function(callback) {
+                fixHostsFile("/etc/hosts", obj.management.ip, obj.management.url, callback);
+            }
+        ], function(err) {
+            callback(err);
+        }
+    );
 };
 
 var initAndroid = function(reqestObj, logger, callback) {
-    var cmd = "/opt/Android/init-files.sh";
-    execFile(cmd, [], function(error, stdout, stderr) {
-        if (error) {
-            logger.error("cmd: " + cmd);
-            logger.error("error: " + JSON.stringify(error, null, 2));
-            logger.error("stdout: " + stdout);
-            logger.error("stderr: " + stderr);
+    async.series(
+        [
+            function(callback) {
+                var cmd = "/opt/Android/init-files.sh";
+                execFile(cmd, [], function(error, stdout, stderr) {
+                    if (error) {
+                        logger.error("cmd: " + cmd);
+                        logger.error("error: " + JSON.stringify(error, null, 2));
+                        logger.error("stdout: " + stdout);
+                        logger.error("stderr: " + stderr);
+                    }
+                    callback(error);
+                });
+            },
+            function(callback) {
+                fixHostsFile("/Android/system/etc/hosts", reqestObj.management.ip, reqestObj.management.url, callback);
+            },
+            function(callback) {
+                var chroot_proc = require('child_process').spawn(
+                    "chroot",
+                    [
+                        "/Android", "/init"
+                    ],
+                    {
+                        stdio: [ "ignore", "ignore", "ignore" ],
+                        detached: true,
+                    }
+                );
+                chroot_proc.unref();
+                callback(null);
+            }
+        ], function(err) {
+            callback(err);
         }
-        callback(error);
-    });
+    );
 };
 
 var afterInitAndroid = function(reqestObj, logger, callback) {
     var platform = new Platform(logger);
     async.series(
         [
-            function(callback) {
-                if (!common.setMgmtHostName) {
-                    callback(null);
-                    return;
-                }
-
-                var url = reqestObj.management.url;
-                var re = new RegExp('http[s]?://([^/:]*)/?');
-                var m = re.exec(url);
-
-                var ManagementHostName = m[1];
-
-                var ManagementIP;
-                if (reqestObj.management.ip) {
-                    ManagementIP = reqestObj.management.ip;
-                }
-
-                var mgmtHostName = ManagementIP + ' ' + ManagementHostName + '\n';
-                fs.appendFile('/Android/system/etc/hosts', mgmtHostName, function(err) {
-                    if (err) {
-                        logger.error('afterInitAndroid: ' + err);
-                        callback(err);
-                        return;
-                    }
-
-                    callback(null);
-                });
-
-            },
             function(callback) {
                 var nfsoptions = "nolock,hard,intr,vers=3,nosharecache,noatime,async"; //user 0
                 var src = [
