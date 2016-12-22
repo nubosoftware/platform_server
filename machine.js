@@ -176,10 +176,10 @@ var initAndroid = function(reqestObj, logger, callback) {
                     '<session>\n'+
                         '<gateway_controller_port>8891</gateway_controller_port>\n' +
                         '<gateway_apps_port>8890</gateway_apps_port>\n' +
-                        '<gateway_url>' + obj.gateway.internal_ip + '</gateway_url>\n' +
-                        '<platformID>' + obj.platid + '</platformID>\n' +
-                        '<management_url>' + obj.management.url + '</management_url>\n' +
-                        '<platform_uid>' + obj.platUID + '</platform_uid>\n' +
+                        '<gateway_url>' + reqestObj.gateway.internal_ip + '</gateway_url>\n' +
+                        '<platformID>' + reqestObj.platid + '</platformID>\n' +
+                        '<management_url>' + reqestObj.management.url + '</management_url>\n' +
+                        '<platform_uid>' + reqestObj.platUID + '</platform_uid>\n' +
                     '</session>\n';
                 fs.writeFile("/Android/data/data/Session.xml", sessionXmlContent, function(err) {
                     if(err) {
