@@ -333,7 +333,7 @@ function refreshPackages(session, callback) {
     var localid = session.params.localid;
     var platform = session.platform;
     var deviceType = session.login.deviceType;
-    var cmd = 'pm refresh ' + localid;
+    var cmd = 'pm refresh ' + localid + '; pm disable --user ' + localid + ' com.android.vending';
     if(deviceType === 'Web') {
         cmd = cmd + "; pm disable --user " + localid + " com.android.browser";
     }
