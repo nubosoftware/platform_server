@@ -9,6 +9,6 @@
     "validate.js": "^0.9.0",
     "winston": "2.2.0",
     "winston-syslog": "1.2.1",
-    "nubo-validateConstraints": "0.0.18"
+    "nubo-validateConstraints": "0.0.26"
   }
 }

@@ -1,5 +1,5 @@
 "use strict";
-var constraints = require("nubo-validateConstraints");
+var constraints = require("nubo-validateConstraints")(false);
 
 var filter = {
     "permittedMode": true,
@@ -16,25 +16,25 @@ var filter = {
                 "presence": true
             },
             "gateway.apps_port": constraints.portNumberConstrRequested,
-            "gateway.external_ip": {}, //not in use
-            "gateway.player_port": {}, //not in use
-            "gateway.ssl": {}, //not in use
-            "gateway.index": {}, //not in use
-            "gateway.internal_ip": constraints.ipConstrOptional,
-            "gateway.isGWDisabled": {}, //not in use
+            "gateway.external_ip": constraints.ExcludeSpecialCharactersRequested, // not in use
+            "gateway.player_port": constraints.ExcludeSpecialCharactersRequested, // not in use
+            "gateway.ssl": constraints.ExcludeSpecialCharactersRequested, // not in use
+            "gateway.index": constraints.ExcludeSpecialCharactersRequested, // not in use
+            "gateway.internal_ip": constraints.hostConstrRequested,
+            "gateway.isGWDisabled": constraints.ExcludeSpecialCharactersRequested, // not in use
             "gateway.controller_port": constraints.portNumberConstrRequested,
             "management": {
                 "presence": true
             },
-            "management.url": constraints.hostConstrRequested,
-            "management.ip": constraints.ipConstrRequested,
+            "management.url": constraints.urlConstrRequested,
+            "management.ip": constraints.ipConstrOptional,
             "nfs": {
                 "presence": true
             },
-            "nfs.nfs_ip": constraints.ipConstrRequested,
-            "nfs.ssh_ip": {}, //not in use
-            "nfs.ssh_user": {}, //not in use
-            "nfs.key_path": {}, //not in use
+            "nfs.nfs_ip": constraints.hostConstrRequested,
+            "nfs.ssh_ip": constraints.ExcludeSpecialCharactersRequested, // not in use
+            "nfs.ssh_user": constraints.ExcludeSpecialCharactersRequested, // not in use
+            "nfs.key_path": constraints.pathConstrRequested, // not in use
             "nfs.nfs_path": constraints.pathConstrRequested,
             "downloadFilesList": {
                 array: constraints.pathConstrRequested
@@ -46,7 +46,7 @@ var filter = {
             "settings.hideControlPanel": constraints.boolConstrOptional,
             "rsyslog": {},
             "rsyslog.ip": constraints.ipConstrOptional,
-            "rsyslog.port": constraints.ipConstrOptional
+            "rsyslog.port": constraints.portOptionalConstr
         }
     }, {
         "path": "/killPlatform",
@@ -65,7 +65,7 @@ var filter = {
             "login": {
                 presence: true
             },
-            "login.userName": constraints.ExcludeSpecialCharactersRequested,
+            "login.userName": constraints.userNameConstrRequested,
             "login.email": constraints.emailConstrRequested,
             "login.lang": {
                 "format": "^[.a-zA-Z0-9_\\-]+$",
@@ -116,15 +116,7 @@ var filter = {
     }, {
         "path": "/installApk",
         "constraints": {
-            "apk": {
-                "presence": true,
-                "length": {
-                    "minimum": 4
-                },
-                "format": {
-                    "pattern": "^([A-Za-z0-9\\-_\/]+\.?)+\.apk$"
-                }
-            }
+            "apk": constraints.pathConstrRequested
         }
     }, {
         "path": "/attachApps",
@@ -134,46 +126,25 @@ var filter = {
                 "isArray": true,
                 "array": {
                     "packageName": constraints.packageNameConstrRequested,
-                    "unum": constraints.IndexConstrRequested,
-                    "task": {
-                        "presence": true,
-                        "inclusion": {
-                            "within": [0, 1]
-                        }
-                    }
+                    "unum": constraints.NaturalNumberConstrRequested,
+                    "task": constraints.binaryBoolConstrRequested
                 }
             }
         }
     }, {
         "path": "/getPackagesList",
         "constraints": {
-            "filter": {
-                "format": {
-                    "pattern": "^[.A-Za-z0-9-_\\*]+$"
-                }
-            }
+            "filter": constraints.packageNameConstrOptional
         }
     }, {
         "path": "/refreshMedia",
         "constraints": {},
         "bodyConstraints": {
-            "unum": constraints.IndexConstrRequested,
+            "unum": constraints.NaturalNumberConstrRequested,
             "paths": {
                 "isArray": true,
                 "array": constraints.pathConstrRequested
             }
-        }
-    }, {
-        "path": "/checkPlatformStatus",
-        "constraints": {
-            "username": {
-                "presence": true,
-                "format": {
-                    "pattern": "^[.A-Za-z0-9\\-_@]+$"
-                }
-            },
-            "deviceid": constraints.deviceIdConstrRequested,
-            "platformip": constraints.ipConstrRequested
         }
     }, {
         "path": "/applyFirewall",

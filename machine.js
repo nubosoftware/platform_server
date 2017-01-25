@@ -338,89 +338,6 @@ var waitForProcessWithTimeout = function(name, timeoutSec, callback) {
     getPid(callback);
 };
 
-function checkPlatformStatus(req, res) {
-
-    var logger = new ThreadedLogger();
-    var platform = new Platform(logger);
-    var userName = req.params.username ? req.params.username : null;
-    var deviceID = req.params.deviceid ? req.params.deviceid : null;
-    var platformIP = req.params.platformip ? req.params.platformip : null;
-    var resobj = {
-        status: 0,
-        error: 'no error'
-    };
-
-
-    async.series([
-        function(callback) {
-            if(!userName || !deviceID || !platformIP)
-                callback("missing parameters");
-            else
-                callback(null);
-        },
-        //check platform responsiveness
-        function(callback) {
-            var cmd = "pm list users";
-            platform.exec(cmd, function(err, code, signal, sshout) {
-                if (err) {
-                    callback(err);
-                    return;
-                }
-                callback(null);
-            });
-        },
-        //Check userlist.xml file exists
-        function(callback) {
-            var cmd = "netcfg";
-            platform.exec(cmd, function(err, code, signal, sshout) {
-                if (err) {
-                    callback(err);
-                    return;
-                }
-                var n = sshout.search("eth0[\t ]*UP[\t ]*" + platformIP + "/");
-                if (n >= 0) {
-                    callback(null);
-                } else {
-                    callback("dead platform");
-                }
-            });
-        },
-        //Check if such user already exist and !!!do nothing!!!
-        function(callback) {
-            // skip this check
-            callback(null);
-            return;
-
-            var cmd = 'grep "<name>' + userName + deviceID + '</name>" /data/system/users/[0-9]*.xml';
-            platform.exec(cmd, function(err, code, signal, sshout) {
-                if (err) {
-                    callback(err);
-                    return;
-                }
-                var n = sshout.indexOf(UserName);
-                if (n >= 0) {
-                    var msg = "duplicate user id";
-                    callback(msg);
-                    return;
-                }
-                callback(null);
-            }); // ssh.exec
-        }
-    ], function(err) {
-        if (err) {
-            logger.error("checkStatus: " + err);
-            resobj.status = 0;
-            resobj.error = err;
-            res.end(JSON.stringify(resobj, null, 2));
-            return;
-        }
-
-        resobj.status = 1;
-        res.end(JSON.stringify(resobj, null, 2));
-    });
-}
-
-
 //remove symbol / from end of management url
 var normalizeServerURL = function(url) {
     return url.replace(/[\/]+$/, "");
@@ -543,7 +460,6 @@ function preVpnConfiguration(logger, callback){
 module.exports = {
     startPlatformGet: startPlatformGet,
     startPlatformPost: startPlatformPost,
-    killPlatform: killPlatform,
-    checkPlatformStatus: checkPlatformStatus
+    killPlatform: killPlatform
 };
 

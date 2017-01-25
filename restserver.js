@@ -217,10 +217,9 @@ function buildServerObject(server) {
     server.post("/attachApps", appModule.attachApps);
     server.get("/getPackagesList", appModule.getPackagesList);
     server.post("/refreshMedia", filesModule.refreshMedia);
-    server.get("/checkPlatformStatus", machineModule.checkPlatformStatus);
     server.post("/applyFirewall", firewallModule.post);
     server.get("/createNewUserTarGz",createNewUserTarGzModule.create);
-    server.post("/connectToVpn",vpn.connectToVpn);
+    // server.post("/connectToVpn",vpn.connectToVpn);
 
 }
 
