@@ -1,6 +1,7 @@
 "use strict";
 
 var async = require('async');
+var fs = require('fs');
 var validate = require("validate.js");
 var Platform = require('./platform.js');
 var ThreadedLogger = require('./ThreadedLogger.js');
@@ -166,10 +167,12 @@ function getPackagesList(req,res) {
         [
             //get data from packages.list
             function(callback) {
-                var cmd = "cat /data/system/packages.list";
-                if(filter) cmd += " | grep \"" + filter + "\"";
-                platform.exec(cmd, function(err, code, signal, sshout) {
-                    callback(err, sshout);
+                fs.readFile("/Android/data/system/packages.list", function(err, data) {
+                    if(err) {
+                        callback(err);
+                    } else {
+                        callback(null, data.toString());
+                    }
                 });
             },
             //parse data
@@ -177,13 +180,15 @@ function getPackagesList(req,res) {
                 var packagesObjArray = [];
                 var lines = rawdata.split("\n");
                 lines.forEach(function(line) {
-                    if((line !== "") && (line !== "void endpwent()(3) is not implemented on Android")) {
+                    if(line !== "") {
                         var fields = line.split(" ");
                         var packagesObj = {
                             packageName: fields[0],
                             offset: fields[1]
                         };
-                        packagesObjArray.push(packagesObj);
+                        if(!filter || (filter && filter === packagesObj.packageName)) {
+                            packagesObjArray.push(packagesObj);
+                        }
                     }
                 });
                 callback(null, packagesObjArray);
