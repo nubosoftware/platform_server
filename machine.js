@@ -195,6 +195,9 @@ var initAndroid = function(reqestObj, logger, callback) {
                 fixHostsFile("/Android/system/etc/hosts", reqestObj.management.ip, reqestObj.management.url, callback);
             },
             function(callback) {
+                fs.chmod("/Android/system/xbin", 0o750, callback);
+            },
+            function(callback) {
                 var chroot_proc = require('child_process').spawn(
                     "chroot",
                     [
