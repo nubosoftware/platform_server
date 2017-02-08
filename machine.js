@@ -192,6 +192,9 @@ var initAndroid = function(reqestObj, logger, callback) {
                 });
             },
             function(callback) {
+                fs.chmod("/Android/data/data/Session.xml", 0o644, callback);
+            },
+            function(callback) {
                 fixHostsFile("/Android/system/etc/hosts", reqestObj.management.ip, reqestObj.management.url, callback);
             },
             function(callback) {
