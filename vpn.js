@@ -44,28 +44,28 @@ function connectToVpn(req, res, next) {
 function connect(conf, logger, callback) {
 
 	var platform = new Platform(logger);
-	var cmd = "";
+	var amArgs;
 
 	if (conf.vpnType === 0) {
-		cmd = 'am broadcast -n com.nubo.nubosettings/.receivers.VpnReceiver -a com.nubo.nubosettings.CONFIG_LEGACY_VPN --user 0';
+	    amArgs = ["broadcast", "-n", "com.nubo.nubosettings/.receivers.VpnReceiver", "-a", "com.nubo.nubosettings.CONFIG_LEGACY_VPN", "--user", "0"];
 	} else if (conf.vpnType === 1) {
-		cmd = 'am broadcast -n com.nubo.nubosettings/.receivers.VpnReceiver -a com.nubo.nubosettings.CONFIG_OPENVPN --user ' + conf.userId;
+		amArgs = ["broadcast", "-n", "com.nubo.nubosettings/.receivers.VpnReceiver", "-a", "com.nubo.nubosettings.CONFIG_OPENVPN ", "--user", conf.userId];
 	} else {
 		logger.error("connect: unknown vpn request type");
-		callback("unknown vpn request type")
+		callback("unknown vpn request type");
 		return;
 	}
 
-	platform.exec(cmd, function(err, code, signal, sshout) {
+	platform.execFile("am", amArgs, function(err, stdout, stderr) {
 		if (err) {
 			logger.error("connect: " + err);
 			callback(err);
 			return;
 		}
 
-		if (sshout.indexOf("result=0") === -1) {
-			logger.error("connect: failed sending intent" + sshout);
-			callback(sshout);
+		if (stdout.indexOf("result=0") === -1) {
+			logger.error("connect: failed sending intent" + stdout);
+			callback(stdout);
 			return;
 		}
 

@@ -1,61 +1,55 @@
 "use strict";
 
+var execFile = require('child_process').execFile;
 var fs = require('fs');
 var Common = require('./common.js');
 var localPlatform = null;
 
 var Platform = function(curLogger) {
     var logger = curLogger;
-    var ssh = null;
-    var init = function(callback) {
-        if(ssh === null) {
-            require('./ssh')(
-                {
-                    username: "root",
-                    host: "127.0.0.1",
-                    port: 2222,
-                    privateKey: fs.readFileSync(Common.sshPrivateKey)
-                },
-                {},
-                function(err, sshobj) {
-                    if(err) {
-                        logger.error("Cannot init platform ssh connection, err:" + err);
-                    } else {
-                        ssh = sshobj;
-                    }
-                    callback(err);
-                }
-            );
-        } else {
-            callback(null);
-        }
+    
+    this.execFile = function(cmd, args, callback) {
+        var envNugat = {
+            "_": "/system/bin/env",
+            "ANDROID_DATA": "/data",
+            "ANDROID_ROOT": "/system",
+            "TMPDIR": "/data/local/tmp",
+            "ANDROID_BOOTLOGO": "1",
+            "ANDROID_ASSETS": "/system/app",
+            "ASEC_MOUNTPOINT": "/mnt/asec",
+            "BOOTCLASSPATH":
+                "/system/framework/core-oj.jar"+
+                ":/system/framework/core-libart.jar"+
+                ":/system/framework/conscrypt.jar"+
+                ":/system/framework/okhttp.jar"+
+                ":/system/framework/core-junit.jar"+
+                ":/system/framework/bouncycastle.jar"+
+                ":/system/framework/ext.jar"+
+                ":/system/framework/framework.jar"+
+                ":/system/framework/telephony-common.jar"+
+                ":/system/framework/voip-common.jar"+
+                ":/system/framework/ims-common.jar"+
+                ":/system/framework/apache-xml.jar"+
+                ":/system/framework/org.apache.http.legacy.boot.jar",
+            "HOSTNAME": "x86_platform",
+            "EXTERNAL_STORAGE": "/sdcard",
+            "ANDROID_STORAGE": "/storage",
+            "PATH": "/sbin:/vendor/bin:/system/sbin:/system/bin:/system/xbin",
+            "SYSTEMSERVERCLASSPATH": "/system/framework/services.jar:/system/framework/ethernet-service.jar:/system/framework/wifi-service.jar"
+        };
+        var execFileArgs = ["/Android", cmd].concat(args);
+        var execFileOpts = {
+            env: envNugat,
+            timeout: 60 * 1000
+        };
+        execFile("/usr/sbin/chroot", execFileArgs, execFileOpts, function(error, stdout, stderr) {
+            Common.logger.info("execFile command : chroot " + JSON.stringify(execFileArgs));
+            Common.logger.info("execFile stdout " + stdout);
+            Common.logger.info("execFile stderr " + stderr);
+            callback(error, stdout, stderr);
+        });
     };
 
-    this.exec = function(cmd, callback) {
-        this.execWithTimeout(cmd, 60 * 1000, logger, callback);
-    };
-
-    this.execWithTimeout = function(cmd, timeout, logger, callback) {
-        //logger.info("Platform.js - exec cmd:" + cmd);
-        (function(self) {
-            if(ssh === null) {
-                init(function(err) {
-                    if(err) {
-                        logger.error("exec request init. Error happen on init state, err:" + err);
-                        callback(err);
-                    } else {
-                        ssh.execWithTimeout(cmd, timeout, logger, callback);
-                    }
-                });
-            } else {
-                ssh.execWithTimeout(cmd, timeout, logger, callback);
-            }
-        })(this);
-    };
-
-    this.end = function() {
-        ssh.end();
-    };
     return this;
 };
 

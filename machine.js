@@ -197,20 +197,24 @@ var initAndroid = function(reqestObj, logger, callback) {
             function(callback) {
                 fixHostsFile("/Android/system/etc/hosts", reqestObj.management.ip, reqestObj.management.url, callback);
             },
-            function(callback) {
-                fs.chmod("/Android/system/xbin", 0o750, callback);
-            },
+            //function(callback) {
+            //    fs.chmod("/Android/system/xbin", 0o750, callback);
+            //},
             function(callback) {
                 var chroot_proc = require('child_process').spawn(
-                    "chroot",
+                    "nohup",
                     [
-                        "/Android", "/init"
+                        "/usr/sbin/chroot", "/Android", "/init"
                     ],
                     {
                         stdio: [ "ignore", "ignore", "ignore" ],
                         detached: true,
+                        shell: "/bin/sh"
                     }
                 );
+                //chroot_proc.on('close', function(code) {
+                //    logger.error('setParametersOnMachine: chroot /Android /init finished with code ' + code);
+                //});
                 chroot_proc.unref();
                 callback(null);
             }
@@ -224,6 +228,9 @@ var afterInitAndroid = function(reqestObj, logger, callback) {
     var platform = new Platform(logger);
     async.series(
         [
+            function(callback) {
+                setTimeout(function() {callback(null);}, 10*1000);
+            },
             function(callback) {
                 var nfsoptions = "nolock,hard,intr,vers=3,nosharecache,noatime,async"; //user 0
                 var src = [
@@ -239,22 +246,29 @@ var afterInitAndroid = function(reqestObj, logger, callback) {
                     callback(err);
                 });
             },
-            function(callback) {
-                var timeoutSec = 90;
-                logger.info("Waiting upto " + timeoutSec + " seconds for android ssh server...");
-                waitForProcessWithTimeout("/system/bin/sshd", timeoutSec, callback);
-            },
-            function(callback) {
-                if(reqestObj.rsyslog && reqestObj.rsyslog.ip) {
-                    var cmd = "busybox syslogd -R " + reqestObj.rsyslog.ip + " ; busybox klogd";
-                    logger.info("cmd: " + cmd);
-                    platform.exec(cmd, function(err, code, signal, sshout) {
-                        callback(null);
-                    });
-                } else {
-                    callback(null);
-                }
-            },
+            //function(callback) {
+            //    var timeoutSec = 90;
+            //    logger.info("Waiting upto " + timeoutSec + " seconds for android ssh server...");
+            //    waitForProcessWithTimeout("/system/bin/sshd", timeoutSec, callback);
+            //},
+            //function(callback) {
+            //    if(reqestObj.rsyslog && reqestObj.rsyslog.ip) {
+            //        platform.execFile("busybox", ["syslogd", "-R", reqestObj.rsyslog.ip], function(err, stdout, stderr) {
+            //            callback(null);
+            //        });
+            //    } else {
+            //        callback(null);
+            //    }
+            //},
+            //function(callback) {
+            //    if(reqestObj.rsyslog && reqestObj.rsyslog.ip) {
+            //        platform.execFile("busybox", ["klogd"], function(err, stdout, stderr) {
+            //            callback(null);
+            //        });
+            //    } else {
+            //        callback(null);
+            //    }
+            //},
             function(callback) {
                 var timeoutSec = 900;
                 logger.info("Waiting upto " + timeoutSec + " seconds for 1st boot of android...");
@@ -264,9 +278,12 @@ var afterInitAndroid = function(reqestObj, logger, callback) {
                 setTimeout(function() {callback(null);}, 30*1000);
             },
             function(callback) {
-                var cmd = "enable_houdini;pm refresh 0";
-                logger.info("cmd: " + cmd);
-                platform.exec(cmd, function(err, code, signal, sshout) {
+                platform.execFile("enable_houdini", [], function(err, stdout, stderr) {
+                    callback(null);
+                });
+            },
+            function(callback) {
+                platform.execFile("pm", ["refresh", "0"], function(err, stdout, stderr) {
                     callback(null);
                 });
             },
@@ -277,9 +294,7 @@ var afterInitAndroid = function(reqestObj, logger, callback) {
             },
             function(callback) {
                 if(reqestObj.settings.withService){
-                    var cmd = "setprop ro.kernel.withService withService";
-                    logger.info("cmd: " + cmd);
-                    platform.exec(cmd, function(err, code, signal, sshout) {
+                    platform.execFile("setprop", ["ro.kernel.withService", "withService"], function(err, stdout, stderr) {
                         callback(null);
                     });
                 }
@@ -288,9 +303,7 @@ var afterInitAndroid = function(reqestObj, logger, callback) {
             },
             function(callback) {
                 if(reqestObj.settings.hideControlPanel){
-                    var cmd = "setprop ro.kernel.hideControlPanel hideControlPanel";
-                    logger.info("cmd: " + cmd);
-                    platform.exec(cmd, function(err, code, signal, sshout) {
+                    platform.execFile("setprop", ["ro.kernel.hideControlPanel", "hideControlPanel"], function(err, stdout, stderr) {
                         callback(null);
                     });
                 }

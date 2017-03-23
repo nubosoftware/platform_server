@@ -23,9 +23,10 @@ function isMounted(dir, platform, callback) {
             var msg = "Error: cannot check is directories mounted";
             callback(msg);
         } else {
-            platform.exec("mount | cut -f 2 -d \" \"", function(err, code, signal, sshout) {
-                var mounts = sshout.split(/[\r\n]+/);
-                if (err || (code !== 0) || (mounts.indexOf("/")<0)) {
+            fs.readFile("/proc/mounts", 'utf8', function(err, data) {
+                var mountLines = data.split(/[\r\n]+/);
+                var mounts = underscore.map(mountLines, function(line) { return line.split(" ")[1]; });
+                if(!mounts || (mounts[0] !== "/")) {
                     if (tries<=1) {
                         var msg = "Error: cannot check is directories mounted";
                         callback(msg);
@@ -67,31 +68,42 @@ function umount(dir, platform, callback) {
             callback(msg);
             return;
         } else {
-            var cmd = "";
-            for (var i=0; i<dirs.length; i++) {
-                cmd = cmd + "busybox umount -l " + dirs[i] + " ;\\\n";
-            }
-            logger.info("cmd:\n" + cmd);
-            platform.exec(cmd, function(err, code, signal, sshout) {
-                platform.exec("mount | cut -f 2 -d \" \"", function(err, code, signal, sshout) {
-                    var mounts = sshout ? (sshout.split(/[\r\n]+/)) : [];
-                    if(err || (code !== 0) || (mounts.indexOf("/")<0)) {
-                        setTimeout(function() {
-                            try_unmount(dirs, tries-1, callback);
-                        }, 100);
-                    } else {
-                        var new_dirs = underscore.filter(dirs, function(dir){ return mounts.indexOf(dir)>=0; });
-                        if (new_dirs.length > 0) {
-                            setTimeout(function() {
-                                logger.info("new_dirs: " + new_dirs);
-                                try_unmount(new_dirs, tries-1, callback);
-                            }, 100);
+            async.eachSeries(
+                dirs,
+                function(dir, callback) {
+                    execFile("umount", ["-l", dir], function(err, stdout, stderr) {
+                        callback(null);
+                    });
+                },
+                function(err) {
+                    fs.readFile("/proc/mounts", 'utf8', function(err, data) {
+                        if(err) data = "";
+                        var mountLines = data.toString().split(/[\r\n]+/);
+                        var mounts = underscore.map(mountLines, function(line) { return line.split(" ")[1]; });
+                        if (!mounts || (mounts[0] !== "/")) {
+                            if (tries<=1) {
+                                var msg = "Error: cannot check is directories mounted";
+                                callback(msg);
+                            } else {
+                                logger.warn("Cannot get valid mount points");
+                                setTimeout(function() {
+                                    try_unmount(new_dirs, tries-1, callback);
+                                }, 100);
+                            }
                         } else {
-                            callback(null);
+                            var new_dirs = underscore.filter(dirs, function(dir){ return mounts.indexOf(dir)>=0; });
+                            if (new_dirs.length > 0) {
+                                setTimeout(function() {
+                                    logger.info("new_dirs: " + new_dirs);
+                                    try_unmount(new_dirs, tries-1, callback);
+                                }, 100);
+                            } else {
+                                callback(null);
+                            }
                         }
-                    }
-                });
-            });
+                    });
+                }
+            );
         }
     }
     if(platform === null) {
@@ -106,53 +118,6 @@ function umount(dir, platform, callback) {
         dir_arr = [dir];
     }
     try_unmount(dir_arr, 4, callback);
-}
-
-/*
- * Mount nfs directories
- * scr - array of strings, nfs-server directories
- * dst - array of strings, local directiories
- * mask - array of boolean, is directory mounted, to know which directories already mounted on previous tries, start value: all false
- * options - -o flag of mount command
- * callback(err, mask)
- *  err - null on success, otherwise string
- *  mask - result, on success should been all true
- */
-function mountnfs(src, dst, mask, login, localid, platform, options, callback) {
-    function do_mountnfs(retries, src, dst, mask, options, callback) {
-        var cmd = "";
-        for (var i=0; i<src.length; i++) {
-            if(!mask[i]) {
-                cmd = cmd + "mkdir -p " + dst[i] + " ; busybox mount -t nfs -o " + options + " " + src[i] + " " + dst[i] + " && \\\n";
-            }
-
-        }
-        cmd += "true";
-        logger.info("cmd:\n" + cmd);
-        platform.exec(cmd, function(err, code, signal, sshout) {
-            if (err) {
-                var msg = "Error in adb shell: " + err;
-                callback(msg, mask);
-                return;
-            }
-            isMounted(dst, platform, function(err, res) {
-                if (err || (res.indexOf(false) !== -1)) {
-                    if (retries <= 1) {
-                        var msg = "Error: cannot mount all nfs folders, err: " + err;
-                        callback(msg, res);
-                    } else {
-                        setTimeout(function() {
-                            do_mountnfs(retries-1, src, dst, res, options, callback);
-                        }, 100);
-                    }
-                } else {
-                    callback(null,res);
-                }
-            });
-        });
-    }
-
-    do_mountnfs(4, src, dst, mask, options, callback);
 }
 
 function mountEcryptfs(src, dst, mask, login, localid, platform, options, password, key, callback) {
@@ -256,9 +221,9 @@ function fullMount(session, keys, callback) {
         '/data/mnt/ecrypt/' + localid + '/media'
     ];
     var dst = [
-        '/data/user/' + localid,
-        '/data/system/users/' + localid,
-        '/data/media/' + localid
+        '/Android/data/user/' + localid,
+        '/Android/data/system/users/' + localid,
+        '/Android/data/media/' + localid
     ];
     var mask = [false, false, false];
 
@@ -271,7 +236,7 @@ function fullMount(session, keys, callback) {
             else
                 nfsdst = dst;
             var nfsoptions = "nolock,hard,intr,vers=3,nosharecache,noatime,async,unum=" + localid;
-            mountnfs(src, nfsdst, mask, login, localid, platform, nfsoptions, callback);
+            mountHostNfs(src, dst, nfsoptions, callback);
         },
         function(callback) {
             if (!keys) {
@@ -424,8 +389,6 @@ function mountHostNfs(src, dst, options, callback) {
 module.exports = {
     isMounted : isMounted,
     fullMount : fullMount,
-    mountnfs : mountnfs,
-    umount   : umount,
     fullUmount : fullUmount,
     mountHostNfs: mountHostNfs
 };

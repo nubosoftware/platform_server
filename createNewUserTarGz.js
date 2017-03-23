@@ -1,3 +1,7 @@
+"use strict";
+
+var fs = require("fs");
+var execFile = require('child_process').execFile;
 var async = require("async");
 var ThreadedLogger = require('./ThreadedLogger.js');
 var Platform = require('./platform.js');
@@ -13,15 +17,14 @@ function create(req, res) {
         // Separate into 2 commands because the tar happens sometimes before directories are created
         // First ssh command
         function(callback) {
-            var cmd = 'pm create-user createDirUser';
-            platform.exec(cmd, function(err, code, signal, sshout) {
+            platform.execFile("pm", ["create-user", "createDirUser"], function(err, stdout, stderr) {
                 if (err) {
                     var msg = 'ERROR:: cannot connect to platform ' + err;
                     callback(msg);
                     return;
                 } else {
                     var re = new RegExp('Success: created user id ([0-9]+)');
-                    var m = re.exec(sshout);
+                    var m = re.exec(stdout);
                     if (m) {
                         localid = m[1];
                         logger.info('Tempate user number ' + localid);
@@ -34,41 +37,41 @@ function create(req, res) {
             });
         },
         function(callback) {
-            var cmd = 'mkdir -p /data/user/' + localid + '/system/media' +
-                '; chown system.system /data/user/' + localid + '/system';
-            platform.exec(cmd, function(err, code, signal, exec_sshout) {
-                if (err) {
-                    var msg = 'ERROR:: cannot connect to platform ' + err;
-                    callback(msg);
-                    return;
-                } else {
-                    callback(null);
-                }
-
-            });
+            fs.mkdir("/Android/data/user/" + localid + "/system", callback);
         },
-        // Second ssh command
         function(callback) {
-            var cmd = 'cd /data/user/' + localid + '; /system/xbin/tar -czf /data/tmp/' + NEW_USER_TAR + ' ./' +
-                '; cp /data/system/packages.list /data/tmp/' +
-                '; pm remove-user ' + localid +
-                '; rm -rf /data/user/' + localid +
-                '; rm -rf /data/system/users/' + localid +
-                '; rm -rf /data/system/users/' + localid + '.xml';
-            logger.info('cmd: ' + cmd);
-            platform.exec(cmd, function(err, code, signal, exec_sshout) {
-                logger.info('exec_sshout: ' + exec_sshout);
-                if (err) {
-                    var msg = 'ERROR:: cannot connect to platform ' + err;
-                    callback(msg);
-                    return;
-                } else {
-                    callback(null);
-                    return;
-                }
-
-            });
-        }
+            fs.chown("/Android/data/user/" + localid + '/system', 1000, 1000, callback);
+        },
+        function (callback) {
+            fs.chmod("/Android/data/user/" + localid + '/system', 0o700, callback);
+        },
+        function(callback) {
+            fs.mkdir("/Android/data/user/" + localid + "/system/media", callback);
+        },
+        function (callback) {
+            fs.chown("/Android/data/user/" + localid + '/system/media', 1023, 1023, callback);
+        },
+        function (callback) {
+            fs.chmod("/Android/data/user/" + localid + '/system/media', 0o770, callback);
+        },
+        function (callback) {
+            execFile("tar", ["-czf", "/Android/data/tmp/new_user.tar.gz", "./"], {cwd: "/Android/data/user/" + localid}, callback);
+        },
+        function (callback) {
+            execFile("cp", ["/Android/data/system/packages.list", "/Android/data/tmp/"], callback);
+        },
+        function(callback) {
+            platform.execFile("pm", ["remove-user", localid], callback);
+        },
+        function (callback) {
+            execFile("rm", ["-rf", "/Android/data/user/" + localid], callback);
+        },
+        function (callback) {
+            execFile("rm", ["-rf", "/Android/data/system/users/" + localid], callback);
+        },
+        function (callback) {
+            execFile("rm", ["-rf", "/Android/data/system/users/" + localid + ".xml"], callback);
+        },
     ], function(err) {
         if (err) {
             var resobj = {

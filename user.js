@@ -1,8 +1,10 @@
 "use strict";
 
 var fs = require('fs');
+var execFile = require('child_process').execFile;
 var async = require('async');
 var validate = require("validate.js");
+var _ = require('underscore');
 //var Common = require('./common.js');
 //var logger = Common.logger;
 var ThreadedLogger = require('./ThreadedLogger.js');
@@ -161,8 +163,7 @@ function createUser(obj, logger, callback) {
      */
 
     function amCreateUser(platform, session, callback) {
-        var cmd = 'am create-user ' + localid;
-        platform.exec(cmd, function (err, code, signal, sshout) {
+        platform.execFile("am", ["create-user", localid], function (err) {
             if(err) {
                 var msg = "Error in adb shell: " + err;
                 platformErrorFlag = true;
@@ -171,7 +172,6 @@ function createUser(obj, logger, callback) {
             }
             callback(null);
         });
-        // ssh.exec
     }
 
     /*
@@ -186,9 +186,7 @@ function createUser(obj, logger, callback) {
         async.series([
                 // create user
                 function (callback) {
-                    var cmd = 'pm create-user ' + session.params.email + session.params.deviceid;
-                    console.log("cmd: " + cmd);
-                    platform.exec(cmd, function (err, code, signal, sshout) {
+                    platform.execFile("pm", ["create-user", session.params.email + session.params.deviceid], function (err, stdout, stderr) {
                         if(err) {
                             addToErrorsPlatforms = true;
                             var msg = "Error in adb shell: " + err;
@@ -197,7 +195,7 @@ function createUser(obj, logger, callback) {
                             return;
                         }
                         var re = new RegExp('Success: created user id ([0-9]+)');
-                        var m = re.exec(sshout);
+                        var m = re.exec(stdout);
                         if(m) {
                             localid = m[1];
                             logger.logTime("pm create-user");
@@ -205,26 +203,35 @@ function createUser(obj, logger, callback) {
                         } else {
                             callback("Error with PM - cannot get localid");
                         }
-                    }); // ssh.exec
+                    });
                 }, //function(callback)
-                // Remove directory that was created by Android for new user and mount our directory instead
                 function (callback) {
-                    var cmd = 'rm -rf /data/user/' + localid +
-                        ' ; sync' + ' ; mkdir /data/user/' + localid +
-                        ' ; mkdir /data/system/users/' + localid +
-                        ' ; sync' + ' ; chown system:system /data/user/' +
-                        ' ; rm /data/misc/keystore/user_' + localid + '/*';
-                    //console.log("cmd: "+cmd);
-                    platform.exec(cmd, function (err, code, signal, sshout) {
-                        if(err) {
-                            var msg = "Error in adb shell: " + err;
-                            callback(msg);
-                            return;
-                        }
-                        logger.logTime("rm, mkdir etc..");
-                        callback(null);
-                    }); // ssh.exec
-                }, //function(callback)
+                    execFile("rm", ["-rf", "/Android/data/user/" + localid], function (err) {callback(err);});
+                },
+                function (callback) {
+                    fs.mkdir("/Android/data/user/" + localid, function (err) {callback(err);});
+                },
+                //function (callback) {
+                //    fs.chown("/Android/data/user/" + localid, 1000, 1000, function (err) {callback(err);});
+                //},
+                //function (callback) {
+                //    fs.fchmod("/Android/data/user/" + localid, 0o771, function (err) {callback(err);});
+                //},
+                function (callback) {
+                    fs.mkdir("/Android/data/system/users/" + localid, function (err) {callback(null);});
+                },
+                //function (callback) {
+                //    fs.chown("/Android/data/system/users/" + localid, 1000, 1000, function (err) {callback(err);});
+                //},
+                //function (callback) {
+                //    fs.fchmod("/Android/data/system/users/" + localid, 0o700, function (err) {callback(err);});
+                //},
+                function (callback) {
+                    execFile("sync", [], function (err) {callback(err);});
+                },
+                function (callback) {
+                    execFile("rm", ["-rf", "/Android/data/misc/keystore/user_" + localid + '/*'], function (err) {callback(err);});
+                }
             ], function (err) {
                 if(err) {
                     logger.info("Error: cannot initializate android user err:" + err);
@@ -303,44 +310,59 @@ function setPerUserEnvironments(session, timeZone, callback) {
     var login = session.login;
     var email = login.userName;
     var localid = session.params.localid;
-    var errormsg = "";
-
     var lang = login.lang;
     var countrylang = login.countrylang;
     var localevar = login.localevar;
 
-    var lineLanguage = 'setprop persist.sys.language.u' + localid + ' \"' + lang + '\"';
-    var lineCountryLang = 'setprop persist.sys.country.u' + localid + ' \"' + countrylang + '\"';
-    var lineLocalevar = 'setprop persist.sys.localevar.u' + localid + ' \"' + localevar + '\"';
-
-    var cmd = lineLanguage + ';\\\n' + lineCountryLang + ';\\\n' + lineLocalevar + ';\\\n';
-    if(timeZone !== null && timeZone !== "") {
-        cmd = cmd + 'setprop persist.sys.timezone.u' + localid + ' \"' + timeZone + '\";\\\n';
-    } else {
-        session.logger.error("ERROR: missing timeZone param.");
-    }
-    session.logger.info("cmd:\n" + cmd);
-        session.platform.exec(cmd, function (err, code, signal, sshout) {
-        if(err) {
-            var msg = "Error in adb shell: " + err;
-            session.logger.info(msg);
-        }
+    async.series(
+        [
+            function(callback) {
+                session.platform.execFile("setprop", ["persist.sys.language.u" + localid, lang], function() {callback(null);});
+            },
+            function(callback) {
+                session.platform.execFile("setprop", ["persist.sys.country.u" + localid, countrylang], function() {callback(null);});
+            },
+            function(callback) {
+                session.platform.execFile("setprop", ["persist.sys.localevar.u" + localid, localevar], function() {callback(null);});
+            },
+            function(callback) {
+                if(timeZone !== null && timeZone !== "") {
+                    session.platform.execFile("setprop", ["persist.sys.timezone.u" + localid, timeZone], function() {callback(null);});
+                } else {
+                    session.logger.error("ERROR: missing timeZone param.");
+                    callback(null);
+                }
+            },
+        ], function(err) {
         callback(null);
-    }); // ssh.exec
+        }
+    );
 }
 
 function refreshPackages(session, callback) {
     var localid = session.params.localid;
     var platform = session.platform;
     var deviceType = session.login.deviceType;
-    var cmd = 'pm refresh ' + localid + '; pm disable --user ' + localid + ' com.android.vending';
-    if(deviceType === 'Web') {
-        cmd = cmd + "; pm disable --user " + localid + " com.android.browser";
-    }
-    session.logger.info('cmd: ' + cmd);
-    platform.exec(cmd, function (err, code, signal, sshout) {
-        callback(err);
-    }); // ssh.exec
+
+    async.series(
+        [
+            function (callback) {
+                platform.execFile("pm", ["refresh", localid], function(err) {callback(null);});
+            },
+            function (callback) {
+                platform.execFile("pm", ["disable", "--user", localid, "com.android.vending"], function(err) {callback(null);});
+            },
+            function (callback) {
+                if(deviceType === 'Web') {
+                    platform.execFile("pm", ["disable", "--user", localid, "com.android.browser"], function(err) {callback(null);});
+                } else {
+                    callback(null);
+                }
+            }
+        ], function(err) {
+            callback(err);
+        }
+    );
 }
 
 // This function should been called after session and platform locked
@@ -358,10 +380,7 @@ function endSessionByUnum(unum, logger, callback) {
                         [
                             // Logout. pm remove-user close all user's applications
                             function (callback) {
-                                var cmd = 'pm remove-user ' + unum;
-                                //console.log("cmd: " + cmd);
-                                logger.info(cmd);
-                                platform.exec(cmd, function (err, code, signal, sshout) {
+                                platform.execFile("pm", ["remove-user", unum.toString()], function (err, stdout, stderr) {
                                     sessLogger.logTime("pm remove-user");
                                     callback(null);
                                     // Try to continue even if pm failed
@@ -370,16 +389,26 @@ function endSessionByUnum(unum, logger, callback) {
                             }, // function(callback)
                             // force close all user's applications if it still exist
                             function (callback) {
-                                var cmd = "kill `ps | grep ^u" + unum + "_ | awk '{print $2}'`";
-                                logger.info("cmd: " + cmd);
-                                platform.exec(cmd, function (err, code, signal, sshout) {
+                                execFile("ps", ["auxn"], function (err, stdout, stderr) {
                                     if(err) {
-                                        var msg = "Error in adb shell: " + err;
-                                        callback(msg);
-                                        return;
+                                        callback(err);
+                                    } else {
+                                        var lines = stdout.split("\n");
+                                        var procs = _.map(lines, function(line) {
+                                            var fields = line.split(/[ ]+/, 3);
+                                            var procObj = {
+                                                uid: fields[1] || "",
+                                                pid: fields[2] || ""
+                                            };
+                                            return procObj;
+                                        });
+                                        var userTest = new RegExp("^" + unum.toString() + "[0-9]{5}$");
+                                        var userProcs = _.filter(procs, function(procObj) {return (/^1\d\d$/.test(procObj.uid));});
+                                        if(userProcs.length !== 0) {
+                                            logger.warn("User's processes still exist after pm remove-user: " + JSON.stringify(userProcs));
+                                        }
+                                        callback(null);
                                     }
-                                    logger.logTime("kill all processes, " + sshout);
-                                    callback(null);
                                 });
                                 // platform.exec
                             }, // function(callback)
@@ -400,25 +429,21 @@ function endSessionByUnum(unum, logger, callback) {
                                     }
                                 });
                             }, // function(callback)
-                            // rm files of logouted user (after umount of all user's data)
                             function (callback) {
-                                var cmd = "rm -rf /data/system/users/" + unum +
-                                    " ; rm /data/system/users/" + unum + ".xml" +
-                                    " ; rm -rf /data/user/" + unum +
-                                    " ; rm -rf /data/media/" + unum +
-                                    " ; rm /data/misc/keystore/user_" + unum + "/*";
-                                logger.info("cmd: " + cmd);
-                                platform.exec(cmd, function (err, code, signal, sshout) {
-                                    if(err) {
-                                        var msg = "Error in adb shell: " + err;
-                                        callback(msg);
-                                        return;
-                                    }
-                                    logger.logTime("rm folder");
-                                    callback(null);
-                                });
-                                // ssh.exec
-                            }, // function(callback)
+                                execFile("rm", ["-rf", "/Android/data/system/users/" + unum], function(err) {callback(null);});
+                            },
+                            function (callback) {
+                                execFile("rm", ["/Android/data/system/users/" + unum + ".xml"], function(err) {callback(null);});
+                            },
+                            function (callback) {
+                                execFile("rm", ["-rf", "/Android/data/user/" + unum], function(err) {callback(null);});
+                            },
+                            function (callback) {
+                                execFile("rm", ["-rf", "/Android/data/media/" + unum], function(err) {callback(null);});
+                            },
+                            function (callback) {
+                                execFile("rm", ["-rf", "/Android/data/misc/keystore/user_" + unum + "/*"], function(err) {callback(null);});
+                            }
                         ], function (err, results) {
                             callback(err);
                         }

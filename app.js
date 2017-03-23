@@ -43,7 +43,6 @@ function installApk(req, res) {
 }
 
 var tryInstallApk = function(apkPath, retries, wait, logger, callback) {
-    var cmd = 'pm install --user 0 -r ' + apkPath;
     var msg = "";
     var platform = new Platform(logger);
     logger.info("Try install apk " + apkPath);
@@ -51,11 +50,11 @@ var tryInstallApk = function(apkPath, retries, wait, logger, callback) {
         if(retries < 1) {
             callback("Cannot install apk", msg);
         } else {
-            platform.exec(cmd, function(err, code, signal, sshout) {
-                var installationFail = (sshout.indexOf("Success") === -1) &&
-                    (sshout.indexOf("Failure [INSTALL_FAILED_VERSION_DOWNGRADE]") === -1);
+            platform.execFile("pm", ["install", "--user", "0", "-r", apkPath], function(err, stdout, stderr) {
+                var installationFail = (stdout.indexOf("Success") === -1) &&
+                    (stdout.indexOf("Failure [INSTALL_FAILED_VERSION_DOWNGRADE]") === -1);
                 if(installationFail) {
-                    msg += cmd + "\n" + sshout;
+                    msg += apkPath + ":\n" + stdout;
                     setTimeout(function() {
                         retryInstallApk(apkPath, retries - 1, wait, logger, callback);
                     }, wait);
@@ -116,11 +115,10 @@ var processTasks = function(tasks, logger, callback) {
             var cmd;
             logger.info("processTasks task: " + task);
             if(INSTALL_TASK.indexOf(task.task) !== -1) {
-                cmd = 'pm install --user ' + task.unum + ' ' + task.packageName;
-                platform.exec(cmd, function(err, code, signal, sshout) {
-                    if(sshout.indexOf("Success") === -1) {
+                platform.execFile("pm", ["install", "--user", task.unum, task.packageName], function(err, stdout, stderr) {
+                    if(stdout.indexOf("Success") === -1) {
                         task.status = 0;
-                        task.statusMsg = sshout;
+                        task.statusMsg = stdout;
                         errFlag = true;
                     } else {
                         task.status = 1;
@@ -130,10 +128,10 @@ var processTasks = function(tasks, logger, callback) {
                 });
             } else if(UNINSTALL_TASK.indexOf(task.task) !== -1) {
                 cmd = 'pm uninstall --user ' + task.unum + ' ' + task.packageName;
-                platform.exec(cmd, function(err, code, signal, sshout) {
-                    if(sshout.indexOf("Success") === -1) {
+                platform.execFile("pm", ["uninstall", "--user", task.unum, task.packageName], function(err, stdout, stderr) {
+                    if(stdout.indexOf("Success") === -1) {
                         task.status = 0;
-                        task.statusMsg = sshout;
+                        task.statusMsg = stdout;
                         errFlag = true;
                     } else {
                         task.status = 1;

@@ -40,12 +40,8 @@ var processRefreshMedia = function(obj, logger, callback) {
     async.eachSeries(
         paths,
         function(path, callback) {
-            var broadcastParams = ' -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file:/storage/emulated/legacy/'+
-                                    paths;
-            var action = 'android.intent.action.MEDIA_SCANNER_SCAN_FILE';
-            var dir = 'file:/storage/emulated/legacy/' + path;
-            var cmd = 'am broadcast --user ' + unum + ' -a ' + action + ' -d ' + dir;
-            platform.exec(cmd, function(err, code, signal, sshout) {
+            var args = ["broadcast", "--user", unum, "-a", "android.intent.action.MEDIA_SCANNER_SCAN_FILE", "-d", "file:/storage/emulated/legacy/" + path];
+            platform.execFile("am", args, function(err, stdout, stderr) {
                 // Ignore errors
                 callback(null);
             });
