@@ -148,7 +148,23 @@ var setParametersOnMachine = function(obj, logger, callback) {
         [
             function(callback) {
                 fixHostsFile("/etc/hosts", obj.management.ip, obj.management.url, callback);
-            }
+            },
+            function(callback) {
+                execFile("modprobe", ["nfs"], function(error, stdout, stderr) {
+                    if(error){
+                        logger.error("setParametersOnMachine: modprobe nfs fail stdout: " + stdout);
+                    }
+                    callback(error);
+                });
+            },
+            function(callback) {
+                execFile("modprobe", ["nubouserfs"], function(error, stdout, stderr) {
+                    if(error){
+                        logger.error("setParametersOnMachine: modprobe nubouserfs fail stdout: " + stdout);
+                    }
+                    callback(error);
+                });
+            },
         ], function(err) {
             callback(err);
         }

@@ -156,6 +156,32 @@ function mountEcryptfs(src, dst, mask, login, localid, platform, options, passwo
     });
 }
 
+function mountNubouserfs(src, dst, options, callback) {
+    var try_mount = function(args, callback) {
+        execFile("mount", args, function(err, stdout, stderr) {
+            if (err) {
+                logger.error("mountNubouserfs: mkdir: " + err);
+                logger.error("mountNubouserfs: mkdir: " + stderr);
+            }
+            callback(err);
+        })
+    };
+    var mountArgs = underscore.map(src, function(item, index) {
+        var args = ["-t", "nubouserfs", "-o", options, item, dst[index]];
+        return args;
+    });
+
+    async.eachSeries(
+        mountArgs,
+        function(item, callback) {
+            try_mount(item, callback);
+        },
+        function(err) {
+            callback(err);
+        }
+    );
+}
+
 function externalMounts(login, session, callback) {
     var UserName = login.userName;
     var localid = session.params.localid;
@@ -220,6 +246,11 @@ function fullMount(session, keys, callback) {
         '/data/mnt/ecrypt/' + localid + '/system/users',
         '/data/mnt/ecrypt/' + localid + '/media'
     ];
+    var nubouserfs = [
+        '/Android/data/mnt/nubouserfs/' + localid + '/data',
+        '/Android/data/mnt/nubouserfs/' + localid + '/system/users',
+        '/Android/data/mnt/nubouserfs/' + localid + '/media'
+    ];
     var dst = [
         '/Android/data/user/' + localid,
         '/Android/data/system/users/' + localid,
@@ -235,8 +266,12 @@ function fullMount(session, keys, callback) {
                 nfsdst = ecryptsrc;
             else
                 nfsdst = dst;
-            var nfsoptions = "nolock,hard,intr,vers=3,nosharecache,noatime,async,unum=" + localid;
-            mountHostNfs(src, dst, nfsoptions, callback);
+            var nfsoptions = "nolock,hard,intr,vers=3,noatime,async";
+            mountHostNfs(src, nubouserfs, nfsoptions, callback);
+        },
+        function(callback) {
+            var options = "unum=" + localid;
+            mountNubouserfs(nubouserfs, dst, options, callback);
         },
         function(callback) {
             if (!keys) {
@@ -261,12 +296,15 @@ function fullUmount(session, user, callback) {
     var UNum = session.params.localid;
     var platform = session.platform;
     var dirs = [
-        "/data/user/" + UNum,
-        "/data/system/users/" + UNum,
-        "/data/media/" + UNum,
-        "/data/mnt/ecrypt/" + UNum + "/data",
-        "/data/mnt/ecrypt/" + UNum + "/system/users",
-        "/data/mnt/ecrypt/" + UNum + "/media"
+        "/Android/data/user/" + UNum,
+        "/Android/data/system/users/" + UNum,
+        "/Android/data/media/" + UNum,
+        "/Android/data/mnt/nubouserfs/" + UNum + "/data",
+        "/Android/data/mnt/nubouserfs/" + UNum + "/system/users",
+        "/Android/data/mnt/nubouserfs/" + UNum + "/media",
+        "/Android/data/mnt/ecrypt/" + UNum + "/data",
+        "/Android/data/mnt/ecrypt/" + UNum + "/system/users",
+        "/Android/data/mnt/ecrypt/" + UNum + "/media"
     ];
     umount(dirs, platform, callback);
 }
