@@ -6,12 +6,42 @@ var async = require("async");
 var ThreadedLogger = require('./ThreadedLogger.js');
 var Platform = require('./platform.js');
 
-var NEW_USER_TAR = 'new_user.tar.gz';
+var userDataDirs = [
+    "/misc/profiles/cur/", "/misc_ce/", "/misc_de/",
+    "/system/users/", "/system_ce/", "/system_de/",
+    "/user/", "/user_de/"
+]
 
 function create(req, res) {
     var logger = new ThreadedLogger();
     var platform = new Platform(logger);
     var localid;
+    var dest = "/Android/data/createDirUser/";
+    var rsynUserDataDirs = function(unum, dest, callback) {
+        async.each(
+            userDataDirs,
+            function(path, callback) {
+                execFile("rsync", ["-ra", "/Android/data" + path + unum + "/", dest + path], callback);
+            },
+            function(err) {
+                callback(err);
+            }
+        );
+    };
+    var removeUserDataDirs = function(unum, callback) {
+        async.each(
+            userDataDirs,
+            function(path, callback) {
+                execFile("rm", ["-rf", "/Android/data" + path + unum], callback);
+            },
+            function(err) {
+                execFile("rm", ["-rf", "/Android/data/media/" + unum], function(err1) {
+                    callback(err);
+                });
+            }
+        );
+    };
+    logger.info("start process request createNewUserTarGz");
 
     async.series([
         // Separate into 2 commands because the tar happens sometimes before directories are created
@@ -37,25 +67,22 @@ function create(req, res) {
             });
         },
         function(callback) {
-            fs.mkdir("/Android/data/user/" + localid + "/system", callback);
+            fs.mkdir(dest, callback);
         },
         function(callback) {
-            fs.chown("/Android/data/user/" + localid + '/system', 1000, 1000, callback);
-        },
-        function (callback) {
-            fs.chmod("/Android/data/user/" + localid + '/system', 0o700, callback);
+            fs.mkdir(dest + "misc/", callback);
         },
         function(callback) {
-            fs.mkdir("/Android/data/user/" + localid + "/system/media", callback);
+            fs.mkdir(dest + "misc/profiles", callback);
+        },
+        function(callback) {
+            fs.mkdir(dest + "system", callback);
+        },
+        function(callback) {
+            rsynUserDataDirs(localid, dest, callback);
         },
         function (callback) {
-            fs.chown("/Android/data/user/" + localid + '/system/media', 1023, 1023, callback);
-        },
-        function (callback) {
-            fs.chmod("/Android/data/user/" + localid + '/system/media', 0o770, callback);
-        },
-        function (callback) {
-            execFile("tar", ["-czf", "/Android/data/tmp/new_user.tar.gz", "./"], {cwd: "/Android/data/user/" + localid}, callback);
+            execFile("tar", ["-czf", "/Android/data/tmp/new_user7.tar.gz", "./"], {cwd: dest}, callback);
         },
         function (callback) {
             execFile("cp", ["/Android/data/system/packages.list", "/Android/data/tmp/"], callback);
@@ -64,28 +91,25 @@ function create(req, res) {
             platform.execFile("pm", ["remove-user", localid], callback);
         },
         function (callback) {
-            execFile("rm", ["-rf", "/Android/data/user/" + localid], callback);
+            execFile("rm", ["-rf", dest], callback);
         },
-        function (callback) {
-            execFile("rm", ["-rf", "/Android/data/system/users/" + localid], callback);
-        },
-        function (callback) {
-            execFile("rm", ["-rf", "/Android/data/system/users/" + localid + ".xml"], callback);
-        },
+        function(callback) {
+            removeUserDataDirs(localid, callback);
+        }
     ], function(err) {
+        var resobj;
+        logger.info("finish process request createNewUserTarGz");
         if (err) {
-            var resobj = {
+            resobj = {
                 status: 0,
                 error: err
             };
-            res.send(resobj);
-            return;
+        } else {
+            resobj = {
+                status: 1,
+                error: "created successfully"
+            };
         }
-
-        var resobj = {
-            status: 1,
-            error: "created successfully"
-        };
         res.send(resobj);
     });
 }
