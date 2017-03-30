@@ -26,7 +26,7 @@ function isMounted(dir, platform, callback) {
             fs.readFile("/proc/mounts", 'utf8', function(err, data) {
                 var mountLines = data.split(/[\r\n]+/);
                 var mounts = underscore.map(mountLines, function(line) { return line.split(" ")[1]; });
-                if(!mounts || (mounts[0] !== "/")) {
+                if(!mounts || (mounts.indexOf("/") === -1)) {
                     if (tries<=1) {
                         var msg = "Error: cannot check is directories mounted";
                         callback(msg);
@@ -80,7 +80,7 @@ function umount(dir, platform, callback) {
                         if(err) data = "";
                         var mountLines = data.toString().split(/[\r\n]+/);
                         var mounts = underscore.map(mountLines, function(line) { return line.split(" ")[1]; });
-                        if (!mounts || (mounts[0] !== "/")) {
+                        if (!mounts || (mounts.indexOf("/") === -1)) {
                             if (tries<=1) {
                                 var msg = "Error: cannot check is directories mounted";
                                 callback(msg);
@@ -237,8 +237,14 @@ function fullMount(session, keys, callback) {
     var userStorageFolder = getUserHomeFolder(UserName) + "storage/";
 
     var src = [
-        nfsprefix + userDeviceDataFolder,
-        nfsprefix + userDeviceDataFolder + 'system',
+        nfsprefix + userDeviceDataFolder + "/misc/profiles/cur/",
+        nfsprefix + userDeviceDataFolder + "/misc_ce/",
+        nfsprefix + userDeviceDataFolder + "/misc_de/",
+        nfsprefix + userDeviceDataFolder + "/system/users/",
+        nfsprefix + userDeviceDataFolder + "/system_ce/",
+        nfsprefix + userDeviceDataFolder + "/system_de/",
+        nfsprefix + userDeviceDataFolder + "/user/",
+        nfsprefix + userDeviceDataFolder + "/user_de/",
         nfsprefix_sd + userStorageFolder + 'media'
     ];
     var ecryptsrc = [
@@ -252,41 +258,46 @@ function fullMount(session, keys, callback) {
         '/Android/data/mnt/nubouserfs/' + localid + '/media'
     ];
     var dst = [
-        '/Android/data/user/' + localid,
-        '/Android/data/system/users/' + localid,
-        '/Android/data/media/' + localid
+        "/Android/data/misc/profiles/cur/" + localid,
+        "/Android/data/misc_ce/" + localid,
+        "/Android/data/misc_de/" + localid,
+        "/Android/data/system/users/" + localid,
+        "/Android/data/system_ce/" + localid,
+        "/Android/data/system_de/" + localid,
+        "/Android/data/user/" + localid,
+        "/Android/data/user_de/" + localid,
+        "/Android/data/media/" + localid
     ];
     var mask = [false, false, false];
 
-
+var userDataDirs = [
+    "/misc/profiles/cur/", "/misc_ce/", "/misc_de/",
+    "/system/users/", "/system_ce/", "/system_de/",
+    "/user/", "/user_de/"
+]
     async.series([
         function(callback) {
-            var nfsdst;
-            if (keys)
-                nfsdst = ecryptsrc;
-            else
-                nfsdst = dst;
             var nfsoptions = "nolock,hard,intr,vers=3,noatime,async";
-            mountHostNfs(src, nubouserfs, nfsoptions, callback);
+            mountHostNfs(src, dst, nfsoptions, callback);
         },
-        function(callback) {
-            var options = "unum=" + localid;
-            mountNubouserfs(nubouserfs, dst, options, callback);
-        },
-        function(callback) {
-            if (!keys) {
-                callback(null);
-                return;
-            }
-            mask = [false, false, false];
-            var hardcoded_key = keys.ecryptfs_key;
-            var hardcoded_password = keys.ecryptfs_password;
-            var encryptoptions = "ecryptfs_cipher=aes,ecryptfs_key_bytes=32,ecryptfs_passthrough";
-            mountEcryptfs(ecryptsrc, dst, mask, login, localid, platform, encryptoptions, hardcoded_password, hardcoded_key, callback);
-        },
-        function (callback) {
-            externalMounts(login, session, callback);
-        }
+        //function(callback) {
+        //    var options = "unum=" + localid;
+        //    mountNubouserfs(nubouserfs, dst, options, callback);
+        //},
+        //function(callback) {
+        //    if (!keys) {
+        //        callback(null);
+        //        return;
+        //    }
+        //    mask = [false, false, false];
+        //    var hardcoded_key = keys.ecryptfs_key;
+        //    var hardcoded_password = keys.ecryptfs_password;
+        //    var encryptoptions = "ecryptfs_cipher=aes,ecryptfs_key_bytes=32,ecryptfs_passthrough";
+        //    mountEcryptfs(ecryptsrc, dst, mask, login, localid, platform, encryptoptions, hardcoded_password, hardcoded_key, callback);
+        //},
+        //function (callback) {
+        //    externalMounts(login, session, callback);
+        //}
     ], function(err) {
         callback(err);
     });
@@ -296,15 +307,15 @@ function fullUmount(session, user, callback) {
     var UNum = session.params.localid;
     var platform = session.platform;
     var dirs = [
-        "/Android/data/user/" + UNum,
+        "/Android/data/misc/profiles/cur/" + UNum,
+        "/Android/data/misc_ce/" + UNum,
+        "/Android/data/misc_de/" + UNum,
         "/Android/data/system/users/" + UNum,
-        "/Android/data/media/" + UNum,
-        "/Android/data/mnt/nubouserfs/" + UNum + "/data",
-        "/Android/data/mnt/nubouserfs/" + UNum + "/system/users",
-        "/Android/data/mnt/nubouserfs/" + UNum + "/media",
-        "/Android/data/mnt/ecrypt/" + UNum + "/data",
-        "/Android/data/mnt/ecrypt/" + UNum + "/system/users",
-        "/Android/data/mnt/ecrypt/" + UNum + "/media"
+        "/Android/data/system_ce/" + UNum,
+        "/Android/data/system_de/" + UNum,
+        "/Android/data/user/" + UNum,
+        "/Android/data/user_de/" + UNum,
+        "/Android/data/media/" + UNum
     ];
     umount(dirs, platform, callback);
 }

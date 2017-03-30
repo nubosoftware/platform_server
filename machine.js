@@ -248,7 +248,7 @@ var afterInitAndroid = function(reqestObj, logger, callback) {
                 setTimeout(function() {callback(null);}, 10*1000);
             },
             function(callback) {
-                var nfsoptions = "nolock,hard,intr,vers=3,nosharecache,noatime,async"; //user 0
+                var nfsoptions = "nolock,hard,intr,vers=3,noatime,async"; //user 0
                 var src = [
                     reqestObj.nfs.nfs_ip + ":" + reqestObj.nfs.nfs_path +"/apks"
                 ];

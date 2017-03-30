@@ -403,7 +403,7 @@ function endSessionByUnum(unum, logger, callback) {
                                             return procObj;
                                         });
                                         var userTest = new RegExp("^" + unum.toString() + "[0-9]{5}$");
-                                        var userProcs = _.filter(procs, function(procObj) {return (/^1\d\d$/.test(procObj.uid));});
+                                        var userProcs = _.filter(procs, function(procObj) {return (userTest.test(procObj.uid));});
                                         if(userProcs.length !== 0) {
                                             logger.warn("User's processes still exist after pm remove-user: " + JSON.stringify(userProcs));
                                         }
