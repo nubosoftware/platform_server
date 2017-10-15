@@ -43,9 +43,9 @@ var Platform = function(curLogger) {
             timeout: 60 * 1000
         };
         execFile("/usr/sbin/chroot", execFileArgs, execFileOpts, function(error, stdout, stderr) {
-            Common.logger.info("execFile command : chroot " + JSON.stringify(execFileArgs));
-            Common.logger.info("execFile stdout " + stdout);
-            Common.logger.info("execFile stderr " + stderr);
+            //Common.logger.info("execFile command : chroot " + JSON.stringify(execFileArgs));
+            //Common.logger.info("execFile stdout " + stdout);
+            //Common.logger.info("execFile stderr " + stderr);
             callback(error, stdout, stderr);
         });
     };

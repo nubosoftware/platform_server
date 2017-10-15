@@ -152,7 +152,11 @@ var convertTaskObjToRestoreLine = function(obj, err) {
 
     if(obj.job) {
         if(obj.job) {
-            res += " -j " + obj.job;
+            if (obj.cmd === "policy") {
+                res += " " + obj.job;
+            } else {
+                res += " -j " + obj.job;
+            }
         }
     }
 

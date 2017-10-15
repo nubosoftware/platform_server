@@ -2,7 +2,7 @@
 mkfile_path := $(word $(words $(MAKEFILE_LIST)),$(MAKEFILE_LIST))
 nubo_proj_dir:=$(shell cd $(shell dirname $(mkfile_path))/..; pwd)
 LINUX_IMG_FULL_PATH:=$(nubo_proj_dir)/nuboplatform/out/target/product/x86_platform/linux.img
-LINUX_IMG_FULL_PATH:=/opt/Android-KitKat/linux.img
+LINUX_IMG_FULL_PATH:=/opt/Android-Nougat/linux.img
 
 current_dir := $(shell pwd)
 
@@ -38,7 +38,7 @@ img: $(LINUX_IMG_FULL_PATH)
 	cat ~/.ssh/id_rsa.pub > mnt/home/nubo/.ssh/authorized_keys
 	cat ~/.ssh/id_rsa.pub > mnt/opt/Android/authorized_keys
 	cat mnt/home/nubo/.ssh/id_rsa.pub >> mnt/opt/Android/authorized_keys
-	rsync ./ mnt/opt/platform_server/ -raF
+	sudo rsync ./ mnt/opt/platform_server/ -raF
 	@echo "You can change files on platform. Please enter any key to continue and close image";
 	@bash -c "read -sn 1";
 	sudo umount mnt
@@ -67,7 +67,7 @@ $(nubo_proj_dir)/rpms/latest/nuboplatform_server-$(platform_server_version)-$(pl
 	cp $(nubo_proj_dir)/platform_server/rpmbuild/RPMS/noarch/nuboplatform_server-$(platform_server_version)-$(platform_server_buildid).noarch.rpm $(nubo_proj_dir)/rpms/latest/
 
 $(LINUX_IMG_FULL_PATH):
-	scp nubo@lab2.nubosoftware.com:N4.4/linux.img $(LINUX_IMG_FULL_PATH)
+	scp nubo@lab2.nubosoftware.com:N7/linux.img $(LINUX_IMG_FULL_PATH)
 
 .PHONY: deb default img rpm
 

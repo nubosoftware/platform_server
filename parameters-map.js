@@ -2,7 +2,6 @@
 var constraints = require("nubo-validateConstraints")(false);
 
 var filter = {
-    "permittedMode": true,
     "rules": [{
         "path": "/",
         "constraints": {}
@@ -16,12 +15,12 @@ var filter = {
                 "presence": true
             },
             "gateway.apps_port": constraints.portNumberConstrRequested,
-            "gateway.external_ip": constraints.ExcludeSpecialCharactersRequested, // not in use
-            "gateway.player_port": constraints.ExcludeSpecialCharactersRequested, // not in use
-            "gateway.ssl": constraints.ExcludeSpecialCharactersRequested, // not in use
-            "gateway.index": constraints.ExcludeSpecialCharactersRequested, // not in use
+            "gateway.external_ip": {}, // not in use
+            "gateway.player_port": {}, // not in use
+            "gateway.ssl": {}, // not in use
+            "gateway.index": {}, // not in use
             "gateway.internal_ip": constraints.hostConstrRequested,
-            "gateway.isGWDisabled": constraints.ExcludeSpecialCharactersRequested, // not in use
+            "gateway.isGWDisabled": {}, // not in use
             "gateway.controller_port": constraints.portNumberConstrRequested,
             "management": {
                 "presence": true
@@ -127,7 +126,11 @@ var filter = {
                 "array": {
                     "packageName": constraints.packageNameConstrRequested,
                     "unum": constraints.NaturalNumberConstrRequested,
-                    "task": constraints.binaryBoolConstrRequested
+                    "task": {
+                          "inclusion": {
+                                "within": ["0", "1", 0, 1]
+                          }
+                    }
                 }
             }
         }

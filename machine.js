@@ -190,8 +190,8 @@ var initAndroid = function(reqestObj, logger, callback) {
                 var sessionXmlContent =
                     "<?xml version='1.0' encoding='utf-8' standalone='yes' ?>\n" +
                     '<session>\n'+
-                        '<gateway_controller_port>8891</gateway_controller_port>\n' +
-                        '<gateway_apps_port>8890</gateway_apps_port>\n' +
+                        '<gateway_controller_port>' + reqestObj.gateway.controller_port + '</gateway_controller_port>\n' +
+                        '<gateway_apps_port>' + reqestObj.gateway.apps_port + '</gateway_apps_port>\n' +
                         '<gateway_url>' + reqestObj.gateway.internal_ip + '</gateway_url>\n' +
                         '<platformID>' + reqestObj.platid + '</platformID>\n' +
                         '<management_url>' + reqestObj.management.url + '</management_url>\n' +

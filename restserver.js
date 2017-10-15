@@ -31,13 +31,15 @@ var bodyFilterOpts = {
 var urlFilterObj = new filterModule.filter([], urlFilterOpts);
 var bodyFilterObj = new filterModule.filter([], bodyFilterOpts);
 var filterFile = "./parameters-map.js";
-fs.watchFile(filterFile, {
-    persistent : false,
-    interval : 5007
-}, function(curr, prev) {
-    logger.info(filterFile + ' been modified');
-    refresh_filter();
-});
+function watchFilterFile() {
+    fs.watchFile(filterFile, {
+        persistent : false,
+        interval : 5007
+    }, function(curr, prev) {
+        logger.info(filterFile + ' been modified');
+        refresh_filter();
+    });
+}
 
 var refresh_filter = function() {
     try {
@@ -52,10 +54,12 @@ var refresh_filter = function() {
         return;
     }
     console.log("obj: " + JSON.stringify(obj));
-    urlFilterObj.reload(obj.rules, {permittedMode: obj.permittedMode});
-    bodyFilterObj.reload(obj.rules, {permittedMode: obj.permittedMode});
+
+    var permittedMode = Common.parametersMapPermittedMode ? Common.parametersMapPermittedMode : false;
+
+    urlFilterObj.reload(obj.rules, {permittedMode: permittedMode});
+    bodyFilterObj.reload(obj.rules, {permittedMode: permittedMode});
 };
-refresh_filter();
 
 var mainFunction = function(err, firstTimeLoad) {
     if(err) {
@@ -64,8 +68,12 @@ var mainFunction = function(err, firstTimeLoad) {
         return;
     }
 
+    refresh_filter();
+
     if(!firstTimeLoad)// execute the following code only in the first time
         return;
+
+    watchFilterFile();
 
     var initPortListener = function(listenAddress, callback) {
         async.waterfall(

@@ -54,7 +54,7 @@ var tryInstallApk = function(apkPath, retries, wait, logger, callback) {
                 var installationFail = (stdout.indexOf("Success") === -1) &&
                     (stdout.indexOf("Failure [INSTALL_FAILED_VERSION_DOWNGRADE]") === -1);
                 if(installationFail) {
-                    msg += apkPath + ":\n" + stdout;
+                    msg += apkPath + ":\n" + stdout + " " + stderr;
                     setTimeout(function() {
                         retryInstallApk(apkPath, retries - 1, wait, logger, callback);
                     }, wait);
