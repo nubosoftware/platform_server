@@ -236,37 +236,37 @@ function fullMount(session, keys, callback) {
     var userDeviceDataFolder = getUserHomeFolder(UserName) + deviceID + "/";
     var userStorageFolder = getUserHomeFolder(UserName) + "storage/";
 
-    var src = [
-        nfsprefix + userDeviceDataFolder + "/misc/profiles/cur/",
-        nfsprefix + userDeviceDataFolder + "/misc_ce/",
-        nfsprefix + userDeviceDataFolder + "/misc_de/",
-        nfsprefix + userDeviceDataFolder + "/system/users/",
-        nfsprefix + userDeviceDataFolder + "/system_ce/",
-        nfsprefix + userDeviceDataFolder + "/system_de/",
-        nfsprefix + userDeviceDataFolder + "/user/",
-        nfsprefix + userDeviceDataFolder + "/user_de/",
-        nfsprefix_sd + userStorageFolder + 'media'
+    var nfsSrc = [
+        nfsprefix + userDeviceDataFolder + "misc/profiles/cur",
+        nfsprefix + userDeviceDataFolder + "misc_ce",
+        nfsprefix + userDeviceDataFolder + "misc_de",
+        nfsprefix + userDeviceDataFolder + "system/users",
+        nfsprefix + userDeviceDataFolder + "system_ce",
+        nfsprefix + userDeviceDataFolder + "system_de",
+        nfsprefix + userDeviceDataFolder + "user",
+        nfsprefix + userDeviceDataFolder + "user_de",
+        nfsprefix_sd + userStorageFolder + "media"
     ];
-    var ecryptsrc = [
-        '/data/mnt/ecrypt/' + localid + '/data',
-        '/data/mnt/ecrypt/' + localid + '/system/users',
-        '/data/mnt/ecrypt/' + localid + '/media'
-    ];
-    var nubouserfs = [
-        '/Android/data/mnt/nubouserfs/' + localid + '/data',
-        '/Android/data/mnt/nubouserfs/' + localid + '/system/users',
-        '/Android/data/mnt/nubouserfs/' + localid + '/media'
-    ];
-    var dst = [
-        "/Android/data/misc/profiles/cur/" + localid,
+    var nfsDst = [
+        "/Android/data/mnt/nubouserfs/" + localid + "/misc/profiles/cur",
         "/Android/data/misc_ce/" + localid,
         "/Android/data/misc_de/" + localid,
         "/Android/data/system/users/" + localid,
         "/Android/data/system_ce/" + localid,
         "/Android/data/system_de/" + localid,
-        "/Android/data/user/" + localid,
-        "/Android/data/user_de/" + localid,
+        "/Android/data/mnt/nubouserfs/" + localid + "/user",
+        "/Android/data/mnt/nubouserfs/" + localid + "/user_de",
         "/Android/data/media/" + localid
+    ];
+    var nubouserfsSrc = [
+        "/Android/data/mnt/nubouserfs/" + localid + "/misc/profiles/cur",
+        "/Android/data/mnt/nubouserfs/" + localid + "/user",
+        "/Android/data/mnt/nubouserfs/" + localid + "/user_de"
+    ];
+    var nubouserfsDst = [
+        "/Android/data/misc/profiles/cur/" + localid,
+        "/Android/data/user/" + localid,
+        "/Android/data/user_de/" + localid
     ];
     var mask = [false, false, false];
 
@@ -278,12 +278,12 @@ var userDataDirs = [
     async.series([
         function(callback) {
             var nfsoptions = "nolock,hard,intr,vers=3,noatime,async";
-            mountHostNfs(src, dst, nfsoptions, callback);
+            mountHostNfs(nfsSrc, nfsDst, nfsoptions, callback);
         },
-        //function(callback) {
-        //    var options = "unum=" + localid;
-        //    mountNubouserfs(nubouserfs, dst, options, callback);
-        //},
+        function(callback) {
+            var options = "unum=" + localid;
+            mountNubouserfs(nubouserfsSrc, nubouserfsDst, options, callback);
+        },
         //function(callback) {
         //    if (!keys) {
         //        callback(null);
