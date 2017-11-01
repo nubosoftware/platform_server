@@ -315,7 +315,10 @@ function fullUmount(session, user, callback) {
         "/Android/data/system_de/" + UNum,
         "/Android/data/user/" + UNum,
         "/Android/data/user_de/" + UNum,
-        "/Android/data/media/" + UNum
+        "/Android/data/media/" + UNum,
+        "/Android/data/mnt/nubouserfs/" + UNum + "/misc/profiles/cur",
+        "/Android/data/mnt/nubouserfs/" + UNum + "/user",
+        "/Android/data/mnt/nubouserfs/" + UNum + "/user_de"
     ];
     umount(dirs, platform, callback);
 }
