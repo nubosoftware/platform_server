@@ -358,6 +358,13 @@ function refreshPackages(session, callback) {
                 } else {
                     callback(null);
                 }
+            },
+            function (callback) {
+                if(deviceType === 'Web') {
+                    platform.execFile("pm", ["disable", "--user", localid, "com.android.inputmethod.latin"], function(err) {callback(null);});
+                } else {
+                    callback(null);
+                }
             }
         ], function(err) {
             callback(err);
