@@ -317,22 +317,25 @@ function setPerUserEnvironments(session, timeZone, callback) {
     async.series(
         [
             function(callback) {
-                session.platform.execFile("setprop", ["persist.sys.language.u" + localid, lang], function() {callback(null);});
+                session.platform.execFile("setprop", ["nubo.language.u" + localid, lang], function() {callback(null);});
             },
             function(callback) {
-                session.platform.execFile("setprop", ["persist.sys.country.u" + localid, countrylang], function() {callback(null);});
+                session.platform.execFile("setprop", ["nubo.country.u" + localid, countrylang], function() {callback(null);});
             },
             function(callback) {
-                session.platform.execFile("setprop", ["persist.sys.localevar.u" + localid, localevar], function() {callback(null);});
+                session.platform.execFile("setprop", ["nubo.localevar.u" + localid, localevar], function() {callback(null);});
             },
             function(callback) {
                 if(timeZone !== null && timeZone !== "") {
-                    session.platform.execFile("setprop", ["persist.sys.timezone.u" + localid, timeZone], function() {callback(null);});
+                    session.platform.execFile("setprop", ["nubo.timezone.u" + localid, timeZone], function() {callback(null);});
                 } else {
                     session.logger.error("ERROR: missing timeZone param.");
                     callback(null);
                 }
             },
+            function(callback) {
+                session.platform.execFile("getprop", [], function() {callback(null);});
+            }
         ], function(err) {
         callback(null);
         }
