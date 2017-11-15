@@ -21,7 +21,10 @@ function installApk(req, res) {
     var apk = req.params.apk;
     // Test for path manipulation
     if ((apk.indexOf('..') >= 0) || (apk.indexOf('/data/tmp/') !== 0)) {
-        var resobj = {status: 0, msg: 'Invalid file name'};
+        var resobj = {
+            status: 0,
+            msg: 'Invalid file name'
+        };
         res.end(JSON.stringify(resobj, null, 2));
         logger.error("Fail process request installApk");
         return;
@@ -30,12 +33,18 @@ function installApk(req, res) {
 
     tryInstallApk(apk, 1, 0, logger, function(err, msg) {
         var resobj;
-        if(err) {
+        if (err) {
             logger.error("Cannot install apk " + apk + "\nOutput:\n" + msg);
-            resobj = {status: 0, msg: msg};
+            resobj = {
+                status: 0,
+                msg: msg
+            };
         } else {
             logger.info("Apk " + apk + " installed");
-            resobj = {status: 1, msg: "OK"};
+            resobj = {
+                status: 1,
+                msg: "OK"
+            };
         }
         res.end(JSON.stringify(resobj, null, 2));
         logger.logTime("Finish process request installApk");
@@ -47,17 +56,19 @@ var tryInstallApk = function(apkPath, retries, wait, logger, callback) {
     var platform = new Platform(logger);
     logger.info("Try install apk " + apkPath);
     var retryInstallApk = function(path, retries, wait, logger, callback) {
-        if(retries < 1) {
+        if (retries < 1) {
             callback("Cannot install apk", msg);
         } else {
             platform.execFile("pm", ["install", "--user", "0", "-r", apkPath], function(err, stdout, stderr) {
-                var installationFail = (stdout.indexOf("Success") === -1) &&
-                    (stdout.indexOf("Failure [INSTALL_FAILED_VERSION_DOWNGRADE]") === -1);
-                if(installationFail) {
-                    msg += apkPath + ":\n" + stdout + " " + stderr;
-                    setTimeout(function() {
-                        retryInstallApk(apkPath, retries - 1, wait, logger, callback);
-                    }, wait);
+                if (err) {
+                    if (stderr.indexOf("Failure [INSTALL_FAILED_VERSION_DOWNGRADE]") === -1) {
+                        msg += apkPath + ":\n" + stderr;
+                        setTimeout(function() {
+                            retryInstallApk(apkPath, retries - 1, wait, logger, callback);
+                        }, wait);
+                    } else {
+                        callback(null);
+                    }
                 } else {
                     callback(null);
                 }
@@ -81,7 +92,7 @@ function attachApps(req, res) {
         [
             //create workable android user
             function(callback) {
-                if(obj.tasks.length > 0) {
+                if (obj.tasks.length > 0) {
                     processTasks(obj.tasks, logger, callback);
                 } else {
                     callback(null, [], true);
@@ -95,7 +106,8 @@ function attachApps(req, res) {
                 res.end(JSON.stringify(resobj, null, 2));
                 callback(null);
             }
-        ], function(err) {
+        ],
+        function(err) {
             logger.logTime("Finish process request attachApps");
         }
     );
@@ -113,12 +125,12 @@ var processTasks = function(tasks, logger, callback) {
         tasks,
         function(task, callback) {
             var cmd;
-            logger.info("processTasks task: " + task);
-            if(INSTALL_TASK.indexOf(task.task) !== -1) {
+            logger.info("processTasks task: ", task);
+            if (INSTALL_TASK.indexOf(task.task) !== -1) {
                 platform.execFile("pm", ["install", "--user", task.unum, task.packageName], function(err, stdout, stderr) {
-                    if(stdout.indexOf("Success") === -1) {
+                    if (err) {
                         task.status = 0;
-                        task.statusMsg = stdout;
+                        task.statusMsg = stderr;
                         errFlag = true;
                     } else {
                         task.status = 1;
@@ -126,12 +138,12 @@ var processTasks = function(tasks, logger, callback) {
                     results.push(task);
                     callback(null);
                 });
-            } else if(UNINSTALL_TASK.indexOf(task.task) !== -1) {
+            } else if (UNINSTALL_TASK.indexOf(task.task) !== -1) {
                 cmd = 'pm uninstall --user ' + task.unum + ' ' + task.packageName;
                 platform.execFile("pm", ["uninstall", "--user", task.unum, task.packageName], function(err, stdout, stderr) {
-                    if(stdout.indexOf("Success") === -1) {
+                    if (err) {
                         task.status = 0;
-                        task.statusMsg = stdout;
+                        task.statusMsg = stderr;
                         errFlag = true;
                     } else {
                         task.status = 1;
@@ -154,7 +166,7 @@ var processTasks = function(tasks, logger, callback) {
     );
 };
 
-function getPackagesList(req,res) {
+function getPackagesList(req, res) {
     var logger = new ThreadedLogger();
     var filter = req.params.filter;
 
@@ -166,7 +178,7 @@ function getPackagesList(req,res) {
             //get data from packages.list
             function(callback) {
                 fs.readFile("/Android/data/system/packages.list", function(err, data) {
-                    if(err) {
+                    if (err) {
                         callback(err);
                     } else {
                         callback(null, data.toString());
@@ -178,22 +190,23 @@ function getPackagesList(req,res) {
                 var packagesObjArray = [];
                 var lines = rawdata.split("\n");
                 lines.forEach(function(line) {
-                    if(line !== "") {
+                    if (line !== "") {
                         var fields = line.split(" ");
                         var packagesObj = {
                             packageName: fields[0],
                             offset: fields[1]
                         };
-                        if(!filter || (filter && filter === packagesObj.packageName)) {
+                        if (!filter || (filter && filter === packagesObj.packageName)) {
                             packagesObjArray.push(packagesObj);
                         }
                     }
                 });
                 callback(null, packagesObjArray);
             },
-        ], function(err, data) {
+        ],
+        function(err, data) {
             var resobj = {};
-            if(err) {
+            if (err) {
                 resobj.status = 0;
                 resobj.msg = err;
             } else {
@@ -214,7 +227,7 @@ var validateAttachAppsRequestObj = function(reqestObj, logger, callback) {
     var constraint = {
         tasks: {
             isArray: true,
-            array : {
+            array: {
                 packageName: constraints.packageNameConstrRequested,
                 unum: constraints.IndexConstrRequested,
                 task: {
@@ -227,7 +240,6 @@ var validateAttachAppsRequestObj = function(reqestObj, logger, callback) {
         }
     };
     var res = validate(reqestObj, constraint);
-    if(res) logger.error("input is not valid: " + JSON.stringify(res));
+    if (res) logger.error("input is not valid: " + JSON.stringify(res));
     callback(res, reqestObj);
 };
-
