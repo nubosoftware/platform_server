@@ -294,11 +294,6 @@ var afterInitAndroid = function(reqestObj, logger, callback) {
                 setTimeout(function() {callback(null);}, 30*1000);
             },
             function(callback) {
-                platform.execFile("enable_houdini", [], function(err, stdout, stderr) {
-                    callback(null);
-                });
-            },
-            function(callback) {
                 platform.execFile("pm", ["refresh", "0"], function(err, stdout, stderr) {
                     callback(null);
                 });
@@ -328,6 +323,13 @@ var afterInitAndroid = function(reqestObj, logger, callback) {
             },
             function(callback) {
                 setTimeout(function() {callback(null);}, 10*1000);
+            },
+            function(callback) {
+                execFile("/Android/system/bin/enable_houdini", [], function(err, stdout, stderr) {
+                logger.info("Houdini: "+err+" OUT="+stdout+" ERR="+stderr);
+
+                    callback(null);
+                });
             }
         ], function(err) {
        callback(err);
