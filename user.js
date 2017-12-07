@@ -11,6 +11,7 @@ var ThreadedLogger = require('./ThreadedLogger.js');
 var mount = require('./mount.js');
 var Platform = require('./platform.js');
 var http = require('./http.js');
+var validate = require("validate.js");
 
 module.exports = {
     attachUser: attachUser,
@@ -257,6 +258,11 @@ function createUser(obj, logger, callback) {
         // create user
         function (callback) {
             createUserAndroid(function (err, res) {
+                var res = validate.single(localid, {numericality: {onlyInteger: true}});
+                if (res) {
+                    err = "Error creating user";
+                }
+
                 if(!err) localid = res;
                 callback(err);
             });
@@ -469,29 +475,29 @@ function endSessionByUnum(unum, logger, callback) {
     );
 }
 
-function createFile(file, data, permissions, uid, gid, callback) {
-    async.series(
-        [
-            function (callback) {
-                fs.writeFile(file, data, function (err) {
-                    callback(err);
-                });
-            },
-            function (callback) {
-                fs.chmod(file, permissions, function (err) {
-                    callback(err);
-                });
-            },
-            function (callback) {
-                fs.chown(file, uid, gid, function (err) {
-                    callback(err);
-                });
-            }
-        ], function (err) {
-            callback(err);
-        }
-    );
-}
+//function createFile(file, data, permissions, uid, gid, callback) {
+//    async.series(
+//        [
+//            function (callback) {
+//                fs.writeFile(file, data, function (err) {
+//                    callback(err);
+//                });
+//            },
+//            function (callback) {
+//                fs.chmod(file, permissions, function (err) {
+//                    callback(err);
+//                });
+//            },
+//            function (callback) {
+//                fs.chown(file, uid, gid, function (err) {
+//                    callback(err);
+//                });
+//            }
+//        ], function (err) {
+//            callback(err);
+//        }
+//    );
+//}
 
 var validateAttachUserRequestObj = function(requestObj, logger, callback) {
     var validate = require("validate.js");

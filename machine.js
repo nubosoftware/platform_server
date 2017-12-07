@@ -249,6 +249,7 @@ var afterInitAndroid = function(reqestObj, logger, callback) {
             },
             function(callback) {
                 var nfsoptions = "nolock,hard,intr,vers=3,noatime,async"; //user 0
+                // nfs_path checked in validator for path traversal
                 var src = [
                     reqestObj.nfs.nfs_ip + ":" + reqestObj.nfs.nfs_path +"/apks"
                 ];
@@ -385,6 +386,7 @@ var getFiles = function(reqestObj, logger, callback) {
     if(reqestObj.downloadFilesList) {
         wgetArgsList = _.map(reqestObj.downloadFilesList, function(item) {
             var wgetInput = normalizeServerURL(reqestObj.management.url) + item;
+            // item already tested for path traversal in validation
             var wgetOutput = "/opt/Android/" + path.basename(item);
             return [wgetInput, "-qO", wgetOutput];
         });

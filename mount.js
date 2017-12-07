@@ -7,6 +7,9 @@ var execFile = require('child_process').execFile;
 var Common = require('./common.js');
 var logger = Common.logger;
 var fs = require('fs');
+var validate = require("validate.js");
+var constraints = require("nubo-validateConstraints")(true);
+
 
 /*
  * Check is directories in mount points
@@ -120,41 +123,41 @@ function umount(dir, platform, callback) {
     try_unmount(dir_arr, 4, callback);
 }
 
-function mountEcryptfs(src, dst, mask, login, localid, platform, options, password, key, callback) {
-    if (src.length !== dst.length) {
-        var msg = "ecryptfs Error: source and destination have different size";
-        logger.info(msg);
-        callback(msg);
-        return;
-    }
-    var ecryptfs_sig = "beefbeefbeefbeef";
-    var cmd = "";
-    // create new session for storage of keys
-    cmd = "keyctl new_session \\\n";
-    // load password
-    cmd = cmd + " && keyctl add user mykey " + password + " @s \\\n";
-    // load key
-    cmd = cmd + " && keyctl add encrypted " + ecryptfs_sig + " \"load " + key + "\" @s \\\n";
-    for (var i=0; i<src.length; i++) {
-        if(!mask[i]) {
-            cmd = cmd + " && mkdir -p " + dst[i] + " \\\n" +
-                " && busybox mount -i -t ecryptfs -o ecryptfs_sig=beefbeefbeefbeef" + "," + options + " " + src[i] + " " + dst[i] + " \\\n";
-        }
-    }
-    // clean session, remove all loaded keys of session
-    cmd = cmd + " && keyctl clear @s";
-    cmd = cmd + " || (keyctl clear @s ; false)";
-//    logger.info("cmd:\n" + cmd); //!!! Don't uncomment it, show password and key in log
-    platform.exec(cmd, function(err, code, signal, sshout) {
-        if(code !== 0) {
-            var msg = "Cannot mount ecryptfs, errno=" + code + " err:" + err;
-            logger.info(msg);
-            callback(msg);
-        } else {
-            callback(null);
-        }
-    });
-}
+//function mountEcryptfs(src, dst, mask, login, localid, platform, options, password, key, callback) {
+//    if (src.length !== dst.length) {
+//        var msg = "ecryptfs Error: source and destination have different size";
+//        logger.info(msg);
+//        callback(msg);
+//        return;
+//    }
+//    var ecryptfs_sig = "beefbeefbeefbeef";
+//    var cmd = "";
+//    // create new session for storage of keys
+//    cmd = "keyctl new_session \\\n";
+//    // load password
+//    cmd = cmd + " && keyctl add user mykey " + password + " @s \\\n";
+//    // load key
+//    cmd = cmd + " && keyctl add encrypted " + ecryptfs_sig + " \"load " + key + "\" @s \\\n";
+//    for (var i=0; i<src.length; i++) {
+//        if(!mask[i]) {
+//            cmd = cmd + " && mkdir -p " + dst[i] + " \\\n" +
+//                " && busybox mount -i -t ecryptfs -o ecryptfs_sig=beefbeefbeefbeef" + "," + options + " " + src[i] + " " + dst[i] + " \\\n";
+//        }
+//    }
+//    // clean session, remove all loaded keys of session
+//    cmd = cmd + " && keyctl clear @s";
+//    cmd = cmd + " || (keyctl clear @s ; false)";
+////    logger.info("cmd:\n" + cmd); //!!! Don't uncomment it, show password and key in log
+//    platform.exec(cmd, function(err, code, signal, sshout) {
+//        if(code !== 0) {
+//            var msg = "Cannot mount ecryptfs, errno=" + code + " err:" + err;
+//            logger.info(msg);
+//            callback(msg);
+//        } else {
+//            callback(null);
+//        }
+//    });
+//}
 
 function mountNubouserfs(src, dst, options, callback) {
     var try_mount = function(args, callback) {
@@ -324,6 +327,10 @@ function fullUmount(session, user, callback) {
 }
 
 function getUserHomeFolder(email) {
+    var res = validate.single(email, constraints.pathConstrRequested);
+    if (res) {
+        return null;
+    } 
     var re = new RegExp('(.*)@(.*)');
     var m = re.exec(email);
     var domain = "none";

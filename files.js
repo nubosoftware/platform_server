@@ -10,6 +10,11 @@ module.exports = {
     refreshMedia: refreshMedia
 };
 
+function safePathJoin(path1, path2) {
+    var targetPath = '.' + path.normalize('/' + path2);
+    return path.resolve(path1, targetPath)
+}
+
 function refreshMedia(req, res) {
     var logger = new ThreadedLogger();
     logger.logTime("Start process request refreshMedia");
@@ -40,7 +45,7 @@ var processRefreshMedia = function(obj, logger, callback) {
     async.eachSeries(
         paths,
         function(path, callback) {
-            var args = ["broadcast", "--user", unum, "-a", "android.intent.action.MEDIA_SCANNER_SCAN_FILE", "-d", "file:/storage/emulated/legacy/" + path];
+            var args = ["broadcast", "--user", unum, "-a", "android.intent.action.MEDIA_SCANNER_SCAN_FILE", "-d", safePathJoin("file:/storage/emulated/legacy/" , path)];
             platform.execFile("am", args, function(err, stdout, stderr) {
                 // Ignore errors
                 callback(null);
