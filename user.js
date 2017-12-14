@@ -258,8 +258,8 @@ function createUser(obj, logger, callback) {
         // create user
         function (callback) {
             createUserAndroid(function (err, res) {
-                var res = validate.single(localid, {numericality: {onlyInteger: true}});
-                if (res) {
+                var val = validate.single(localid, {numericality: {onlyInteger: true}});
+                if (val) {
                     err = "Error creating user";
                 }
 
