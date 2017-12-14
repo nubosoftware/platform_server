@@ -6,24 +6,13 @@ LINUX_IMG_FULL_PATH:=/opt/Android-Nougat/linux.img
 
 current_dir := $(shell pwd)
 
+BASE_TAG := aosp/nubo-4.4.2_r2
+BASE_VERSION := 1.7
+
 define get_project_version
-$(eval $1_sha1=$(shell git log HEAD -n 1 --format=format:%H))
-$(eval $1_tag=$(shell \
-ELDERTAG=`git tag --points-at "$($1_sha1)" | grep "weekly-release-" | sed "2,$$ d"`; \
-if [ -n "$$ELDERTAG" ]; then \
-  echo "$$ELDERTAG"; \
-else \
-  git describe --tags $($1_sha1); \
-fi \
-))
-$(eval $1_version=$(shell echo $($1_tag) | sed 's/.*\(1\.2\.[0-9]*\)\.\([0-9]*\).*/\1/'))
-$(eval $1_buildid=$(shell echo $($1_tag) | sed 's/.*\(1\.2\.[0-9]*\)\.\([0-9]*\).*/\2/'))
-$(eval $1_buildid=$(shell \
-if [ `echo "$($1_tag)" | grep -E "\-g[a-f0-9]{7}$$"` ]; then \
-  echo $($1_buildid)+1 | bc; \
-else \
-  echo $($1_buildid); \
-fi))
+$(eval $1_version=$(BASE_VERSION))
+$(eval $1_buildid=$(shell git log $(BASE_TAG)..HEAD --oneline | wc -l))
+$(eval $1_buildid=$(shell echo $($1_buildid)+1 | bc))
 endef
 
 $(eval $(call get_project_version,platform_server))
