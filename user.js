@@ -358,9 +358,9 @@ function refreshPackages(session, callback) {
             function (callback) {
                 platform.execFile("pm", ["refresh", localid], function(err) {callback(null);});
             },
-            function (callback) {
-                platform.execFile("pm", ["disable", "--user", localid, "com.android.vending"], function(err) {callback(null);});
-            },
+//            function (callback) {
+//                platform.execFile("pm", ["disable", "--user", localid, "com.android.vending"], function(err) {callback(null);});
+//            },
             function (callback) {
                 if(deviceType === 'Web') {
                     platform.execFile("pm", ["disable", "--user", localid, "com.android.browser"], function(err) {callback(null);});
