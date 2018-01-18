@@ -210,8 +210,14 @@ function createUser(obj, logger, callback) {
                     execFile("rm", ["-rf", "/Android/data/user/" + localid], function (err) {callback(err);});
                 },
                 function (callback) {
+                    execFile("rm", ["-rf", "/Android/data/user_de/" + localid], function (err) {callback(err);});
+                },
+                function (callback) {
                     fs.mkdir("/Android/data/user/" + localid, function (err) {callback(err);});
                 },
+                function (callback) {
+                    fs.mkdir("/Android/data/user_de/" + localid, function (err) {callback(err);});
+                },		
                 //function (callback) {
                 //    fs.chown("/Android/data/user/" + localid, 1000, 1000, function (err) {callback(err);});
                 //},
@@ -446,19 +452,25 @@ function endSessionByUnum(unum, logger, callback) {
                                 });
                             }, // function(callback)
                             function (callback) {
-                                execFile("rm", ["-rf", "/Android/data/system/users/" + unum], function(err) {callback(null);});
+                                execFile("rm", ["-rf", "/Android/data/system/users/" + unum +"/settings_system.xml"], function(err) {callback(null);});
+                            },
+			    function (callback) {
+                                execFile("rm", ["-rf", "/Android/data/system/users/" + unum +"/settings_secure.xml"], function(err) {callback(null);});
+                            },
+                            function (callback) {
+                                removeDirIfEmpty("/Android/data/user/" + unum, callback);
+                            },
+			    function (callback) {
+                                removeDirIfEmpty("/Android/data/user_de/" + unum, callback);
+                            },
+                            function (callback) {
+                                removeDirIfEmpty("/Android/data/media/" + unum, callback);
+                            },
+                            function (callback) {
+                                removeDirIfEmpty("/Android/data/misc/keystore/user_" + unum, callback);
                             },
                             function (callback) {
                                 execFile("rm", ["/Android/data/system/users/" + unum + ".xml"], function(err) {callback(null);});
-                            },
-                            function (callback) {
-                                execFile("rm", ["-rf", "/Android/data/user/" + unum], function(err) {callback(null);});
-                            },
-                            function (callback) {
-                                execFile("rm", ["-rf", "/Android/data/media/" + unum], function(err) {callback(null);});
-                            },
-                            function (callback) {
-                                execFile("rm", ["-rf", "/Android/data/misc/keystore/user_" + unum + "/*"], function(err) {callback(null);});
                             }
                         ], function (err, results) {
                             callback(err);
@@ -473,6 +485,20 @@ function endSessionByUnum(unum, logger, callback) {
             callback(err);
         }
     );
+}
+
+function removeDirIfEmpty(dir, callback) {
+    fs.readdir(dir, function(err, files) {
+        if (err) {
+           // some sort of error
+	   callback(err);
+        } else {
+           if (!files.length) {
+               // directory appears to be empty
+               execFile("rm", ["-rf", dir], function(err) {callback(err);});
+           }
+        }
+    });
 }
 
 //function createFile(file, data, permissions, uid, gid, callback) {

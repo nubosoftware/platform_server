@@ -90,7 +90,7 @@ function umount(dir, platform, callback) {
                             } else {
                                 logger.warn("Cannot get valid mount points");
                                 setTimeout(function() {
-                                    try_unmount(new_dirs, tries-1, callback);
+                                    try_unmount(dirs, tries-1, callback);
                                 }, 100);
                             }
                         } else {
