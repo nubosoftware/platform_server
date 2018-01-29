@@ -289,7 +289,7 @@ var afterInitAndroid = function(reqestObj, logger, callback) {
             function(callback) {
                 var timeoutSec = 900;
                 logger.info("Waiting upto " + timeoutSec + " seconds for 1st boot of android...");
-                waitForProcessWithTimeout("android.process.acore", timeoutSec, callback);
+                waitForProcessWithTimeout("android.process.media", timeoutSec, callback);
             },
             function(callback) {
                 setTimeout(function() {callback(null);}, 30*1000);
@@ -302,7 +302,7 @@ var afterInitAndroid = function(reqestObj, logger, callback) {
             function(callback) {
                 var timeoutSec = 300;
                 logger.info("Waiting upto " + timeoutSec + " seconds for restart of android...");
-                waitForProcessWithTimeout("android.process.acore", timeoutSec, callback);
+                waitForProcessWithTimeout("android.process.media", timeoutSec, callback);
             },
             function(callback) {
                 if(reqestObj.settings.withService){
