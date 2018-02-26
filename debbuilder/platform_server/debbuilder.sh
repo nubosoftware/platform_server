@@ -9,6 +9,7 @@ mkdir -p $BUILD_ROOT/opt/platform_server
 mkdir -p $BUILD_ROOT/opt/platform_server/log
 mkdir -p $BUILD_ROOT/etc/init.d
 mkdir -p $BUILD_ROOT/etc/rsyslog.d
+mkdir -p $BUILD_ROOT/etc/sudoers.d
 
 #Copy js files from git project
 FILES=`git ls-tree --full-tree -r HEAD | awk '$4 ~ /.+\.js$/ {print $4}'`
@@ -18,6 +19,7 @@ done
 install -m 644 $PROJ_PATH/Settings.json.init $BUILD_ROOT/opt/platform_server/Settings.json
 install -m 755 $NUBO_PROJ_PATH/scripts/rootfs/etc/init.d/platform_server $BUILD_ROOT/etc/init.d/platform_server
 install -m 644 $PROJ_PATH/rsyslog-platform_server.conf $BUILD_ROOT/etc/rsyslog.d/18-nubo-platform_server.conf
+install -m 644 $PROJ_PATH/etc_sudoers.d_nubo $BUILD_ROOT/etc/sudoers.d/nubo
 
 cp $PROJ_PATH/package.json $BUILD_ROOT/opt/platform_server/
 cd $BUILD_ROOT/opt/platform_server/

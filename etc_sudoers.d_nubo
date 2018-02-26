@@ -1,0 +1,2 @@
+nubo ALL =(ALL:ALL) NOPASSWD: /sbin/reboot
+
