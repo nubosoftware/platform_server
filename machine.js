@@ -29,7 +29,7 @@ function startPlatformPost(req, res) {
     var requestInProgress = true;
 
     if (flagInitAndroidStatus > 0) {
-        var resobj = {status: 0};
+        var resobj = { status: 0 };
         if (flagInitAndroidStatus === 1) resobj.msg = "Init Android OS in progress";
         if (flagInitAndroidStatus === 2) resobj.msg = "Init Android OS already done";
         res.end(JSON.stringify(resobj, null, 2));
@@ -45,48 +45,49 @@ function startPlatformPost(req, res) {
 
     logger.logTime("Start process request startPlatform");
     var requestObj = req.body;
-    
+
     async.waterfall(
         [
-        function(callback) {
-            RESTfull_message = "preset platform parameters";
-            logger.info(RESTfull_message);
-            setParametersOnMachine(requestObj, logger, callback);
-        },
-        function(callback) {
-            getFiles(requestObj, logger, callback);
-        },
-        function(callback) {
-            logger.debug("startPlatform: preconfigure vpn");
-            preVpnConfiguration(logger, callback);
-        },
-        function(callback) {
-            RESTfull_message = "init android";
-            logger.info(RESTfull_message);
-            initAndroid(requestObj, logger, callback);
-        },
-        function(callback) {
-            RESTfull_message = "post boot procedures";
-            logger.info(RESTfull_message);
-            afterInitAndroid(requestObj, logger, callback);
-        }
-    ], function(err) {
-        clearInterval(requestKeepAliveInterval);
-        var resobj = {};
-        if (err) {
-            RESTfull_message = "Start android failed";
-            logger.error("Error during start platform: " + err);
-            resobj.status = 0;
-            resobj.msg = err;
-            flagInitAndroidStatus = 3;
-        } else {
-            RESTfull_message = "Android run";
-            resobj.status = 1;
-            flagInitAndroidStatus = 2;
-        }
-        res.end(JSON.stringify(resobj, null, 2));
-        logger.logTime("Finish process request startPlatform");
-    });
+            function(callback) {
+                RESTfull_message = "preset platform parameters";
+                logger.info(RESTfull_message);
+                setParametersOnMachine(requestObj, logger, callback);
+            },
+            function(callback) {
+                getFiles(requestObj, logger, callback);
+            },
+            function(callback) {
+                logger.debug("startPlatform: preconfigure vpn");
+                preVpnConfiguration(logger, callback);
+            },
+            function(callback) {
+                RESTfull_message = "init android";
+                logger.info(RESTfull_message);
+                initAndroid(requestObj, logger, callback);
+            },
+            function(callback) {
+                RESTfull_message = "post boot procedures";
+                logger.info(RESTfull_message);
+                afterInitAndroid(requestObj, logger, callback);
+            }
+        ],
+        function(err) {
+            clearInterval(requestKeepAliveInterval);
+            var resobj = {};
+            if (err) {
+                RESTfull_message = "Start android failed";
+                logger.error("Error during start platform: " + err);
+                resobj.status = 0;
+                resobj.msg = err;
+                flagInitAndroidStatus = 3;
+            } else {
+                RESTfull_message = "Android run";
+                resobj.status = 1;
+                flagInitAndroidStatus = 2;
+            }
+            res.end(JSON.stringify(resobj, null, 2));
+            logger.logTime("Finish process request startPlatform");
+        });
 }
 
 var validateStartPlatformRequestObj = function(reqestObj, logger, callback) {
@@ -96,26 +97,26 @@ var validateStartPlatformRequestObj = function(reqestObj, logger, callback) {
     var constraint = {
         platid: constraints.platIdConstrRequested,
         platUID: constraints.requestedPlatformUIDConstr,
-        gateway: {presence: true},
+        gateway: { presence: true },
         "gateway.apps_port": constraints.portNumberConstrRequested,
-        "gateway.external_ip": {},                      //not in use
-        "gateway.player_port": {},                      //not in use
-        "gateway.ssl": {},                              //not in use
-        "gateway.index": {},                            //not in use
+        "gateway.external_ip": {}, //not in use
+        "gateway.player_port": {}, //not in use
+        "gateway.ssl": {}, //not in use
+        "gateway.index": {}, //not in use
         "gateway.internal_ip": constraints.ipConstrOptional,
-        "gateway.isGWDisabled": {},                     //not in use
+        "gateway.isGWDisabled": {}, //not in use
         "gateway.controller_port": constraints.portNumberConstrRequested,
-        management: {presence: true},
+        management: { presence: true },
         "management.url": constraints.hostConstr,
         "management.ip": constraints.ipConstrRequested,
-        nfs: {presence: true},
+        nfs: { presence: true },
         "nfs.nfs_ip": constraints.ipConstrRequested,
-        "nfs.ssh_ip": {},                               //not in use
-        "nfs.ssh_user": {},                             //not in use
-        "nfs.key_path": {},                             //not in use
+        "nfs.ssh_ip": {}, //not in use
+        "nfs.ssh_user": {}, //not in use
+        "nfs.key_path": {}, //not in use
         "nfs.nfs_path": constraints.pathConstr,
-        downloadFilesList: {array: constraints.pathConstr},
-        settings: {presence: true},
+        downloadFilesList: { array: constraints.pathConstr },
+        settings: { presence: true },
         "settings.withService": constraints.boolConstrOptional,
         "settings.hideControlPanel": constraints.boolConstrOptional,
         rsyslog: {},
@@ -135,12 +136,12 @@ function killPlatform(req, res) {
 
 function fixHostsFile(path, ip, managementUrl, callback) {
     var managementUrlObj = url.parse(managementUrl);
-        if(net.isIP(managementUrlObj.hostname)) {
-            callback(null);
-        } else {
-            var hostsLine = ip + ' ' + managementUrlObj.hostname + '\n';
-            fs.appendFile(path, hostsLine, callback);
-        }
+    if (net.isIP(managementUrlObj.hostname)) {
+        callback(null);
+    } else {
+        var hostsLine = ip + ' ' + managementUrlObj.hostname + '\n';
+        fs.appendFile(path, hostsLine, callback);
+    }
 }
 
 var setParametersOnMachine = function(obj, logger, callback) {
@@ -151,7 +152,7 @@ var setParametersOnMachine = function(obj, logger, callback) {
             },
             function(callback) {
                 execFile("modprobe", ["nfs"], function(error, stdout, stderr) {
-                    if(error){
+                    if (error) {
                         logger.error("setParametersOnMachine: modprobe nfs fail stdout: " + stdout);
                     }
                     callback(error);
@@ -159,13 +160,14 @@ var setParametersOnMachine = function(obj, logger, callback) {
             },
             function(callback) {
                 execFile("modprobe", ["nubouserfs"], function(error, stdout, stderr) {
-                    if(error){
+                    if (error) {
                         logger.error("setParametersOnMachine: modprobe nubouserfs fail stdout: " + stdout);
                     }
                     callback(error);
                 });
             },
-        ], function(err) {
+        ],
+        function(err) {
             callback(err);
         }
     );
@@ -189,16 +191,16 @@ var initAndroid = function(reqestObj, logger, callback) {
             function(callback) {
                 var sessionXmlContent =
                     "<?xml version='1.0' encoding='utf-8' standalone='yes' ?>\n" +
-                    '<session>\n'+
-                        '<gateway_controller_port>' + reqestObj.gateway.controller_port + '</gateway_controller_port>\n' +
-                        '<gateway_apps_port>' + reqestObj.gateway.apps_port + '</gateway_apps_port>\n' +
-                        '<gateway_url>' + reqestObj.gateway.internal_ip + '</gateway_url>\n' +
-                        '<platformID>' + reqestObj.platid + '</platformID>\n' +
-                        '<management_url>' + reqestObj.management.url + '</management_url>\n' +
-                        '<platform_uid>' + reqestObj.platUID + '</platform_uid>\n' +
+                    '<session>\n' +
+                    '<gateway_controller_port>' + reqestObj.gateway.controller_port + '</gateway_controller_port>\n' +
+                    '<gateway_apps_port>' + reqestObj.gateway.apps_port + '</gateway_apps_port>\n' +
+                    '<gateway_url>' + reqestObj.gateway.internal_ip + '</gateway_url>\n' +
+                    '<platformID>' + reqestObj.platid + '</platformID>\n' +
+                    '<management_url>' + reqestObj.management.url + '</management_url>\n' +
+                    '<platform_uid>' + reqestObj.platUID + '</platform_uid>\n' +
                     '</session>\n';
                 fs.writeFile("/Android/data/data/Session.xml", sessionXmlContent, function(err) {
-                    if(err) {
+                    if (err) {
                         logger.error('setParametersOnMachine: ' + err);
                         callback(err);
                     } else {
@@ -218,12 +220,10 @@ var initAndroid = function(reqestObj, logger, callback) {
             //},
             function(callback) {
                 var chroot_proc = require('child_process').spawn(
-                    "nohup",
-                    [
+                    "nohup", [
                         "/usr/sbin/chroot", "/Android", "/init"
-                    ],
-                    {
-                        stdio: [ "ignore", "ignore", "ignore" ],
+                    ], {
+                        stdio: ["ignore", "ignore", "ignore"],
                         detached: true,
                         shell: "/bin/sh"
                     }
@@ -234,7 +234,8 @@ var initAndroid = function(reqestObj, logger, callback) {
                 chroot_proc.unref();
                 callback(null);
             }
-        ], function(err) {
+        ],
+        function(err) {
             callback(err);
         }
     );
@@ -245,13 +246,13 @@ var afterInitAndroid = function(reqestObj, logger, callback) {
     async.series(
         [
             function(callback) {
-                setTimeout(function() {callback(null);}, 10*1000);
+                setTimeout(function() { callback(null); }, 10 * 1000);
             },
             function(callback) {
                 var nfsoptions = "nolock,hard,intr,vers=3,noatime,async"; //user 0
                 // nfs_path checked in validator for path traversal
                 var src = [
-                    reqestObj.nfs.nfs_ip + ":" + reqestObj.nfs.nfs_path +"/apks"
+                    reqestObj.nfs.nfs_ip + ":" + reqestObj.nfs.nfs_path + "/apks"
                 ];
                 var dst = [
                     "/Android/data/tmp"
@@ -292,7 +293,7 @@ var afterInitAndroid = function(reqestObj, logger, callback) {
                 waitForProcessWithTimeout("android.process.media", timeoutSec, callback);
             },
             function(callback) {
-                setTimeout(function() {callback(null);}, 30*1000);
+                setTimeout(function() { callback(null); }, 30 * 1000);
             },
             function(callback) {
                 platform.execFile("pm", ["refresh", "0"], function(err, stdout, stderr) {
@@ -305,38 +306,63 @@ var afterInitAndroid = function(reqestObj, logger, callback) {
                 waitForProcessWithTimeout("android.process.media", timeoutSec, callback);
             },
             function(callback) {
-                if(reqestObj.settings.withService){
+                if (reqestObj.settings.withService) {
                     platform.execFile("setprop", ["ro.kernel.withService", "withService"], function(err, stdout, stderr) {
                         callback(null);
                     });
-                }
-                else
+                } else
                     callback(null);
             },
             function(callback) {
-                if(reqestObj.settings.hideControlPanel){
+                if (reqestObj.settings.hideControlPanel) {
                     platform.execFile("setprop", ["ro.kernel.hideControlPanel", "hideControlPanel"], function(err, stdout, stderr) {
                         callback(null);
                     });
-                }
-                else
+                } else
                     callback(null);
             },
             function(callback) {
-                setTimeout(function() {callback(null);}, 10*1000);
+                setTimeout(function() { callback(null); }, 10 * 1000);
             },
             function(callback) {
                 execFile("/Android/system/bin/enable_houdini", [], function(err, stdout, stderr) {
-                logger.info("Houdini: "+err+" OUT="+stdout+" ERR="+stderr);
+                    logger.info("Houdini: " + err + " OUT=" + stdout + " ERR=" + stderr);
 
                     callback(null);
                 });
             }
-        ], function(err) {
-       callback(err);
+        ],
+        function(err) {
+            callback(err);
         }
     );
 };
+
+function checkPlatform(req, res) {
+    var logger = new ThreadedLogger();
+    logger.info("Running checkPlatform");
+    var platform = new Platform(logger);
+    platform.execFile("pm", ["list", "users"], function(err, stdout, stderr) {
+        if (err) {
+            var resobj = {
+                status: 0,
+                msg: "Platform access error: " + err
+            };
+            logger.error("Andorid access error", err);
+            res.end(JSON.stringify(resobj, null, 2));
+            return;
+        } else {
+            var resobj = {
+                status: 1,
+                msg: "Platform is up"
+            };
+            logger.info("Platform is up. pm output: " + stdout);
+            res.end(JSON.stringify(resobj, null, 2));
+            return;
+        }
+
+    });
+}
 
 var waitForProcessWithTimeout = function(name, timeoutSec, callback) {
     var timeoutFlag = false;
@@ -358,13 +384,13 @@ var waitForProcessWithTimeout = function(name, timeoutSec, callback) {
                 var cmdStartPos = lines[0].indexOf("COMMAND");
                 lines.forEach(function(row) {
                     var cmdLine = row.slice(cmdStartPos);
-                    if(re1.exec(cmdLine) || re2.exec(cmdLine) || re3.exec(cmdLine)) {
+                    if (re1.exec(cmdLine) || re2.exec(cmdLine) || re3.exec(cmdLine)) {
                         clearTimeout(timeoutObj);
                         doneFlag = true;
                         console.log("row: " + row);
                     }
                 });
-                if(doneFlag) callback(null);
+                if (doneFlag) callback(null);
                 else {
                     setTimeout(function() {
                         getPid(callback);
@@ -383,7 +409,7 @@ var normalizeServerURL = function(url) {
 
 var getFiles = function(reqestObj, logger, callback) {
     var wgetArgsList;
-    if(reqestObj.downloadFilesList) {
+    if (reqestObj.downloadFilesList) {
         wgetArgsList = _.map(reqestObj.downloadFilesList, function(item) {
             var wgetInput = normalizeServerURL(reqestObj.management.url) + item;
             // item already tested for path traversal in validation
@@ -403,7 +429,7 @@ var getFiles = function(reqestObj, logger, callback) {
                     wgetArgsList,
                     function(item, callback) {
                         execFile("wget", item, function(error, stdout, stderr) {
-                            if(error) {
+                            if (error) {
                                 logger.error("Cannot download file " + item[0] + ", err: " + error);
                             }
                             callback(error);
@@ -412,8 +438,9 @@ var getFiles = function(reqestObj, logger, callback) {
                     callback
                 );
             }
-        ], function(err) {
-            if(err) {
+        ],
+        function(err) {
+            if (err) {
                 logger.error("getFiles failed with err: " + err);
             }
             callback(err);
@@ -421,84 +448,84 @@ var getFiles = function(reqestObj, logger, callback) {
     );
 };
 
-function preVpnConfiguration(logger, callback){
-        async.series([
-            //must load iptables before android platform starts, so netd can config init rules
-            function(callback) {
-                execFile("modprobe", ["iptable_nat"], function(error, stdout, stderr) {
-                    if(error){
-                        logger.debug("preVpnConfiguration: stdout: " + stdout);
-                    }
-                    callback(error);
-                });
-            },
-            function(callback) {
-                execFile("modprobe", ["iptable_raw"], function(error, stdout, stderr) {
-                    if(error){
-                        logger.error("preVpnConfiguration: stdout: " + stdout);
-                    }
-                    callback(error);
-                });
-            },
-            function(callback) {
-                execFile("modprobe", ["iptable_mangle"], function(error, stdout, stderr) {
-                    if(error){
-                        logger.error("preVpnConfiguration: stdout: " + stdout);
-                    }
-                    callback(error);
-                });
-            },
-            function(callback) {
-                execFile("modprobe", ["iptable_filter"], function(error, stdout, stderr) {
-                    if(error){
-                        logger.error("preVpnConfiguration: stdout: " + stdout);
-                    }
-                    callback(error);
-                });
-            },
-            function(callback) {
-                execFile("modprobe", ["tun"], function(error, stdout, stderr) {
-                    if(error){
-                        logger.error("preVpnConfiguration: stdout: " + stdout);
-                    }
-                    callback(error);
-                });
-            },/*
-            // need to load for legacy vpn
-            function(callback) {
-                execFile("modprobe", ["pppolac"], function(error, stdout, stderr) {
-                    if(error){
-                        logger.error("preVpnConfiguration: stdout: " + stdout);
-                    }
-                    callback(error);
-                });
-            },
-            // need to load for legacy vpn
-            function(callback) {
-                execFile("modprobe", ["pppopns"], function(error, stdout, stderr) {
-                    if(error){
-                        logger.error("preVpnConfiguration: stdout: " + stdout);
-                    }
-                    callback(error);
-                });
-            },*/
-            // since vpn requires asymetric routing this parameter need to be set so
-            // each new interface will be set with it (only vpn new interfaces should created)
-            function(callback) {
-                execFile("sysctl", ["net.ipv4.conf.default.rp_filter=2"], callback);
-            }
-        ], function(err) {
-            if(err) {
-                logger.error("preVpnConfiguration: " + err);
-            }
-            callback(err);
+function preVpnConfiguration(logger, callback) {
+    async.series([
+        //must load iptables before android platform starts, so netd can config init rules
+        function(callback) {
+            execFile("modprobe", ["iptable_nat"], function(error, stdout, stderr) {
+                if (error) {
+                    logger.debug("preVpnConfiguration: stdout: " + stdout);
+                }
+                callback(error);
+            });
+        },
+        function(callback) {
+            execFile("modprobe", ["iptable_raw"], function(error, stdout, stderr) {
+                if (error) {
+                    logger.error("preVpnConfiguration: stdout: " + stdout);
+                }
+                callback(error);
+            });
+        },
+        function(callback) {
+            execFile("modprobe", ["iptable_mangle"], function(error, stdout, stderr) {
+                if (error) {
+                    logger.error("preVpnConfiguration: stdout: " + stdout);
+                }
+                callback(error);
+            });
+        },
+        function(callback) {
+            execFile("modprobe", ["iptable_filter"], function(error, stdout, stderr) {
+                if (error) {
+                    logger.error("preVpnConfiguration: stdout: " + stdout);
+                }
+                callback(error);
+            });
+        },
+        function(callback) {
+            execFile("modprobe", ["tun"], function(error, stdout, stderr) {
+                if (error) {
+                    logger.error("preVpnConfiguration: stdout: " + stdout);
+                }
+                callback(error);
+            });
+        },
+        /*
+                    // need to load for legacy vpn
+                    function(callback) {
+                        execFile("modprobe", ["pppolac"], function(error, stdout, stderr) {
+                            if(error){
+                                logger.error("preVpnConfiguration: stdout: " + stdout);
+                            }
+                            callback(error);
+                        });
+                    },
+                    // need to load for legacy vpn
+                    function(callback) {
+                        execFile("modprobe", ["pppopns"], function(error, stdout, stderr) {
+                            if(error){
+                                logger.error("preVpnConfiguration: stdout: " + stdout);
+                            }
+                            callback(error);
+                        });
+                    },*/
+        // since vpn requires asymetric routing this parameter need to be set so
+        // each new interface will be set with it (only vpn new interfaces should created)
+        function(callback) {
+            execFile("sysctl", ["net.ipv4.conf.default.rp_filter=2"], callback);
         }
-    );
+    ], function(err) {
+        if (err) {
+            logger.error("preVpnConfiguration: " + err);
+        }
+        callback(err);
+    });
 }
 
 module.exports = {
     startPlatformGet: startPlatformGet,
     startPlatformPost: startPlatformPost,
-    killPlatform: killPlatform
+    killPlatform: killPlatform,
+    checkPlatform: checkPlatform
 };
-
