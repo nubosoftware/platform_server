@@ -376,7 +376,7 @@ function refreshPackages(session, callback) {
             },
             function (callback) {
                 if(deviceType === 'Web') {
-                    platform.execFile("pm", ["disable", "--user", localid, "com.android.inputmethod.latin"], function(err) {callback(null);});
+                    platform.execFile("pm", ["enable", "--user", localid, "com.android.inputmethod.latin"], function(err) {callback(null);});
                 } else {
                     callback(null);
                 }
