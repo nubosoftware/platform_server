@@ -51,6 +51,9 @@ var filter = {
         "path": "/killPlatform",
         "constraints": {}
     }, {
+        "path": "/checkPlatform",
+        "constraints": {}
+    }, {
         "path": "/attachUser",
         "constraints": {},
         "bodyConstraints": {
@@ -127,9 +130,9 @@ var filter = {
                     "packageName": constraints.packageNameConstrRequested,
                     "unum": constraints.NaturalNumberConstrRequested,
                     "task": {
-                          "inclusion": {
-                                "within": ["0", "1", 0, 1]
-                          }
+                        "inclusion": {
+                            "within": ["0", "1", 0, 1]
+                        }
                     }
                 }
             }

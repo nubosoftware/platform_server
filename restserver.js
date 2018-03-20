@@ -31,10 +31,11 @@ var bodyFilterOpts = {
 var urlFilterObj = new filterModule.filter([], urlFilterOpts);
 var bodyFilterObj = new filterModule.filter([], bodyFilterOpts);
 var filterFile = "./parameters-map.js";
+
 function watchFilterFile() {
     fs.watchFile(filterFile, {
-        persistent : false,
-        interval : 5007
+        persistent: false,
+        interval: 5007
     }, function(curr, prev) {
         logger.info(filterFile + ' been modified');
         refresh_filter();
@@ -44,12 +45,12 @@ function watchFilterFile() {
 var refresh_filter = function() {
     try {
         delete require.cache[require.resolve(filterFile)];
-    } catch(e) {}
+    } catch (e) {}
 
     var obj;
     try {
         obj = require(filterFile);
-    } catch(e) {
+    } catch (e) {
         logger.error('Error: Cannot load ' + filterFile + ' file, err: ' + e);
         return;
     }
@@ -57,12 +58,12 @@ var refresh_filter = function() {
 
     var permittedMode = Common.parametersMapPermittedMode ? Common.parametersMapPermittedMode : false;
 
-    urlFilterObj.reload(obj.rules, {permittedMode: permittedMode});
-    bodyFilterObj.reload(obj.rules, {permittedMode: permittedMode});
+    urlFilterObj.reload(obj.rules, { permittedMode: permittedMode });
+    bodyFilterObj.reload(obj.rules, { permittedMode: permittedMode });
 };
 
 var mainFunction = function(err, firstTimeLoad) {
-    if(err) {
+    if (err) {
         console.log("Fatal Error: " + err);
         Common.quit();
         return;
@@ -70,7 +71,7 @@ var mainFunction = function(err, firstTimeLoad) {
 
     refresh_filter();
 
-    if(!firstTimeLoad)// execute the following code only in the first time
+    if (!firstTimeLoad) // execute the following code only in the first time
         return;
 
     watchFilterFile();
@@ -83,15 +84,15 @@ var mainFunction = function(err, firstTimeLoad) {
                     // logger.info("protocol: "+urlObj.protocol+", hostname:"+urlObj.hostname+", port: "+urlObj.port);
                     var isSSL = urlObj.protocol === "https:";
                     var port = urlObj.port;
-                    if(!port)
-                        port = ( isSSL ? 443 : 80);
+                    if (!port)
+                        port = (isSSL ? 443 : 80);
                     var host = urlObj.hostname;
                     callback(null, host, port, isSSL);
                 },
                 function(host, port, isSSL, callback) {
-                    if(isSSL) {
+                    if (isSSL) {
                         readCerts(function(err, opts) {
-                            if(err) {
+                            if (err) {
                                 callback(err);
                                 return;
                             } else {
@@ -116,22 +117,23 @@ var mainFunction = function(err, firstTimeLoad) {
                     };
                     Common.exitJobs.push(closeListener);
                 }
-            ], function(err) {
-                if(err) {
+            ],
+            function(err) {
+                if (err) {
                     logger.error("Cannot open listener for " + listenAddress + ", err: " + err);
                 }
-                if(typeof callback === "function") callback(err);
+                if (typeof callback === "function") callback(err);
             }
         );
     };
     var readCerts = function(callback) {
-        if(!Common.sslCerts || !Common.sslCerts.ca || !Common.sslCerts.cert || !Common.sslCerts.key) return callback("bad parameter Common.sslCerts");
+        if (!Common.sslCerts || !Common.sslCerts.ca || !Common.sslCerts.cert || !Common.sslCerts.key) return callback("bad parameter Common.sslCerts");
         var sslCerts = {};
         async.forEachOf(
             Common.sslCerts,
             function(item, key, callback) {
                 fs.readFile(item, function(err, data) {
-                    if(err) {
+                    if (err) {
                         logger.error("Cannot read " + item + " file, err: " + err);
                     } else {
                         sslCerts[key] = data;
@@ -161,7 +163,7 @@ var accesslogger = accesslog({
 });
 
 function nocache(req, res, next) {
-    if(!req.headers['range']) {
+    if (!req.headers['range']) {
         res.header('Cache-Control', 'private, no-cache, no-store, must-revalidate');
         res.header('Expires', '-1');
         res.header('Pragma', 'no-cache');
@@ -171,13 +173,13 @@ function nocache(req, res, next) {
 
 function validateCertificate(req, res, next) {
     var certObj;
-    if(res.socket.authorized) {
+    if (res.socket.authorized) {
         certObj = res.socket.getPeerCertificate(true);
         //sometime (next time: 2nd, 3rd) certObj come without certObj.issuerCertificate, so we keep fingerprints of known certificates
-        if(Common.managementCertsFingerprint.indexOf(certObj.fingerprint) !== -1) {
+        if (Common.managementCertsFingerprint.indexOf(certObj.fingerprint) !== -1) {
             //Certificate in list of known certificates
             next();
-        } else if(certObj.issuerCertificate && Common.managementCertIssuerFingerprint && (certObj.issuerCertificate.fingerprint === Common.managementCertIssuerFingerprint)) {
+        } else if (certObj.issuerCertificate && Common.managementCertIssuerFingerprint && (certObj.issuerCertificate.fingerprint === Common.managementCertIssuerFingerprint)) {
             //Certificate is not in list of known certificates, but it's issuer is known issuer, then add certificate to list of  known certificates
             Common.managementCertsFingerprint.push(certObj.fingerprint);
             next();
@@ -197,7 +199,7 @@ function buildServerObject(server) {
         logger.error("Exception in http server: request url: " + request.url + " error: " + JSON.stringify(error && error.stack || error));
         try {
             response.send(error);
-        } catch(e) {
+        } catch (e) {
             logger.warn("response already done");
         }
         return true;
@@ -205,7 +207,7 @@ function buildServerObject(server) {
     server.use(validateCertificate);
     server.use(restify.queryParser());
     server.use(urlFilterObj.useHandler);
-    server.use(restify.bodyParser({mapParams: false}));
+    server.use(restify.bodyParser({ mapParams: false }));
     server.use(bodyFilterObj.useHandler);
     server.use(function(req, res, next) {
         req.realIP = req.headers['x-real-ip'] || req.connection.remoteAddress;
@@ -215,10 +217,11 @@ function buildServerObject(server) {
     server.use(accesslogger);
     // server.use(restify.gzipResponse());
     server.use(nocache);
-    server.get("/", function(req, res) {res.end("OK");});
+    server.get("/", function(req, res) { res.end("OK"); });
     server.get("/startPlatform", machineModule.startPlatformGet);
     server.post("/startPlatform", machineModule.startPlatformPost);
     server.get("/killPlatform", machineModule.killPlatform);
+    server.get("/checkPlatform", machineModule.checkPlatform);
     server.post("/attachUser", userModule.attachUser);
     server.get("/detachUser", userModule.detachUser);
     server.get("/installApk", appModule.installApk);
@@ -226,12 +229,12 @@ function buildServerObject(server) {
     server.get("/getPackagesList", appModule.getPackagesList);
     server.post("/refreshMedia", filesModule.refreshMedia);
     server.post("/applyFirewall", firewallModule.post);
-    server.get("/createNewUserTarGz",createNewUserTarGzModule.create);
+    server.get("/createNewUserTarGz", createNewUserTarGzModule.create);
     // server.post("/connectToVpn",vpn.connectToVpn);
 
 }
 
 Common.loadCallback = mainFunction;
-if(module) {
-    module.exports = {mainFunction: mainFunction};
+if (module) {
+    module.exports = { mainFunction: mainFunction };
 }
