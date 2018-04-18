@@ -12,6 +12,7 @@ var mount = require('./mount.js');
 var Platform = require('./platform.js');
 var http = require('./http.js');
 var validate = require("validate.js");
+var Audio = require('./audio.js');
 
 module.exports = {
     attachUser: attachUser,
@@ -304,6 +305,16 @@ function createUser(obj, logger, callback) {
                 callback(err);
             });
         },
+        function (callback) {
+            Audio.initAudio(localid, function (err) {
+                logger.logTime("initAudio");
+                if (err) {
+                    logger.info("initAudio error: "+err);
+                }
+            });
+            // do not wait to init audio to finish before finish attach session
+            callback(null);
+        },
     ], function (err, results) {
         if(err) {
             logger.info("Error during session create: " + err);
@@ -471,6 +482,16 @@ function endSessionByUnum(unum, logger, callback) {
                             },
                             function (callback) {
                                 execFile("rm", ["/Android/data/system/users/" + unum + ".xml"], function(err) {callback(null);});
+                            },
+                            function (callback) {
+                                Audio.deInitAudio(unum, function (err) {
+                                    logger.logTime("deInitAudio");
+                                    if (err) {
+                                        logger.info("deInitAudio error: "+err);
+                                    }
+                                });
+                                // do not wait to deinit audio to finish
+                                callback(null);
                             }
                         ], function (err, results) {
                             callback(err);
