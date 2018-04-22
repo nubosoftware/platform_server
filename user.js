@@ -11,8 +11,8 @@ var ThreadedLogger = require('./ThreadedLogger.js');
 var mount = require('./mount.js');
 var Platform = require('./platform.js');
 var http = require('./http.js');
-var validate = require("validate.js");
 var Audio = require('./audio.js');
+var audioserver = require("./audioserver.js");
 
 module.exports = {
     attachUser: attachUser,
@@ -207,6 +207,14 @@ function createUser(obj, logger, callback) {
                         }
                     });
                 }, //function(callback)
+                function(callback) {
+                    var obj = {
+                        platform: platform,
+                        unum: localid,
+                        logger: logger
+                    }
+                    audioserver.startUserAudioserver(obj, function (err) {callback(err);});
+                },
                 function (callback) {
                     execFile("rm", ["-rf", "/Android/data/user/" + localid], function (err) {callback(err);});
                 },
@@ -420,6 +428,14 @@ function endSessionByUnum(unum, logger, callback) {
                                 });
                                 // platform.exec
                             }, // function(callback)
+                            function(callback) {
+                                var obj = {
+                                    platform: platform,
+                                    unum: unum,
+                                    logger: logger
+                                }
+                                audioserver.stopUserAudioserver(obj, function (err) {callback(err);});
+                            },
                             // force close all user's applications if it still exist
                             function (callback) {
                                 execFile("ps", ["auxn"], function (err, stdout, stderr) {
