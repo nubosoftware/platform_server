@@ -17,3 +17,4 @@
 - Settings.json
 - Settings.json.init
 - *.log
+- pulseaudio-service.cpp

@@ -8,3 +8,4 @@ node_modules/
 rpmbuild/RPMS
 rpmbuild/SRPMS
 debbuild
+pulseaudio-service
