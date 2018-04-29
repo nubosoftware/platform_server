@@ -13,14 +13,32 @@ function startUserAudioserver(opts, callback) {
     var platform = opts.platform;
     var unum = opts.unum;
     var logger = opts.logger;
-    platform.execFile("daemonize", ["user_audioserver", unum], function (err, stdout, stderr) {
-        if(err) {
-            logger.error("audioserver.js::startUserAudioserver Cannot start audioserver, err: " + err);
-            callback(null);
-        } else {
-            callback(null);
+    async.series(
+        [
+            function(callback) {
+                platform.execFile("daemonize", ["user_audioserver", unum], function (err, stdout, stderr) {
+                    if(err) {
+                        logger.error("audioserver.js::startUserAudioserver Cannot start audioserver, err: " + err);
+                        callback(null);
+                    } else {
+                        callback(null);
+                    }
+                });
+            },
+            function(callback) {
+                platform.execFile("daemonize", ["user_mediaserver", unum], function (err, stdout, stderr) {
+                    if(err) {
+                        logger.error("audioserver.js::startUserAudioserver Cannot start audioserver, err: " + err);
+                        callback(null);
+                    } else {
+                        callback(null);
+                    }
+                });
+            }
+        ], function(err) {
+            callback(err);
         }
-    });
+    );
 }
 
 function stopUserAudioserver(opts, callback) {
@@ -31,7 +49,8 @@ function stopUserAudioserver(opts, callback) {
         [
             function(callback) {
                 var pids = [];
-                var re_cmd = new RegExp("^user_audioserver " + unum + "$");
+                var re_cmd1 = new RegExp("^user_audioserver " + unum + "$");
+                var re_cmd2 = new RegExp("^user_mediaserver " + unum + "$");
                 var re_ps_line = new RegExp("^[^ \t]+[ \t]+([0-9]*).*");
                 execFile("ps", ["-aux"], function(error, stdout, stderr) {
                     var lines;
@@ -43,7 +62,7 @@ function stopUserAudioserver(opts, callback) {
                     var cmdStartPos = lines[0].indexOf("COMMAND");
                     lines.forEach(function(row) {
                         var cmdLine = row.slice(cmdStartPos);
-                        if (re_cmd.exec(cmdLine)) {
+                        if (re_cmd1.exec(cmdLine) || re_cmd2.exec(cmdLine)) {
                             var obj = re_ps_line.exec(row);
                             if(obj) {
                                 pids.push(obj[1]);

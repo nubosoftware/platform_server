@@ -367,24 +367,21 @@ function checkPlatform(req, res) {
     logger.info("Running checkPlatform");
     var platform = new Platform(logger);
     platform.execFile("pm", ["list", "users"], function(err, stdout, stderr) {
+        var resobj;
         if (err) {
-            var resobj = {
+            resobj = {
                 status: 0,
                 msg: "Platform access error: " + err
             };
             logger.error("Andorid access error", err);
-            res.end(JSON.stringify(resobj, null, 2));
-            return;
         } else {
-            var resobj = {
+            resobj = {
                 status: 1,
                 msg: "Platform is up"
             };
             logger.info("Platform is up. pm output: " + stdout);
-            res.end(JSON.stringify(resobj, null, 2));
-            return;
         }
-
+        res.end(JSON.stringify(resobj, null, 2));
     });
 }
 

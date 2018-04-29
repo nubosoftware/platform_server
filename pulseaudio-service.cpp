@@ -12,9 +12,12 @@
 #include <stdlib.h>
 #include <sys/time.h>
 #include <syslog.h>
+#include <linux/tcp.h>
 
 #define BUFSIZE 1024
 #define OP_OUT_WRITE 1
+#define OP_IN_READ 2
+#define OP_OPEN_INPUT_STREAM 3
 #define OP_PA_CREATE 100
 #define SOCKETFILE "/Android/sound-hal.sock"
 
@@ -23,8 +26,9 @@ static int binder_fd = 0;
 
 struct thread_args {
     int sock_fd;
-    pa_simple *s;
-    thread_args(int fd): sock_fd(fd), s(NULL) {}
+    pa_simple *s_in;
+    pa_simple *s_out;
+    thread_args(int fd): sock_fd(fd), s_in(NULL), s_out(NULL) {}
 };
 
 void sig_handler(int signo)
@@ -48,8 +52,8 @@ static int out_write(struct thread_args *ta, const void *buf, int size) {
     struct timeval now;
 
     gettimeofday(&now, NULL);
-    if(ta->s) {
-        res = pa_simple_write(ta->s, buf, size, &error);
+    if(ta->s_out) {
+        res = pa_simple_write(ta->s_out, buf, size, &error);
         syslog(LOG_DEBUG, "time: %ld.%03d out_write: size=%d, pa_simple_write  return %d\n", now.tv_sec, (int)now.tv_usec/1000, size, res);
     } else {
         syslog(LOG_ERR, "out_write() called before pulseaudio initialization\n");
@@ -58,6 +62,61 @@ static int out_write(struct thread_args *ta, const void *buf, int size) {
     return res;
 }
 
+static int in_read(struct thread_args *ta, const void *buf, int size) {
+    int res;
+    int response = size;
+    int error;
+    int i;
+    int rec_size = *(int *)buf;
+    void *response_buf;
+    struct timeval now;
+
+    gettimeofday(&now, NULL);
+    response_buf = malloc(rec_size + 4);
+    if(response_buf == NULL) {
+        syslog(LOG_ERR, "in_read() rec_buf allocation failed\n");
+    }
+    if(ta->s_in) {
+        *(int *)response_buf = rec_size;
+        res = pa_simple_read(ta->s_in, (char *)response_buf + 4, rec_size, &error);
+        syslog(LOG_DEBUG, "time: %ld.%03d in_read: size=%d, pa_simple_read  return %d\n", now.tv_sec, (int)now.tv_usec/1000, rec_size, res);
+    } else {
+        syslog(LOG_ERR, "out_write() called before pulseaudio initialization\n");
+    }
+    if(response_buf) {
+        res = send(ta->sock_fd, response_buf, rec_size + 4, 0);
+        free(response_buf);
+        syslog(LOG_ERR, "in_read() send %d bytes\n", res);
+    } else {
+        error = 0;
+        for(i = 0; i < size; i += 4) {
+            send(ta->sock_fd, &error, 4, 0);
+        }
+        for(i = 0; i < size; i++) {
+            send(ta->sock_fd, &error, 1, 0);
+        }
+    }
+    return size;
+}
+
+static int open_input_stream(struct thread_args *ta, const void *buf, int size) {
+    int res;
+    int response = 0;
+    int error;
+    struct timeval now;
+
+    gettimeofday(&now, NULL);
+    if(ta->s_in) {
+        res = pa_simple_flush(ta->s_in, &error);
+        syslog(LOG_DEBUG, "time: %ld.%03d open_input_stream: pa_simple_flush return %d\n", now.tv_sec, (int)now.tv_usec/1000, res);
+    } else {
+        syslog(LOG_ERR, "open_input_stream() called before pulseaudio initialization\n");
+    }
+    send(ta->sock_fd, &response, 4, 0);
+    return res;
+}
+
+
 static int pa_create(struct thread_args *ta, const void *buf, int size) {
     int res;
     int response = size;
@@ -65,18 +124,38 @@ static int pa_create(struct thread_args *ta, const void *buf, int size) {
     int unum = *(int *)buf;
     char appname[32];
     pa_simple *s;
-    static const pa_sample_spec ss = {
+    static const pa_sample_spec ss_in = {
+        .format = PA_SAMPLE_S16LE,
+        .rate = 8000,
+        .channels = 1
+    };
+    static const pa_sample_spec ss_out = {
         .format = PA_SAMPLE_S16LE,
         .rate = 44100,
         .channels = 2
     };
+    static const pa_buffer_attr ba_in = {
+        .maxlength = 4096,
+        .tlength = -1,
+        .prebuf = -1,
+        .minreq = -1,
+        .fragsize = -1
+    };
 
     sprintf(appname, "nubo-pulseaudio-u%d", unum);
-    s = pa_simple_new(NULL, appname, PA_STREAM_PLAYBACK, NULL, "nubo0", &ss, NULL, NULL, &error);
+    syslog(LOG_ERR, "create pulseaudio streams %s\n", appname);
+    s = pa_simple_new(NULL, appname, PA_STREAM_RECORD, NULL, "record", &ss_in, NULL, &ba_in, &error);
     if (s) {
-        ta->s = s;
+        ta->s_in = s;
     } else {
-        fprintf(stderr, __FILE__": pa_simple_new() failed: %s\n", pa_strerror(error));
+        syslog(LOG_ERR, "pa_simple_new() creation record steam failed: %s\n", pa_strerror(error));
+        return -1;
+    }
+    s = pa_simple_new(NULL, appname, PA_STREAM_PLAYBACK, NULL, "playback", &ss_out, NULL, NULL, &error);
+    if (s) {
+        ta->s_out = s;
+    } else {
+        syslog(LOG_ERR, "pa_simple_new() creation playback steam failed: %s\n", pa_strerror(error));
         return -1;
     }
     return size;
@@ -87,6 +166,12 @@ static int processPacket(struct thread_args *thread_args, int op, int size, cons
     switch(op) {
         case OP_OUT_WRITE:
             res = out_write(thread_args, (char *)buf + 4, (size_t) size - 4);
+            break;
+        case OP_IN_READ:
+            res = in_read(thread_args, (char *)buf + 4, (size_t) size - 4);
+            break;
+        case OP_OPEN_INPUT_STREAM:
+            res = open_input_stream(thread_args, (char *)buf + 4, (size_t) size - 4);
             break;
         case OP_PA_CREATE:
             res = pa_create(thread_args, (char *)buf + 4, (size_t) size - 4);
@@ -121,17 +206,28 @@ static void *handler_client(void *handler_obj) {
     struct thread_args *thread_args = (struct thread_args *)handler_obj;
     int sock = thread_args->sock_fd;
     int read_size, buf_size = 4100;
-    void *buf;
+    void *buf, *tmp;
     int res;
     int op;
     syslog(LOG_INFO, "handler_client() client connection\n");
     buf = malloc(buf_size);
+    int flag = 1;
+    setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (char *) &flag, sizeof(int));
     if(buf != NULL) {
         while(binder_fd) {
             res = recv(sock, &read_size, 4);
             if(res != 4) {
                 syslog(LOG_WARNING, "handler_client() Unexpect read size, res=%d\n", res);
                 break;
+            }
+            if(res > buf_size) {
+                tmp = realloc(buf, res);
+                if(tmp == NULL) {
+                    syslog(LOG_ERR, "handler_client() cannot realloc buf\n");
+                    break;
+                } else {
+                    buf = tmp;
+                }
             }
             res = recv(sock, buf, read_size);
             if(res != read_size) {
@@ -141,15 +237,21 @@ static void *handler_client(void *handler_obj) {
             op = *(int *)buf;
             syslog(LOG_DEBUG, "handler_client() packet op: %d, size %d\n", op, read_size);
             res = processPacket(thread_args, op, read_size, buf);
-            if(res < 0) break;
+            if(res < 0) {
+                syslog(LOG_ERR, "handler_client() processPacket of packet with op: %d, size %d return error\n", op, read_size);
+                break;
+            }
         }
+    } else {
+        syslog(LOG_ERR, "handler_client() cannot malloc buf\n");
     }
     syslog(LOG_INFO, "handler_client() client disconnection\n");
 
     free(buf);
     close(sock);
 
-    if (thread_args->s) pa_simple_free(thread_args->s);
+    if (thread_args->s_in) pa_simple_free(thread_args->s_in);
+    if (thread_args->s_out) pa_simple_free(thread_args->s_out);
     delete thread_args;
     return 0;
 }
@@ -165,7 +267,7 @@ static int wait_for_connection(int fd) {
     syslog(LOG_INFO, "waiting for client...\n");
     client_sock = accept(fd, (struct sockaddr *)&addr, &sock_size);
     if (client_sock == -1) {
-        syslog(LOG_ERR, "Could not create socket\n");
+        syslog(LOG_ERR, "Could not create client socket\n");
         return -1;
     }
     struct thread_args *thread_args = new struct thread_args(client_sock);
@@ -185,7 +287,7 @@ static int init_socket() {
     binder_fd = socket(AF_INET, SOCK_STREAM, 0);
 
     if(binder_fd == -1) {
-        syslog(LOG_INFO, "Could not create socket\n");
+        syslog(LOG_INFO, "Could not create server socket\n");
         return -1;
     }
     //struct sockaddr_un addr;
@@ -201,7 +303,7 @@ static int init_socket() {
     res = bind(binder_fd, (struct sockaddr *)&addr, sizeof(addr));
     if(res < 0) {
         //print the error message
-        syslog(LOG_INFO, "bind failed. Error\n");
+        syslog(LOG_INFO, "bind failed. errno=%d\n", errno);
         close(binder_fd);
         return -2;
     }
@@ -246,6 +348,7 @@ int main(int argc, char*argv[]) {
         syslog(LOG_ERR, "Cannot bind port");
         return -2;
     }
+    puts("Go backgroud and start main loop\n");
 
     go_background();
 

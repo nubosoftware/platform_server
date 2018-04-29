@@ -1,5 +1,6 @@
 "use strict";
 
+var path = require("path");
 var async = require('async');
 var validate = require("validate.js");
 var Platform = require('./platform.js');
