@@ -29,6 +29,7 @@ struct thread_args {
     int sock_fd;
     pa_simple *s_in;
     pa_simple *s_out;
+    int userId;
     thread_args(int fd): sock_fd(fd), s_in(NULL), s_out(NULL) {}
 };
 
@@ -163,7 +164,7 @@ static int pa_create(struct thread_args *ta, const void *buf, int size) {
     int response = size;
     int error;
     const char *cbuf = (const char *)buf;
-    int unum = *(int *)buf;
+    int unum = ta->userId;
     int dir = *(int *)(cbuf + 4);
     char appname[32];
     pa_simple *s;
@@ -234,11 +235,26 @@ static void *handler_client(void *handler_obj) {
     int sock = thread_args->sock_fd;
     int read_size, buf_size = 12*1024+4;
     void *buf, *tmp;
-    int res;
+    int res = 0;
     int op;
     syslog(LOG_INFO, "handler_client() client connection socket %d\n", sock);
-    buf = malloc(buf_size);
-    int flag = 1;
+
+    struct ucred ucred;
+    unsigned int len = sizeof(struct ucred);
+    if (getsockopt(sock, SOL_SOCKET, SO_PEERCRED, &ucred, &len) == -1) {
+        res = -1;
+        syslog(LOG_ERR, "Cannot accept credentials of client sock=%d, errno=%d\n", sock, errno);
+    }
+    syslog(LOG_INFO, "Credentials from SO_PEERCRED: sock=%d pid=%ld, euid=%ld, egid=%ld\n",
+            sock, (long) ucred.pid, (long) ucred.uid, (long) ucred.gid);
+    thread_args->userId = ucred.uid / 100000;
+    if((ucred.uid % 100000) != 1041) {
+        res = -1;
+        syslog(LOG_ERR, "Cannot bad credentials of client sock=%d, errno=%d\n", sock, errno);
+    }
+    if(!res) {
+        buf = malloc(buf_size);
+    }
     if(buf != NULL) {
         while(binder_fd) {
             res = recv(sock, &read_size, 4);
@@ -268,12 +284,12 @@ static void *handler_client(void *handler_obj) {
                 break;
             }
         }
+        free(buf);
     } else {
         syslog(LOG_ERR, "handler_client() cannot malloc buf\n");
     }
     syslog(LOG_INFO, "handler_client() client disconnection, socket %d\n", sock);
 
-    free(buf);
     close(sock);
 
     if (thread_args->s_in) pa_simple_free(thread_args->s_in);
@@ -337,13 +353,6 @@ static int init_socket() {
         return -3;
     }
     return binder_fd;
-    
-     
-    //Accept and incoming connection
-    
-    while(binder_fd) {
-        wait_for_connection(binder_fd);
-    }
 }
 
 void go_background() {
