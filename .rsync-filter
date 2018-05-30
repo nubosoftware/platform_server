@@ -17,4 +17,5 @@
 - Settings.json
 - Settings.json.init
 - *.log
-- pulseaudio-service.cpp
+- *.cpp
+- etc_sudoers.d_nubo

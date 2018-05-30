@@ -415,18 +415,6 @@ var initAndroid = function(reqestObj, logger, callback) {
                 });
             },
             function(callback) {
-                var cmd = "/opt/platform_server/pulseaudio-service";
-                execFile(cmd, [], function(error, stdout, stderr) {
-                    if (error) {
-                        logger.error("cmd: " + cmd);
-                        logger.error("error: " + JSON.stringify(error, null, 2));
-                        logger.error("stdout: " + stdout);
-                        logger.error("stderr: " + stderr);
-                    }
-                    callback(error);
-                });
-            },
-            function(callback) {
                 var sessionXmlContent =
                     "<?xml version='1.0' encoding='utf-8' standalone='yes' ?>\n" +
                     '<session>\n' +

@@ -8,15 +8,14 @@
 var async = require('async');
 var execFile = require('child_process').execFile;
 var spawn = require('child_process').spawn;
-var ps = require('ps-node');
 var fs = require('fs');
 var net = require('net');
-var PulseAudio = require('pulseaudio-client');
 
 var localid;
-var paContext;
 var nullSinkIn,nullSinkOut;
 var gstInPID,gstOutPID;
+var gstPlaybackProc;
+var gstRecordProc;
 
 
 
@@ -76,7 +75,7 @@ var startAudioManager = function () {
     var sinkInputPlayerIdx = -1;
     var sinkInputRecorderIdx = -1;
     var sourceOutputRecorderIdx = -1;
-    var sinkInputTries = 0;   
+    var sinkInputTries = 0;
 
     var re = new RegExp('(.+)[=:] (.+)');
     var re1 = new RegExp('nubo-pulseaudio-u([0-9]+)');
@@ -116,7 +115,7 @@ var startAudioManager = function () {
                             if (m1 !== null && m1.length >= 2) {
                                 if (Number(m1[1]) === localid) { // we found the user input sink
                                     console.info("Found sinkInputPlayerIdx: "+curIndex);
-                                    sinkInputPlayerIdx = curIndex;                                   
+                                    sinkInputPlayerIdx = curIndex;
                                 }
                             }
                             var m2 = re2.exec(paramVal.value);
@@ -134,7 +133,7 @@ var startAudioManager = function () {
                     }
                 }
             });
-            if (doneFlag)  { 
+            if (doneFlag)  {
                 console.info("Found sink player input. index: "+sinkInputPlayerIdx);
                 console.info("Found sink recorder input. index: "+sinkInputRecorderIdx);
                 callback(null)
@@ -180,7 +179,7 @@ var startAudioManager = function () {
                     }
                 }
             });
-            if (doneFlag)  { 
+            if (doneFlag)  {
                 console.info("Found source outputs index: " + sourceOutputRecorderIdx);
                 callback(null);
             } else {
@@ -208,35 +207,16 @@ var startAudioManager = function () {
                 callback(err);
             });
         },
-        // create pulse audio context
-        (cb) => {            
-            paContext = PulseAudio({
-                client: "nubo-pulseaudio-u"+localid//,           // optional client name ("node-pulse" by default)
-                //server: "my-preferred-server",      // optional server name
-                //flags: "noflags|noautospawn|nofail" // optional connection flags (see PulseAudio documentation)
-              });
-            paContext.on('connection', function () {
-                console.log("paContext connection");
-                cb();
-            });
-            paContext.on('error', function (err) {
-                console.log("paContext error", err);
-                cb(err);
-            });
-        },
         // start gst for input stream
         (cb) => {
             var cmd = "gst-launch-1.0";
-            //var params = ["pulsesrc","device=rtpu"+localid+".monitor", "!","audio/x-raw,channels=2", "!", "opusenc","bitrate-type=1", "!", "rtpopuspay", "ssrc="+ssrc, "!", "udpsink", "host="+userConf.gateway_url, "port="+port];
-            var params = ["udpsrc", "port=30" + localid, "caps=\"application/x-rtp, media=(string)audio, clock-rate=(int)48000, encoding-name=(string)OPUS, encoding-params=(string)2, channels=(int)1, payload=(int)96\"", "!", 
+            var params = ["udpsrc", "port=30" + localid, "caps=\"application/x-rtp, media=(string)audio, clock-rate=(int)48000, encoding-name=(string)OPUS, encoding-params=(string)2, channels=(int)1, payload=(int)96\"", "!",
                // "rtpjitterbuffer", "!",
-                "rtpopusdepay", "!", 
-                "opusdec", "!", 
-                "audio/x-raw,rate=8000,channels=1", "!", 
-                "audioconvert", "!",               
+                "rtpopusdepay", "!",
+                "opusdec", "!",
+                "audio/x-raw,rate=8000,channels=1", "!",
+                "audioconvert", "!",
                 "pulsesink", "client-name=\"nubo-gst-u"+localid+"\"","stream-properties=\"props,device.buffering.buffer_size=640\"" ];
-            
-
             console.info(cmd,params);
             var child = spawn(cmd,params);
             var userid = localid;
@@ -250,12 +230,13 @@ var startAudioManager = function () {
 
             child.on('close', (code) => {
                 console.info(`initAudio.gst-launch-1.0 userid: ${userid}, child process exited with code ${code}`);
+                gstRecordProc = undefined;
             });
             console.info(`Spawned child pid: ${child.pid}`);
-            gstInPID = child.pid;
+            gstRecordProc = child;
             cb();
         },
-        // find sink input of the player        
+        // find sink input of the player
         (cb) => {
             getSinkInputs(cb);
         },
@@ -293,7 +274,7 @@ var startAudioManager = function () {
                 cb(error);
             });
         },
-        // redirect input of the recorder 
+        // redirect input of the recorder
         (cb) => {
             execFile("pactl", ["move-sink-input", "" + sinkInputRecorderIdx, "recu" + localid], function(error, stdout, stderr) {
                 if (error) {
@@ -315,23 +296,12 @@ var startAudioManager = function () {
             var ssrc = ((userConf.platformID & 0xFFFF) << 16) | (localid & 0xFFFF);
             var port = userConf.gatewayRTPPort || "60005";
             var cmd = "gst-launch-1.0";
-            //var params = ["pulsesrc","device=rtpu"+localid+".monitor", "!","audio/x-raw,channels=2", "!", "opusenc","bitrate-type=1", "!", "rtpopuspay", "ssrc="+ssrc, "!", "udpsink", "host="+userConf.gateway_url, "port="+port];
-            
-            
             var params = [
-              //"udpsrc", "port=40" + localid, 
-             // "caps=\"application/x-rtp, media=(string)audio, clock-rate=(int)8000,format=S16BE,channels=2,layout=interleaved\"", "!", 
-              //"rtpL16depay", "!", 
-              
               "pulsesrc","device=rtpu"+localid+".monitor" , "!", "queue", "!",
-              "audioconvert", "!", 
-              "opusenc", "bitrate-type=0", "audio-type=voice" , "inband-fec=true", "!", 
-              "rtpopuspay", "ssrc=" + ssrc, "!", 
+              "audioconvert", "!",
+              "opusenc", "bitrate-type=0", "audio-type=voice" , "inband-fec=true", "!",
+              "rtpopuspay", "ssrc=" + ssrc, "!",
               "udpsink", "host=" + userConf.gateway_url, "port=" + port];
-              /*"pulsesrc","device=rtpu"+localid+".monitor" , "!",
-              "audioresample","!","audio/x-raw,","rate=8000,","channels=2","!","audioconvert","!",
-              "rtpL16pay", "ssrc=" + ssrc, "!", 
-              "udpsink", "host=" + userConf.gateway_url, "port=" + port];*/
             console.info(cmd,params);
             var child = spawn(cmd,params);
             var userid = localid;
@@ -347,16 +317,15 @@ var startAudioManager = function () {
                 console.log(`initAudio.gst-launch-1.0 userid: ${userid}, child process exited with code ${code}`);
             });
             console.info(`Spawned child pid: ${child.pid}`);
-            gstOutPID = child.pid;
+            gstPlaybackProc = child;
             cb(null);
         }
-        
     ], function (err) {
         if (err) {
             console.error("startAudioManager error", err);
             stopAudioManager();
         }
-        console.info("Audio Manager initiated.");        
+        console.info("Audio Manager initiated.");
     });
 
 };
@@ -396,7 +365,7 @@ var stopAudioManager = function () {
             } else {
                 cb();
             }
-        }, 
+        },
         (cb) => {
             if (nullSinkOut > 0) {
                 execFile("pacmd", ["unload-module", nullSinkOut], function(error, stdout, stderr) {
@@ -410,45 +379,45 @@ var stopAudioManager = function () {
             }
         },
         (cb) => {
-            if (!gstInPID) {
-                cb();
-                return;
+            if (gstRecordProc) {
+                gstRecordProc.kill('SIGINT');
             }
-            ps.kill(gstInPID, 'SIGINT', function(err) {
-                if (err) {                   
-                    console.error("Unable to gst in, kill error: ", err);
-                } else {
-                    console.info('gst in been killed.');
-                }
-                cb();
-                return;
-            });
+            cb();
+
         },
         (cb) => {
-            if (!gstOutPID) {
-                cb();
-                return;
+            if (gstPlaybackProc) {
+                gstPlaybackProc.kill('SIGINT');
             }
-            ps.kill(gstOutPID, 'SIGINT', function(err) {
-                if (err) {                   
-                    console.error("Unable to gst out, kill error: ", err);
-                } else {
-                    console.info('gst out been killed.');
+            cb();
+        },
+        (cb) => {
+            var checkKilled = function(callback) {
+                var needWaitFlag = false;
+                if(gstRecordProc && !gstRecordProc.killed) {
+                    console.info("waiting for quit of gst-lunch of record");
+                    needWaitFlag = true;
                 }
-                cb();
-                return;
-            });
+                if(gstPlaybackProc && !gstPlaybackProc.killed) {
+                    console.info("waiting for quit of gst-lunch of playback");
+                    needWaitFlag = true;
+                }
+                if(needWaitFlag) {
+                    setTimeout(function() {
+                        checkKilled(callback);
+                    }, 1000);
+                } else {
+                    callback();
+                }
+            }
         }
-
     ], function (err) {
         if (err) {
-            console.error("stopAudioManager error", err);            
+            console.error("stopAudioManager error", err);
         }
         console.info("Audio Manager stopped.");
-        process.exit();        
-    });   
-    
-   
+        process.exit();
+    });
 };
 
 

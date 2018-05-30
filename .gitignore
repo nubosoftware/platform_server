@@ -9,3 +9,4 @@ rpmbuild/RPMS
 rpmbuild/SRPMS
 debbuild
 pulseaudio-service
+pulseaudio-user

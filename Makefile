@@ -19,7 +19,7 @@ $(eval $(call get_project_version,platform_server))
 
 default: img
 
-img: $(LINUX_IMG_FULL_PATH) pulseaudio-service
+img: $(LINUX_IMG_FULL_PATH) pulseaudio-user
 	mkdir mnt
 	$(eval LOOPDEVICE := $(shell sudo losetup -f --show $(LINUX_IMG_FULL_PATH) -o $$((2048 * 512)) ))
 	@echo "LOOPDEVICE=$(LOOPDEVICE)"
@@ -58,8 +58,8 @@ $(nubo_proj_dir)/rpms/latest/nuboplatform_server-$(platform_server_version)-$(pl
 $(LINUX_IMG_FULL_PATH):
 	scp nubo@lab2.nubosoftware.com:N7/linux.img $(LINUX_IMG_FULL_PATH)
 
-pulseaudio-service: pulseaudio-service.cpp
-	g++ pulseaudio-service.cpp -o pulseaudio-service -lpulse -lpthread -lpulse-simple
+pulseaudio-user: pulseaudio-user.cpp
+	g++ pulseaudio-user.cpp -o pulseaudio-user -lpulse -lpthread -lpulse-simple
 
 .PHONY: deb default img rpm
 
