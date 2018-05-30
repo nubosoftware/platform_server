@@ -15,11 +15,6 @@ var PulseAudio = require('pulseaudio-client');
 
 var localid;
 var paContext;
-    var player, recorder;
-    var inAudioBuffer;
-    var halOutServer, halInServer;
-var halInConnection;
-var halOutConnections = {};
 var nullSinkIn,nullSinkOut;
 var gstInPID,gstOutPID;
 
@@ -81,7 +76,6 @@ var startAudioManager = function () {
     var sinkInputPlayerIdx = -1;
     var sinkInputRecorderIdx = -1;
     var sourceOutputRecorderIdx = -1;
-    var sourceRecorderIdx = -1;
     var sinkInputTries = 0;   
 
     var re = new RegExp('(.+)[=:] (.+)');
@@ -205,51 +199,6 @@ var startAudioManager = function () {
         });
 
     };
-   
-    var getSources = function(callback) {
-        execFile("pacmd", ["list-sources"], function(error, stdout, stderr) {
-            var lines;
-            var doneFlag = false;
-            //console.info("list-sink-inputs: "+stdout);
-            if (error) stdout = "";
-            lines = stdout.split("\n");
-            var curIndex = -1;
-            lines.forEach(function(row) {
-                if (!doneFlag) {
-                    var paramVal = getParamValue(row);
-                    if (paramVal !== null) {
-                        if (paramVal.param === "index") {
-                            curIndex = parseInt(paramVal.value);
-                        }
-                        if (paramVal.param === "name") {
-                            console.info("name: '"+paramVal.value+"'");
-                            if(paramVal.value === "<recu" + localid + ".monitor>") {
-                                sourceRecorderIdx = curIndex;
-                                doneFlag = true;
-                            }
-                        }
-                    }
-                }
-            });
-            if (doneFlag)  { 
-                console.info("Found source index: "+sourceRecorderIdx);
-                callback(null)
-            } else {
-                sinkInputTries++;
-                if (sinkInputTries > 10) {
-                    callback("Cannot find source too many times. give up...");
-                    // debug only
-                    //callback(null);
-                    return;
-                }
-                console.info("Cannot find source for user " + localid + " will try again in a few seconds, sourceRecorderIdx: "+sourceRecorderIdx);
-                setTimeout(function() {
-                    getSources(callback);
-                }, 4 * 1000);
-            }
-        });
-
-    };
 
     async.series([
         // reading session configuration
@@ -334,9 +283,6 @@ var startAudioManager = function () {
                 }
                 cb(error);
             });
-        },
-        (cb) => {
-            getSources(cb);
         },
         // redirect output of the player to the sink input that will connect to gst
         (cb) => {
@@ -439,22 +385,6 @@ var stopAudioManager = function () {
         stream.end();
     }
     async.series([
-        (cb) => {
-            if (player) {
-                terminateStream(player,cb);
-                player = null;
-            } else {
-                cb();
-            }
-        },
-        (cb) => {
-            if (recorder) {
-                terminateStream(recorder,cb);
-                recorder = null;
-            } else {
-                cb();
-            }
-        },
         (cb) => {
             if (nullSinkIn > 0) {
                 execFile("pacmd", ["unload-module", nullSinkIn], function (error, stdout, stderr) {
