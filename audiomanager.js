@@ -297,7 +297,7 @@ var startAudioManager = function () {
             var port = userConf.gatewayRTPPort || "60005";
             var cmd = "gst-launch-1.0";
             var params = [
-              "pulsesrc","device=rtpu"+localid+".monitor" , "!", "queue", "!",
+              "pulsesrc","device=rtpu"+localid+".monitor" , /*"!", "queue",*/ "!",
               "audioconvert", "!",
               "opusenc", "bitrate-type=0", "audio-type=voice" , "inband-fec=true", "!",
               "rtpopuspay", "ssrc=" + ssrc, "!",
