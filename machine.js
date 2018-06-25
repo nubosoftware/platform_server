@@ -478,6 +478,35 @@ var afterInitAndroid = function(reqestObj, logger, callback) {
                 setTimeout(function() { callback(null); }, 10 * 1000);
             },
             function(callback) {
+                var cmd = "touch";
+                execFile(cmd, ["/Android/dev/socket/syslog"], function(error, stdout, stderr) {
+                    if (error) {
+                        logger.error("cmd: " + cmd);
+                        logger.error("error: " + JSON.stringify(error, null, 2));
+                        logger.error("stdout: " + stdout);
+                        logger.error("stderr: " + stderr);
+                    }
+                    callback(error);
+                });
+            },
+            function(callback) {
+                var cmd = "mount";
+                var args = [
+                    "--bind",
+                    "/run/systemd/journal/dev-log",
+                    "/Android/dev/socket/syslog"
+                ];
+                execFile(cmd, args, function(error, stdout, stderr) {
+                    if (error) {
+                        logger.error("cmd: " + cmd);
+                        logger.error("error: " + JSON.stringify(error, null, 2));
+                        logger.error("stdout: " + stdout);
+                        logger.error("stderr: " + stderr);
+                    }
+                    callback(error);
+                });
+            },
+            function(callback) {
                 var nfsoptions = "nolock,hard,intr,vers=3,noatime,async"; //user 0
                 // nfs_path checked in validator for path traversal
                 var src = [
