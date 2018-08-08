@@ -120,6 +120,7 @@ var validateStartPlatformRequestObj = function(reqestObj, logger, callback) {
         settings: { presence: true },
         "settings.withService": constraints.boolConstrOptional,
         "settings.hideControlPanel": constraints.boolConstrOptional,
+        "settings.additionalSettings" : {},
         rsyslog: {},
         "rsyslog.ip": constraints.ipConstrOptional,
         "rsyslog.port": constraints.ipConstrOptional
@@ -387,6 +388,16 @@ var setParametersOnMachine = function(obj, logger, callback) {
     );
 };
 
+var xmlEncode = function(obj) {
+    if (!obj) return "";
+    var str = String(obj);
+    return str.replace(/&/g, '&amp;')
+               .replace(/</g, '&lt;')
+               .replace(/>/g, '&gt;')
+               .replace(/"/g, '&quot;')
+               .replace(/'/g, '&apos;');
+}
+
 var initAndroid = function(reqestObj, logger, callback) {
     async.series(
         [
@@ -423,8 +434,17 @@ var initAndroid = function(reqestObj, logger, callback) {
                     '<gateway_url>' + reqestObj.gateway.internal_ip + '</gateway_url>\n' +
                     '<platformID>' + reqestObj.platid + '</platformID>\n' +
                     '<management_url>' + reqestObj.management.url + '</management_url>\n' +
-                    '<platform_uid>' + reqestObj.platUID + '</platform_uid>\n' +
-                    '</session>\n';
+                    '<platform_uid>' + reqestObj.platUID + '</platform_uid>\n';
+                var additionalSettings = reqestObj.settings.additionalSettings;
+                if (additionalSettings) {
+                    for (var k in additionalSettings) {
+                        if (additionalSettings.hasOwnProperty(k)) {
+                            var xmlKey = xmlEncode(k);
+                            sessionXmlContent += '<'+xmlKey+'>' + xmlEncode(additionalSettings[k]) + '</'+xmlKey+'>\n';
+                        }
+                    }
+                }
+                sessionXmlContent +=  '</session>\n';
                 fs.writeFile("/Android/data/data/Session.xml", sessionXmlContent, function(err) {
                     if (err) {
                         logger.error('setParametersOnMachine: ' + err);
