@@ -36,7 +36,7 @@ img: $(LINUX_IMG_FULL_PATH) pulseaudio-user
 
 deb: $(nubo_proj_dir)/debs/latest/platform-server-$(platform_server_version)-$(platform_server_buildid).deb
 
-$(nubo_proj_dir)/debs/latest/platform-server-$(platform_server_version)-$(platform_server_buildid).deb:
+$(nubo_proj_dir)/debs/latest/platform-server-$(platform_server_version)-$(platform_server_buildid).deb: pulseaudio-user
 	NUBO_PROJ_PATH=$(nubo_proj_dir) \
 	PROJ_PATH=$(current_dir) \
 	Version=$(platform_server_version).$(platform_server_buildid) \
@@ -45,7 +45,7 @@ $(nubo_proj_dir)/debs/latest/platform-server-$(platform_server_version)-$(platfo
 
 rpm: $(nubo_proj_dir)/rpms/latest/nuboplatform_server-$(platform_server_version)-$(platform_server_buildid).noarch.rpm
 
-$(nubo_proj_dir)/rpms/latest/nuboplatform_server-$(platform_server_version)-$(platform_server_buildid).noarch.rpm:
+$(nubo_proj_dir)/rpms/latest/nuboplatform_server-$(platform_server_version)-$(platform_server_buildid).noarch.rpm: pulseaudio-user
 	NUBO_PROJ_PATH=$(nubo_proj_dir) \
 	PROJ_PATH=$(current_dir) \
 	rpmbuild -v \

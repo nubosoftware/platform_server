@@ -20,6 +20,7 @@ install -m 644 $PROJ_PATH/Settings.json.init $BUILD_ROOT/opt/platform_server/Set
 install -m 755 $NUBO_PROJ_PATH/scripts/rootfs/etc/init.d/platform_server $BUILD_ROOT/etc/init.d/platform_server
 install -m 644 $PROJ_PATH/rsyslog-platform_server.conf $BUILD_ROOT/etc/rsyslog.d/18-nubo-platform_server.conf
 install -m 644 $PROJ_PATH/etc_sudoers.d_nubo $BUILD_ROOT/etc/sudoers.d/nubo
+install -m 755 $PROJ_PATH/pulseaudio-user $BUILD_ROOT/opt/platform_server/pulseaudio-user
 
 cp $PROJ_PATH/package.json $BUILD_ROOT/opt/platform_server/
 cd $BUILD_ROOT/opt/platform_server/
