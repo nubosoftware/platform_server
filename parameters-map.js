@@ -105,7 +105,8 @@ var filter = {
             "nfs_slow": {},
             "nfs_slow.nfs_ip": constraints.ipOptionalConstr,
             "nfs_slow.nfs_path": constraints.pathConstrOptional,
-            "nfs_slow.nfs_path_slow": constraints.pathConstrOptional
+            "nfs_slow.nfs_path_slow": constraints.pathConstrOptional,
+            "mounts" : {}
         }
     }, {
         "path": "/createNewUserTarGz",

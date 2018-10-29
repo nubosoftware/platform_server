@@ -4,11 +4,13 @@ var async = require('async');
 var util = require('util');
 var underscore = require('underscore');
 var execFile = require('child_process').execFile;
+var exec = require('child_process').exec;
 var Common = require('./common.js');
 var logger = Common.logger;
 var fs = require('fs');
 var validate = require("validate.js");
 var constraints = require("nubo-validateConstraints")(true);
+const path = require('path');
 
 
 /*
@@ -287,6 +289,15 @@ var userDataDirs = [
             var options = "unum=" + localid;
             mountNubouserfs(nubouserfsSrc, nubouserfsDst, options, callback);
         },
+        function(callback) {
+            if (session.mounts) {
+                mountAdditionalFolders(session.mounts,"/Android/data/media/" + localid,function(err) {
+                    callback(null);
+                });
+            } else {
+                callback(null);
+            }
+        },
         //function(callback) {
         //    if (!keys) {
         //        callback(null);
@@ -330,7 +341,7 @@ function getUserHomeFolder(email) {
     var res = validate.single(email, constraints.pathConstrRequested);
     if (res) {
         return null;
-    } 
+    }
     var re = new RegExp('(.*)@(.*)');
     var m = re.exec(email);
     var domain = "none";
@@ -443,6 +454,171 @@ function mountHostNfs(src, dst, options, callback) {
         return false;
     });
     do_mountnfs(4, src, dst, mask, options, callback);
+}
+
+
+function escapeMountParam(src) {
+    return src.replace(/([!@#$%^&\*`\\])/g,"\\$1");
+}
+
+function buildPath() {
+
+    var illegalPath = 'ILLEGAL_PATH';
+    var newPath = [];
+    var size = arguments.length;
+    for (var arg of arguments) {
+
+        try {
+            var res = validate.single(arg, constraints.pathConstrRequested);
+            if (res) {
+                logger.error("buildPath: " + res + ", path \'" + arg + "\'");
+                return illegalPath;
+            }
+        } catch (error) {
+            logger.error("buildPath: " + error.toString() + ", path \'" + arg + "\'");
+            return illegalPath;
+        }
+
+        newPath.push(path.resolve("/" + arg));
+    }
+
+    var ret = path.join.apply(null, newPath);
+    if (arguments[size-1].slice(-1) === "/" && arguments[size-1] !== "/") {
+        ret += "/";
+    }
+    return ret;
+}
+
+/*
+ * Mount additional folders (currently support cifs only)
+ * mounts - array of object in the format of:
+ * {
+                folder: "android_folder_name",
+                type: "cifs",
+                orgUser: "user_name",
+                orgPassword: "password",
+                domain: "domain.com",
+                serverIP: "ip_address",
+                shareName: "//host/share_name"
+    }
+ * mediaFolder - path of the user sdcard
+ * callback(err, mask)
+ *  err - null on success, otherwise string
+ *  mask - result, on success should been all true
+ */
+function mountAdditionalFolders(mounts, mediaFolder, callback) {
+    function do_mount_folders(retries, mounts, mask, callback) {
+        console.log("mountAdditionalFolders do_mount_folders retries=" + retries);
+        var i = 0;
+
+        async.eachSeries(mounts,
+            function(source, callback) {
+
+                if (mask[i]) {
+                    callback(null);
+                    return;
+                }
+
+                if (source.type != "cifs") {
+                    callback("Invalid mount type: "+source.type);
+                    return;
+                }
+                if (!source.folder || !source.orgUser || !source.orgPassword || !source.domain || !source.domain || !source.serverIP || !source.shareName) {
+                    callback("Invalid cifs paramteres");
+                    return;
+                }
+
+                var localFolder = buildPath(mediaFolder,source.folder);
+
+                async.series([
+                    function(callback) {
+                        var mkdirParams = ['-p',  localFolder ];
+                        execFile('mkdir', mkdirParams, function(err, stdout, stderr) {
+                            if (err) {
+                                logger.error("do_mount_folders: mkdir: " + err);
+                                logger.error("do_mount_folders: mkdir: " + stderr);
+                                callback(err);
+                                return;
+                            }
+
+                            callback(null);
+                        });
+                    },
+                    function(callback) {
+                        var options = "user="+escapeMountParam(source.orgUser)+",password="+escapeMountParam(source.orgPassword)+
+                            ",domain="+escapeMountParam(source.domain)+",serverino,ip="+source.serverIP+",uid=1023,gid=1023,actimeo=1";
+                        var mountParams = ['-t', 'cifs', '-o', options, source.shareName, localFolder];
+                        var mountOpts = {
+                            timeout: 10000
+                        };
+
+                        var cmd = "mount "+mountParams.join(" ");
+                        // security - consider change to execFile
+                        exec(cmd, mountOpts, function(err, stdout, stderr) {
+                            if (err) {
+                                logger.error("do_mount_folders: mount: " + err);
+                                logger.error("do_mount_folders: mount: " + stderr);
+                                callback(err);
+                                return;
+                            }
+
+                            i++;
+                            callback(null);
+                        });
+                    }
+                ], callback);
+            },
+            function(err) {
+                if (err) {
+                    callback(err);
+                    return;
+                }
+
+                fs.readFile('/proc/mounts', 'utf8', function(err, data) {
+                    if (err) {
+                        logger.error("do_mountnfs: mounts: " + err);
+                        callback("couldn't open mounts file");
+                        return;
+                    }
+
+                    var dataArray = data.split(/[\r\n]+/);
+                    var dstmounts = underscore.map(dataArray, function(mnt) {
+                        return mnt.split(" ")[1];
+                    });
+
+                    var srcmounts = underscore.map(mounts, function(source) {
+                        return buildPath(mediaFolder,source.folder);
+                    });
+
+
+                    var res = underscore.map(srcmounts, function(dir) {
+                        return dstmounts.indexOf(dir) !== -1;
+                    });
+
+
+                    if ((dstmounts.indexOf("/") === -1) || (res.indexOf(false) !== -1)) {
+                        if (retries <= 1) {
+                            var errMsg = "cannot mount all cifs folders";
+                            logger.error("do_mount_folders: " + errMsg);
+                            callback(errMsg, res);
+                            return;
+                        }
+
+                        setTimeout(function() {
+                            do_mount_folders(retries - 1, mounts, res,  callback);
+                        }, 100);
+                    } else {
+                        callback(null, res);
+                    }
+                });
+            }
+        );
+    }
+
+    var mask = underscore.map(mounts, function(source) {
+        return false;
+    });
+    do_mount_folders(4, mounts,  mask,  callback);
 }
 
 module.exports = {

@@ -97,7 +97,8 @@ function createUser(obj, logger, callback) {
         login: obj.login,
         platform: platform,
         logger: logger,
-        nfs: obj.nfs
+        nfs: obj.nfs,
+        mounts: obj.mounts
     };
     var addToErrorsPlatforms = false;
     var platformErrorFlag = false;
