@@ -205,9 +205,9 @@ function buildServerObject(server) {
         return true;
     });
     server.use(validateCertificate);
-    server.use(restify.queryParser());
+    server.use(restify.plugins.queryParser({ mapParams: true }));
     server.use(urlFilterObj.useHandler);
-    server.use(restify.bodyParser({ mapParams: false }));
+    server.use(restify.plugins.bodyParser({ mapParams: false }));
     server.use(bodyFilterObj.useHandler);
     server.use(function(req, res, next) {
         req.realIP = req.headers['x-real-ip'] || req.connection.remoteAddress;

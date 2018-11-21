@@ -56,8 +56,11 @@ function getUserConf(localid, cb) {
         var conf = {
             platformID: getTagValue(xml, "platformID"),
             gateway_url: getTagValue(xml, "gateway_url"),
-            gatewayRTPPort: getTagValue(xml, "gatewayRTPPort"),
-            sessionid: getTagValue(xml, "sessionid")
+            rtpOutHost: getTagValue(xml, "rtpOutHost"),
+            rtpOutPort: getTagValue(xml, "rtpOutPort"),
+            rtpInPort: getTagValue(xml, "rtpInPort"),
+            sessionid: getTagValue(xml, "sessionid"),
+            enableAudio: getTagValue(xml, "enableAudio")
         };
         cb(null, conf);
         return;
@@ -204,13 +207,22 @@ var startAudioManager = function () {
         function (callback) {
             getUserConf(localid, function (err, res) {
                 userConf = res;
-                callback(err);
+                if (err) {
+                    callback(err);
+                } else {
+                    var enableAudio = (userConf.enableAudio === 'true');
+                    if (enableAudio) {
+                        callback(null);
+                    } else {
+                        callback("Audio is not enabled");
+                    }
+                }
             });
         },
         // start gst for input stream
         (cb) => {
             var cmd = "gst-launch-1.0";
-            var params = ["udpsrc", "port=30" + localid, "caps=\"application/x-rtp, media=(string)audio, clock-rate=(int)48000, encoding-name=(string)OPUS, encoding-params=(string)2, channels=(int)1, payload=(int)96\"", "!",
+            var params = ["udpsrc", "port=" + userConf.rtpInPort, "caps=\"application/x-rtp, media=(string)audio, clock-rate=(int)48000, encoding-name=(string)OPUS, encoding-params=(string)2, channels=(int)1, payload=(int)96\"", "!",
                // "rtpjitterbuffer", "!",
                 "rtpopusdepay", "!",
                 "opusdec", "!",
@@ -294,14 +306,13 @@ var startAudioManager = function () {
         // start gst for audio out
         (cb) => {
             var ssrc = ((userConf.platformID & 0xFFFF) << 16) | (localid & 0xFFFF);
-            var port = userConf.gatewayRTPPort || "60005";
             var cmd = "gst-launch-1.0";
             var params = [
               "pulsesrc","device=rtpu"+localid+".monitor" , /*"!", "queue",*/ "!",
               "audioconvert", "!",
               "opusenc", "bitrate-type=0", "audio-type=voice" , "inband-fec=true", "!",
               "rtpopuspay", "ssrc=" + ssrc, "!",
-              "udpsink", "host=" + userConf.gateway_url, "port=" + port];
+              "udpsink", "host=" + userConf.rtpOutHost, "port=" + userConf.rtpOutPort];
             console.info(cmd,params);
             var child = spawn(cmd,params);
             var userid = localid;
