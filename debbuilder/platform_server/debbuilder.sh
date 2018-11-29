@@ -24,7 +24,7 @@ install -m 755 $PROJ_PATH/pulseaudio-user $BUILD_ROOT/opt/platform_server/pulsea
 
 cp $PROJ_PATH/package.json $BUILD_ROOT/opt/platform_server/
 cd $BUILD_ROOT/opt/platform_server/
-npm install
+npm install || exit 1
 rm package.json
 cd -
 
