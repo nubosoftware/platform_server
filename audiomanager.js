@@ -11,13 +11,16 @@ var spawn = require('child_process').spawn;
 var fs = require('fs');
 var net = require('net');
 
+var Platform = require('./platform.js');
+
 var localid;
 var nullSinkIn,nullSinkOut;
 var gstInPID,gstOutPID;
 var gstPlaybackProc;
 var gstRecordProc;
+var pulseaudioUserProc;
 
-
+var platform = new Platform();
 
 
 var args = process.argv;
@@ -219,6 +222,48 @@ var startAudioManager = function () {
                 }
             });
         },
+        (cb) => {
+            var args = [
+                localid
+            ];
+            var child = spawn("./pulseaudio-user", args);
+            var userid = localid;
+            child.stdout.on('data', (data) => {
+                console.info(`initAudio.gst-launch-1.0 userid: ${userid}, stdout: ${data}`);
+            });
+
+            child.stderr.on('data', (data) => {
+                console.log(`initAudio.gst-launch-1.0 userid: ${userid}, stderr: ${data}`);
+            });
+
+            child.on('close', (code) => {
+                console.info(`initAudio.gst-launch-1.0 userid: ${userid}, child process exited with code ${code}`);
+                gstRecordProc = undefined;
+            });
+            console.info(`Spawned child pid: ${child.pid}`);
+            pulseaudioUserProc = child;
+            cb();
+        },
+        function(callback) {
+            platform.execFile("daemonize", ["user_audioserver", localid], function (err, stdout, stderr) {
+                if(err) {
+                    console.log("audioserver.js::startUserAudioserver Cannot start audioserver, err: " + err);
+                    callback(null);
+                } else {
+                    callback(null);
+                }
+            });
+        },
+        function(callback) {
+                platform.execFile("daemonize", ["user_mediaserver", localid], function (err, stdout, stderr) {
+                    if(err) {
+                        console.log("audioserver.js::startUserAudioserver Cannot start audioserver, err: " + err);
+                        callback(null);
+                    } else {
+                        callback(null);
+                    }
+                });
+        },
         // start gst for input stream
         (cb) => {
             var cmd = "gst-launch-1.0";
@@ -342,6 +387,56 @@ var startAudioManager = function () {
 };
 
 
+function stopAndroidAudioservices(callback) {
+    async.waterfall(
+        [
+            function(callback) {
+                var pids = [];
+                var re_ps_line = new RegExp("^[^ \t]+[ \t]+([0-9]*).*");
+                var myCommands = [
+                    "user_audioserver " + localid,
+                    "user_mediaserver " + localid,
+                ];
+                execFile("ps", ["-aux"], function(error, stdout, stderr) {
+                    var lines;
+                    if (error) {
+                        console.log("audioserver.js::stopUserAudioserver ps failed, err: " + error);
+                        return callback(error);
+                    }
+                    lines = stdout.split("\n");
+                    var cmdStartPos = lines[0].indexOf("COMMAND");
+                    lines.forEach(function(row) {
+                        var cmdLine = row.slice(cmdStartPos);
+                        if(myCommands.indexOf(cmdLine) >= 0) {
+                            var obj = re_ps_line.exec(row);
+                            if(obj) {
+                                pids.push(obj[1]);
+                            }
+                        }
+                    });
+                    callback(null, pids);
+                });
+            },
+            function(pids, callback) {
+                console.log("pids: " + JSON.stringify(pids));
+                if(pids.length) {
+                    execFile("kill", pids, function(error, stdout, stderr) {
+                        if (error) {
+                            console.log("audioserver.js::stopUserAudioserver kill failed, err: " + error);
+                            return callback(error);
+                        }
+                        callback(null);
+                    });
+                } else {
+                    callback(null);
+                }
+            }
+        ], function(err) {
+            callback(err);
+        }
+    );
+}
+
 var stopAudioManager = function () {
 
     function terminateStream(stream,cb) {
@@ -403,6 +498,15 @@ var stopAudioManager = function () {
             cb();
         },
         (cb) => {
+            stopAndroidAudioservices(cb);
+        },
+        (cb) => {
+            if (pulseaudioUserProc) {
+                pulseaudioUserProc.kill('SIGINT');
+            }
+            cb();
+        },
+        (cb) => {
             var checkKilled = function(callback) {
                 var needWaitFlag = false;
                 if(gstRecordProc && !gstRecordProc.killed) {
@@ -411,6 +515,10 @@ var stopAudioManager = function () {
                 }
                 if(gstPlaybackProc && !gstPlaybackProc.killed) {
                     console.info("waiting for quit of gst-lunch of playback");
+                    needWaitFlag = true;
+                }
+                if(pulseaudioUserProc && !pulseaudioUserProc.killed) {
+                    console.info("waiting for quit of pulseaudio-user");
                     needWaitFlag = true;
                 }
                 if(needWaitFlag) {

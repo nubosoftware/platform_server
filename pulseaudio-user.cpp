@@ -133,7 +133,7 @@ static int open_input_stream(struct thread_args *ta, const void *buf, int size) 
     return res;
 }
 
-
+#define OUT_WRITE_BLOCK 4096
 static pa_simple *pa_create_playback(char *appname) {
     int error;
     pa_simple *s;
@@ -143,10 +143,10 @@ static pa_simple *pa_create_playback(char *appname) {
         .channels = 2
     };
     static const pa_buffer_attr ba_out = {
-        .maxlength = 4 * 1024,
-        .tlength = 4096,
-        .prebuf = 4096,
-        .minreq = 4096,
+        .maxlength = 2 * OUT_WRITE_BLOCK,
+        .tlength = 1 * OUT_WRITE_BLOCK,
+        .prebuf = 1 * OUT_WRITE_BLOCK,
+        .minreq = 1 * OUT_WRITE_BLOCK,
         .fragsize = -1
     };
     s = pa_simple_new(NULL, appname, PA_STREAM_PLAYBACK, NULL, "playback", &ss_out, NULL, NULL, &error);
@@ -485,8 +485,8 @@ int main(int argc, char *argv[]) {
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
 
-    puts("Go backgroud and start main loop!!\n");
-    go_background();
+//    puts("Go backgroud and start main loop!!\n");
+//    go_background();
 
     res = pthread_create(&thread_id_out, &attrs, handle_out_server, (void *) &server_out_args);
     if( res < 0) {
