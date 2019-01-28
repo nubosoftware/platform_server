@@ -224,7 +224,10 @@ var startAudioManager = function () {
         },
         (cb) => {
             var args = [
-                localid
+                localid,
+                userConf.rtpOutHost,
+                userConf.rtpOutPort,
+                ((userConf.platformID & 0xFFFF) << 16) | (localid & 0xFFFF)
             ];
             var child = spawn("./pulseaudio-user", args);
             var userid = localid;
@@ -350,6 +353,7 @@ var startAudioManager = function () {
         },
         // start gst for audio out
         (cb) => {
+            return cb(null); //run gst for playback moved to c
             var ssrc = ((userConf.platformID & 0xFFFF) << 16) | (localid & 0xFFFF);
             var cmd = "gst-launch-1.0";
             var params = [

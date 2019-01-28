@@ -14,6 +14,7 @@
 #include <syslog.h>
 #include <linux/tcp.h>
 #include <sys/stat.h>
+#include <gst/gst.h>
 
 #define BUFSIZE 1024
 #define OP_OUT_WRITE 1
@@ -23,7 +24,18 @@
 #define SOCKETPREFIX "/Android/dev/socket/audio"
 
 void *connection_handler(void *);
-int unum;
+static int unum;
+int gst_pipe[2] = {-1, -1};
+
+struct gst_args {
+    GMainLoop *main_loop;  /* GLib main loop */
+    GstElement *pipeline;
+    pthread_t gst_app_thread;
+    GstState state;
+    const char *host;
+    int port;
+    int ssrc;
+} gst_data;
 
 struct thread_args {
     int sock_fd;
@@ -47,6 +59,13 @@ void sig_handler(int signo)
     switch(signo) {
         case SIGINT:
         case SIGTERM:
+            g_main_loop_quit(gst_data.main_loop);
+            if(gst_pipe[0] >= 0) {
+                close(gst_pipe[0]);
+            }
+            if(gst_pipe[1] >= 0) {
+                close(gst_pipe[1]);
+            }
             syslog(LOG_NOTICE, "signal %d has been received x\n", signo);
             syslog(LOG_INFO, "closing socket %d\n", server_out_args.sock_fd);
             close(server_out_args.sock_fd);
@@ -70,6 +89,11 @@ static int out_write(struct thread_args *ta, const void *buf, int size) {
         //gettimeofday(&now, NULL);
         //syslog(LOG_DEBUG, "time: %ld.%03d out_write1: size=%d, pa_simple_write  return %d\n", now.tv_sec, (int)now.tv_usec/1000, size, res);
         res = pa_simple_write(ta->s, buf, size, &error);
+        write(gst_pipe[1], buf, size);
+        if (gst_data.state != GST_STATE_PLAYING) {
+            syslog(LOG_INFO, "%s set playing state\n", __FUNCTION__);
+            gst_element_set_state (gst_data.pipeline, GST_STATE_PLAYING);
+        }
         //gettimeofday(&now, NULL);
         //syslog(LOG_DEBUG, "time: %ld.%03d out_write2: size=%d, pa_simple_write  return %d\n", now.tv_sec, (int)now.tv_usec/1000, size, res);
     } else {
@@ -91,19 +115,18 @@ static int in_read(struct thread_args *ta, const void *buf, int size) {
     gettimeofday(&now, NULL);
     response_buf = malloc(rec_size + 4);
     if(response_buf == NULL) {
-        syslog(LOG_ERR, "in_read() rec_buf allocation failed\n");
+        syslog(LOG_ERR, "%s rec_buf allocation failed\n", __FUNCTION__);
     }
     if(ta->s) {
         *(int *)response_buf = rec_size;
         res = pa_simple_read(ta->s, (char *)response_buf + 4, rec_size, &error);
-        //syslog(LOG_DEBUG, "time: %ld.%03d in_read: size=%d, pa_simple_read  return %d\n", now.tv_sec, (int)now.tv_usec/1000, rec_size, res);
     } else {
-        syslog(LOG_ERR, "out_write() called before pulseaudio initialization, socket %d\n", ta->sock_fd);
+        syslog(LOG_ERR, "%s called before pulseaudio initialization, socket %d\n", __FUNCTION__, ta->sock_fd);
     }
     if(response_buf) {
         res = send(ta->sock_fd, response_buf, rec_size + 4, 0);
         free(response_buf);
-        syslog(LOG_ERR, "in_read() send %d bytes\n", res);
+        //syslog(LOG_ERR, "%s send %d bytes\n", __FUNCTION__, res);
     } else {
         error = 0;
         for(i = 0; i < size; i += 4) {
@@ -143,7 +166,7 @@ static pa_simple *pa_create_playback(char *appname) {
         .channels = 2
     };
     static const pa_buffer_attr ba_out = {
-        .maxlength = 2 * OUT_WRITE_BLOCK,
+        .maxlength = 3 * OUT_WRITE_BLOCK,
         .tlength = 1 * OUT_WRITE_BLOCK,
         .prebuf = 1 * OUT_WRITE_BLOCK,
         .minreq = 1 * OUT_WRITE_BLOCK,
@@ -345,7 +368,7 @@ static void *handle_out_server(void *handler_obj) {
     } else {
         sa->sock_fd = res;
     }
-    struct timeval timeout;      
+    struct timeval timeout;
     timeout.tv_sec = 10;
     timeout.tv_usec = 0;
 
@@ -383,7 +406,7 @@ static void *handle_in_server(void *handler_obj) {
 
     sprintf(appname, "nubo-pulseaudio-u%d", sa->userId);
     pa_simple *s = pa_create_record(appname);
-    
+
     res = init_socket(sa->path, sa->userId);
     if(res < 0) {
         syslog(LOG_ERR, "Cannot bind out socket");
@@ -391,7 +414,7 @@ static void *handle_in_server(void *handler_obj) {
     } else {
         sa->sock_fd = res;
     }
-    struct timeval timeout;      
+    struct timeval timeout;
     timeout.tv_sec = 10;
     timeout.tv_usec = 0;
 
@@ -424,6 +447,109 @@ void go_background() {
     close(STDIN_FILENO);
     close(STDOUT_FILENO);
     close(STDERR_FILENO);
+}
+
+/* Retrieve errors from the bus and show them on the UI */
+static void error_cb (GstBus *bus, GstMessage *msg, void *data) {
+  GError *err;
+  gchar *debug_info;
+  gchar *message_string;
+
+  gst_message_parse_error (msg, &err, &debug_info);
+  syslog(LOG_ERR, "Error received from element %s: %s", GST_OBJECT_NAME (msg->src), err->message);
+  g_clear_error (&err);
+  g_free (debug_info);
+  gst_element_set_state (gst_data.pipeline, GST_STATE_NULL);
+}
+
+/* Notify UI about pipeline state changes */
+static void state_changed_cb (GstBus *bus, GstMessage *msg, void *data) {
+  GstState old_state, new_state, pending_state;
+  gst_message_parse_state_changed (msg, &old_state, &new_state, &pending_state);
+  /* Only pay attention to messages coming from the pipeline, not its children */
+  if (GST_MESSAGE_SRC (msg) == GST_OBJECT (gst_data.pipeline)) {
+    syslog(LOG_ERR, "State changed to %s", gst_element_state_get_name(new_state));
+    gst_data.state = new_state;
+  }
+}
+
+GST_DEBUG_CATEGORY_STATIC (debug_category);
+#define GST_CAT_DEFAULT debug_category
+
+static void *start_gst_thread(void *userdata) {
+    GstBus *bus;
+    GSource *bus_source;
+    bool initialized;  /* To avoid informing the UI multiple times about the initialization */
+    char pipestr[1024];
+    sprintf(pipestr, "fdsrc fd=%d ! audioparse rate=44100 channels=2 ! audioconvert ! audioresample ! opusenc audio-type=voice frame-size=5 ! rtpopuspay ssrc=%d ! udpsink host=%s port=%d", gst_pipe[0], gst_data.ssrc, gst_data.host, gst_data.port);
+    //sprintf(pipestr, "fdsrc fd=%d ! audioparse rate=44100 channels=2 ! audio/x-raw,channels=2,clock-rate=44100 ! opusenc audio-type=voice ! rtpopuspay ssrc=%d ! udpsink host=%s port=%d", gst_pipe[0], gst_data.ssrc, gst_data.host, gst_data.port);
+    //sprintf(pipestr, "fdsrc fd=%d ! audioparse rate=44100 channels=2 ! audioconvert ! audioresample ! autoaudiosink", gst_pipe[0]);
+    //sprintf(pipestr, "filesrc location=./mpthreetest.mp3 ! mad ! audioconvert ! audioresample ! autoaudiosink");
+    GError *error = NULL;
+
+    syslog(LOG_INFO, "%s define conext, pipe: %s\n", __FUNCTION__, pipestr);
+    GMainContext *context = g_main_context_new();
+    g_main_context_push_thread_default(context);
+    gchar *pipelineStr = g_strdup_printf("%s", pipestr);
+    GstElement *pipeline = gst_parse_launch(pipelineStr, &error);
+    g_free(pipelineStr);
+    if (error) {
+        syslog(LOG_ERR, "Unable to build pipeline: %s", error->message);
+        g_clear_error (&error);
+        return NULL;
+    }
+    gst_data.pipeline = pipeline;
+
+    /* Instruct the bus to emit signals for each received message, and connect to the interesting signals */
+    syslog(LOG_INFO, "%s define buses\n", __FUNCTION__);
+    bus = gst_element_get_bus(gst_data.pipeline);
+    bus_source = gst_bus_create_watch(bus);
+    g_source_set_callback(bus_source, (GSourceFunc) gst_bus_async_signal_func, NULL, NULL);
+    g_source_attach(bus_source, context);
+    g_source_unref(bus_source);
+    g_signal_connect(G_OBJECT(bus), "message::error", (GCallback)error_cb, NULL);
+    g_signal_connect(G_OBJECT(bus), "message::state-changed", (GCallback)state_changed_cb, NULL);
+    gst_object_unref(bus);
+
+    /* Create a GLib Main Loop and set it to run */
+    syslog(LOG_INFO, "Entering main gst loop...\n");
+    gst_data.main_loop = g_main_loop_new(context, FALSE);
+    gst_element_set_state(gst_data.pipeline, GST_STATE_PLAYING);
+
+    g_main_loop_run(gst_data.main_loop);
+    syslog(LOG_INFO, "Exited main loop\n");
+    g_main_loop_unref(gst_data.main_loop);
+    gst_data.main_loop = NULL;
+
+    /* Free resources */
+    g_main_context_pop_thread_default(context);
+    g_main_context_unref(context);
+    gst_element_set_state(gst_data.pipeline, GST_STATE_NULL);
+    gst_object_unref(gst_data.pipeline);
+
+    return NULL;
+}
+
+int init_gst_subsystem() {
+    syslog(LOG_INFO, "%s start gst subsystem\n", __FUNCTION__);
+    gst_init(NULL, NULL);
+    int res = pipe(gst_pipe);
+    if(res < 0) {
+        syslog(LOG_ERR, "could not create pipe, errno=%d\n", errno);
+        return -1;
+    }
+    pthread_attr_t attrs;
+    pthread_attr_init(&attrs);
+    pthread_attr_setdetachstate(&attrs, PTHREAD_CREATE_JOINABLE);
+    GST_DEBUG_CATEGORY_INIT (debug_category, "nubo_audio", 0, "Nubo Audio");
+    gst_debug_set_threshold_for_name("nubo_audio", GST_LEVEL_DEBUG);
+    res = pthread_create(&(gst_data.gst_app_thread), &attrs, start_gst_thread, (void *) NULL);
+    if( res < 0) {
+        syslog(LOG_ERR, "could not create thread\n");
+        return -2;
+    }
+    syslog(LOG_INFO, "%s gst subsystem started, data fd %d -> %d\n", __FUNCTION__, gst_pipe[1], gst_pipe[0]);
+    return 0;
 }
 
 int parse_args(int argc, char *argv[]) {
@@ -463,6 +589,17 @@ int parse_args(int argc, char *argv[]) {
     sprintf(server_out_args.path, "%s_%s_%d", SOCKETPREFIX, "out", unum);
     sprintf(server_in_args.path, "%s_%s_%d", SOCKETPREFIX, "in", unum);
 
+    if(argc > 4) {
+        gst_data.host = argv[2];
+        gst_data.port = atoi(argv[3]);
+        gst_data.ssrc = atoi(argv[4]);
+    } else {
+        gst_data.host = "lab2.nubosoftware.com";
+        gst_data.port = 30303;
+        gst_data.ssrc = 0;
+    }
+    syslog(LOG_INFO, "gstreamer send data to %s:%d ssrc=%d\n", gst_data.host, gst_data.port, gst_data.ssrc);
+
     return 0;
 }
 
@@ -485,15 +622,16 @@ int main(int argc, char *argv[]) {
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
 
-//    puts("Go backgroud and start main loop!!\n");
-//    go_background();
+    //puts("Go backgroud and start main loop!!\n");
+    //go_background();
 
+    init_gst_subsystem();
     res = pthread_create(&thread_id_out, &attrs, handle_out_server, (void *) &server_out_args);
     if( res < 0) {
         syslog(LOG_ERR, "could not create thread\n");
         return -2;
     }
-    
+
     res = pthread_create(&thread_id_in, &attrs, handle_in_server, (void *) &server_in_args);
     if( res < 0) {
         syslog(LOG_ERR, "could not create thread\n");
@@ -504,10 +642,9 @@ int main(int argc, char *argv[]) {
     syslog(LOG_NOTICE, "pthread_join thread_id_out return %d", res);
     res = pthread_join(thread_id_in, NULL);
     syslog(LOG_NOTICE, "pthread_join thread_id_in return %d", res);
-    
+
     syslog(LOG_NOTICE, "pulseaudio-service finished");
     closelog();
 
     return 0;
 }
-
