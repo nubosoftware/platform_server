@@ -106,7 +106,8 @@ var filter = {
             "nfs_slow.nfs_ip": constraints.ipOptionalConstr,
             "nfs_slow.nfs_path": constraints.pathConstrOptional,
             "nfs_slow.nfs_path_slow": constraints.pathConstrOptional,
-            "mounts" : {}
+            "mounts" : {},
+            "xml_file_content": {}
         }
     }, {
         "path": "/createNewUserTarGz",
@@ -152,6 +153,16 @@ var filter = {
                 "isArray": true,
                 "array": constraints.pathConstrRequested
             }
+        }
+    }, {
+        "path": "/receiveSMS",
+        "constraints": {},
+        "bodyConstraints": {
+            "to": {},
+            "from": {},
+            "text": {},
+            "localid": constraints.NaturalNumberConstrRequested,
+            "pdu": {}
         }
     }, {
         "path": "/applyFirewall",

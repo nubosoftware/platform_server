@@ -18,7 +18,8 @@ module.exports = {
     detachUser: detachUser,
     //for tests
     createUser: createUser,
-    endSessionByUnum: endSessionByUnum
+    endSessionByUnum: endSessionByUnum,
+    receiveSMS: receiveSMS
 };
 
 function attachUser(req, res) {
@@ -97,10 +98,40 @@ function createUser(obj, logger, callback) {
         platform: platform,
         logger: logger,
         nfs: obj.nfs,
-        mounts: obj.mounts
+        mounts: obj.mounts,
+        xml_file_content: obj.xml_file_content
     };
     var addToErrorsPlatforms = false;
     var platformErrorFlag = false;
+
+
+    function createSessionFiles(session, callback) {
+        if (!session.xml_file_content || session.xml_file_content.length == 0) {
+		callback(null);
+		return;
+	}
+        let xml_file = "/Android/data/user/" + localid+"/Session.xml"
+        fs.writeFile(xml_file, session.xml_file_content, function(err) {
+            if (err) {
+                var msg = "Failed to create Session.xml file. error: " + err;
+                logger.error(msg);
+                callback(msg);
+            } else {
+                fs.chmod(xml_file, '600', function(err) {
+                    var msg = null;
+                    if (err) {
+                        msg = "Failed to chmod Session.xml file. error: " + err;
+                    }
+                    fs.chown(xml_file, 1000, 1000, function(err) {
+                        if (err) {
+                            msg = msg + "Failed to chown Session.xml file. error: " + err;
+                        }
+                        callback(msg);
+                    });
+                });
+            }
+        });
+    }
 
     /*
      * Create startup.json, Session.xml, sessionid
@@ -218,7 +249,7 @@ function createUser(obj, logger, callback) {
                 },
                 function (callback) {
                     fs.mkdir("/Android/data/user_de/" + localid, function (err) {callback(err);});
-                },		
+                },
                 //function (callback) {
                 //    fs.chown("/Android/data/user/" + localid, 1000, 1000, function (err) {callback(err);});
                 //},
@@ -289,6 +320,9 @@ function createUser(obj, logger, callback) {
                 logger.logTime("fullMount");
                 callback(err);
             });
+        },
+        function(callback) {
+            createSessionFiles(session,callback);
         },
         function (callback) {
             Audio.initAudio(localid, function (err) {
@@ -599,4 +633,49 @@ var validateAttachUserRequestObj = function(requestObj, logger, callback) {
     if(res) logger.error("input is not valid: " + JSON.stringify(res));
     callback(res, requestObj);
 };
+
+function receiveSMS(req, res) {
+    var params = req.body;
+    var unum = params.localid;
+    var to = params.to;
+    var from = params.from;
+    var text = params.text;
+    var pdu = params.pdu;
+    var logger = new ThreadedLogger();
+    logger.logTime("Start process request receiveSMS");
+    var platform = new Platform(logger);
+    var resobj;
+    if (!to || !from || !text) {
+        resobj = {status: 0, message: "invalid parameters" };
+        logger.info("invalid parameters. to: "+to+", from: "+from+", text: "+text);
+        res.end(JSON.stringify(resobj,null,2));
+        return;
+    }
+
+    if(isNaN(unum) || (unum <= 0)) {   // is unum does not greater that 0 mean check if unum is number too
+        resobj = {status: 0, message: "invalid unum, unum is " + unum};
+        res.end(JSON.stringify(resobj,null,2));
+        return;
+    }
+    var args = ["broadcast", "--user", unum, "-a", "android.intent.action.DATA_SMS_RECEIVED",
+        "--es", "nubo_sms_to",to,
+        "--es", "nubo_sms_from",from,
+        "--es", "nubo_sms_text",text,
+        "--es", "nubo_sms_pdu",pdu ];
+    logger.info("Command: am "+args);
+    platform.execFile("am", args, function(err, stdout, stderr) {
+        if(err) {
+            resobj = {status: 0, error: err};
+        } else {
+            resobj = {status: 1, message: "Message send to user."};
+        }
+        logger.info("err: "+err+", stdout: "+stdout+", stderr: "+stderr);
+        res.end(JSON.stringify(resobj,null,2));
+        logger.logTime("Finish process request receiveSMS");
+    });
+
+
+
+
+}
 

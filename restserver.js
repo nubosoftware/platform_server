@@ -230,6 +230,7 @@ function buildServerObject(server) {
     server.post("/refreshMedia", filesModule.refreshMedia);
     server.post("/applyFirewall", firewallModule.post);
     server.get("/createNewUserTarGz", createNewUserTarGzModule.create);
+    server.post("/receiveSMS", userModule.receiveSMS);
     // server.post("/connectToVpn",vpn.connectToVpn);
 
 }

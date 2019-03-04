@@ -263,6 +263,17 @@ function fullMount(session, keys, callback) {
         "/Android/data/mnt/nubouserfs/" + localid + "/user_de",
         "/Android/data/media/" + localid
     ];
+
+    var mkdirs = [
+        /*"/Android/data/mnt/nubouserfs/" + localid + "/misc/profiles/cur",
+        "/Android/data/misc_ce/" + localid,
+        "/Android/data/misc_de/" + localid,
+        "/Android/data/system/users/" + localid,
+        "/Android/data/system_ce/" + localid,
+        "/Android/data/system_de/" + localid,
+        "/Android/data/mnt/nubouserfs/" + localid + "/user",
+        "/Android/data/mnt/nubouserfs/" + localid + "/user_de"*/
+    ];
     var nubouserfsSrc = [
         "/Android/data/mnt/nubouserfs/" + localid + "/misc/profiles/cur",
         "/Android/data/mnt/nubouserfs/" + localid + "/user",
@@ -281,8 +292,11 @@ var userDataDirs = [
     "/user/", "/user_de/"
 ]
     async.series([
+        /*function(callback) {
+            mkDirs(mkdirs, callback);
+        },*/
         function(callback) {
-            var nfsoptions = "nolock,hard,intr,vers=3,noatime,async";
+            var nfsoptions = "nolock,hard,intr,vers=4,noatime,async,fsc";
             mountHostNfs(nfsSrc, nfsDst, nfsoptions, callback);
         },
         function(callback) {
@@ -352,6 +366,30 @@ function getUserHomeFolder(email) {
     return folder;
 }
 
+function mkDirs(dst, callback) {
+
+    console.log("mkDirs");
+
+    async.eachSeries(dst,
+        function (dest, callback) {
+            var mkdirParams = ['-p', dest];
+            execFile('mkdir', mkdirParams, function (err, stdout, stderr) {
+                if (err) {
+                    logger.error("mkDirs: mkdir: " + err);
+                    logger.error("mkDirs: mkdir: " + stderr);
+                    callback(err);
+                    return;
+                }
+                logger.info("mkDirs: mkdir: " + mkdirParams);
+                callback(null);
+            });
+        }, function(err) {
+            callback(err);
+        }
+    );
+
+}
+
 /*
  * Mount nfs directories
  * scr - array of strings, nfs-server directories
@@ -390,7 +428,7 @@ function mountHostNfs(src, dst, options, callback) {
                     },
                     function(callback) {
 
-                        var mountParams = ['-t', 'nfs', '-o', options, src[i], dst[i]];
+                        var mountParams = ['-t', 'nfs4', '-o', options, src[i], dst[i]];
                         var mountOpts = {
                             timeout: 10000
                         };
