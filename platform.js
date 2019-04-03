@@ -1,15 +1,14 @@
 "use strict";
 
 var execFile = require('child_process').execFile;
+var spawn = require('child_process').spawn;
 var fs = require('fs');
 var Common = require('./common.js');
 var localPlatform = null;
 
 var Platform = function(curLogger) {
     var logger = curLogger;
-    
-    this.execFile = function(cmd, args, callback) {
-        var envNugat = {
+    var envNugat = {
             "_": "/system/bin/env",
             "ANDROID_DATA": "/data",
             "ANDROID_ROOT": "/system",
@@ -36,7 +35,9 @@ var Platform = function(curLogger) {
             "ANDROID_STORAGE": "/storage",
             "PATH": "/sbin:/vendor/bin:/system/sbin:/system/bin:/system/xbin",
             "SYSTEMSERVERCLASSPATH": "/system/framework/services.jar:/system/framework/ethernet-service.jar:/system/framework/wifi-service.jar"
-        };
+    };
+
+    this.execFile = function(cmd, args, callback) {
         var execFileArgs = ["/Android", cmd].concat(args);
         var execFileOpts = {
             env: envNugat,
@@ -49,6 +50,11 @@ var Platform = function(curLogger) {
             callback(error, stdout, stderr);
         });
     };
+
+    this.spawn = function(cmd, args) {
+        var spawnArgs = ["/Android", cmd].concat(args);
+        return spawn("/usr/sbin/chroot", spawnArgs, {env: envNugat});
+    }
 
     return this;
 };

@@ -19,6 +19,8 @@ var gstInPID,gstOutPID;
 var gstPlaybackProc;
 var gstRecordProc;
 var pulseaudioUserProc;
+var audioServerProc;
+var mediaServerProc;
 
 var platform = new Platform();
 
@@ -247,26 +249,6 @@ var startAudioManager = function () {
             pulseaudioUserProc = child;
             cb();
         },
-        function(callback) {
-            platform.execFile("daemonize", ["user_audioserver", localid], function (err, stdout, stderr) {
-                if(err) {
-                    console.log("audioserver.js::startUserAudioserver Cannot start audioserver, err: " + err);
-                    callback(null);
-                } else {
-                    callback(null);
-                }
-            });
-        },
-        function(callback) {
-                platform.execFile("daemonize", ["user_mediaserver", localid], function (err, stdout, stderr) {
-                    if(err) {
-                        console.log("audioserver.js::startUserAudioserver Cannot start audioserver, err: " + err);
-                        callback(null);
-                    } else {
-                        callback(null);
-                    }
-                });
-        },
         // start gst for input stream
         (cb) => {
             var cmd = "gst-launch-1.0";
@@ -381,65 +363,24 @@ var startAudioManager = function () {
             cb(null);
         }
     ], function (err) {
-        if (err) {
+        if (err && err !== "Audio is not enabled") {
             console.error("startAudioManager error", err);
             stopAudioManager();
         }
+        audioServerProc = platform.spawn("user_audioserver", [localid]);
+        mediaServerProc = platform.spawn("user_mediaserver", [localid]);
+
+        audioServerProc.on('close', (code) => {
+            audioServerProc = undefined;
+        });
+        mediaServerProc.on('close', (code) => {
+            console.info("audioServerProc closed with code " + code);
+            mediaServerProc = undefined;
+        });
         console.info("Audio Manager initiated.");
     });
 
 };
-
-
-function stopAndroidAudioservices(callback) {
-    async.waterfall(
-        [
-            function(callback) {
-                var pids = [];
-                var re_ps_line = new RegExp("^[^ \t]+[ \t]+([0-9]*).*");
-                var myCommands = [
-                    "user_audioserver " + localid,
-                    "user_mediaserver " + localid,
-                ];
-                execFile("ps", ["-aux"], function(error, stdout, stderr) {
-                    var lines;
-                    if (error) {
-                        console.log("audioserver.js::stopUserAudioserver ps failed, err: " + error);
-                        return callback(error);
-                    }
-                    lines = stdout.split("\n");
-                    var cmdStartPos = lines[0].indexOf("COMMAND");
-                    lines.forEach(function(row) {
-                        var cmdLine = row.slice(cmdStartPos);
-                        if(myCommands.indexOf(cmdLine) >= 0) {
-                            var obj = re_ps_line.exec(row);
-                            if(obj) {
-                                pids.push(obj[1]);
-                            }
-                        }
-                    });
-                    callback(null, pids);
-                });
-            },
-            function(pids, callback) {
-                console.log("pids: " + JSON.stringify(pids));
-                if(pids.length) {
-                    execFile("kill", pids, function(error, stdout, stderr) {
-                        if (error) {
-                            console.log("audioserver.js::stopUserAudioserver kill failed, err: " + error);
-                            return callback(error);
-                        }
-                        callback(null);
-                    });
-                } else {
-                    callback(null);
-                }
-            }
-        ], function(err) {
-            callback(err);
-        }
-    );
-}
 
 var stopAudioManager = function () {
 
@@ -489,25 +430,11 @@ var stopAudioManager = function () {
             }
         },
         (cb) => {
-            if (gstRecordProc) {
-                gstRecordProc.kill('SIGINT');
-            }
-            cb();
-
-        },
-        (cb) => {
-            if (gstPlaybackProc) {
-                gstPlaybackProc.kill('SIGINT');
-            }
-            cb();
-        },
-        (cb) => {
-            stopAndroidAudioservices(cb);
-        },
-        (cb) => {
-            if (pulseaudioUserProc) {
-                pulseaudioUserProc.kill('SIGINT');
-            }
+            if (gstRecordProc) gstRecordProc.kill('SIGINT');
+            if (gstPlaybackProc) gstPlaybackProc.kill('SIGINT');
+            if(audioServerProc) audioServerProc.kill('SIGINT');
+            if(mediaServerProc) mediaServerProc.kill('SIGINT');
+            if (pulseaudioUserProc) pulseaudioUserProc.kill('SIGINT');
             cb();
         },
         (cb) => {
@@ -519,6 +446,14 @@ var stopAudioManager = function () {
                 }
                 if(gstPlaybackProc && !gstPlaybackProc.killed) {
                     console.info("waiting for quit of gst-lunch of playback");
+                    needWaitFlag = true;
+                }
+                if(audioServerProc && !audioServerProc.killed) {
+                    console.info("waiting for quit of audioserver");
+                    needWaitFlag = true;
+                }
+                if(mediaServerProc && !mediaServerProc.killed) {
+                    console.info("waiting for quit of mediaserver");
                     needWaitFlag = true;
                 }
                 if(pulseaudioUserProc && !pulseaudioUserProc.killed) {

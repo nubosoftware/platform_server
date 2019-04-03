@@ -31,7 +31,7 @@ var testInput = {
     "sessid": "7cb73c202402b3f55c23226877489952c90cf9a468c5db9fc9aeed891195857602934c0b1008d5ccc45068ba0498f43c",
     "suspend": 0,
     "totalActiveSeconds": 0,
-    "email": "alexander1@nubosoftware.com",
+    "email": "alexander@nubosoftware.com",
     "deviceid": "web_default_firefox_alexander@nubosoftware.com",
     "platid": "2",
     "platformline": "",
