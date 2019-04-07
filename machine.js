@@ -527,7 +527,7 @@ var afterInitAndroid = function(reqestObj, logger, callback) {
                 });
             },
             function(callback) {
-                var nfsoptions = "nolock,hard,intr,vers=3,noatime,async"; //user 0
+                var nfsoptions = "nolock,hard,intr,noatime,async"; //user 0
                 // nfs_path checked in validator for path traversal
                 var src = [
                     reqestObj.nfs.nfs_ip + ":" + reqestObj.nfs.nfs_path + "/apks"
