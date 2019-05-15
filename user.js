@@ -580,60 +580,6 @@ function removeDirIfEmpty(dir, callback) {
 //    );
 //}
 
-var validateAttachUserRequestObj = function(requestObj, logger, callback) {
-    var validate = require("validate.js");
-    var constraints = require("nubo-validateConstraints");
-
-    var constraint = {
-        timeZone: {
-            format: "[a-zA-Z0-9\\.\\_\\-\\/]+",
-            length: {
-                "minimum" : 1,
-                "maximum" : 256
-            }
-        },
-        login: {presence: true},
-        "login.userName": constraints.requestedExcludeSpecialCharacters,
-        "login.email": {presence: true, email: true},
-        "login.lang": {
-            format: "[a-zA-Z0-9\\.\\_\\-]+",
-            length: {
-                "minimum" : 1,
-                "maximum" : 256
-            }
-        },
-        "login.countrylang": {
-            format: "[a-zA-Z0-9\\.\\_\\-]+",
-            length: {
-                "minimum" : 1,
-                "maximum" : 256
-            }
-        },
-        "login.localevar": {
-            format: "[a-zA-Z0-9\\.\\_\\-]+",
-            length: {
-                "minimum" : 1,
-                "maximum" : 256
-            }
-        },
-        "login.deviceType": constraints.excludeSpecialCharacters,
-        session: {presence: true},
-        "session.email": {presence: true, email: true},
-        "session.deviceid": constraints.deviceIdConstrRequested,
-        nfs: {presence: true},
-        "nfs.nfs_ip": constraints.ipConstrConstrRequested,
-        "nfs.nfs_path": constraints.pathConstrRequested,
-        "nfs.nfs_path_slow": constraints.pathConstrOptional,
-        nfs_slow: {},
-        "nfs_slow.nfs_ip": constraints.ipOptionalConstr,
-        "nfs_slow.nfs_path": constraints.pathConstrOptional,
-        "nfs_slow.nfs_path_slow": constraints.pathConstrOptional
-    };
-    var res = validate(requestObj, constraint);
-    if(res) logger.error("input is not valid: " + JSON.stringify(res));
-    callback(res, requestObj);
-};
-
 function receiveSMS(req, res) {
     var params = req.body;
     var unum = params.localid;

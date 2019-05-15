@@ -31,9 +31,9 @@ var filter = {
                 "presence": true
             },
             "nfs.nfs_ip": constraints.hostConstrRequested,
-            "nfs.ssh_ip": constraints.ExcludeSpecialCharactersRequested, // not in use
-            "nfs.ssh_user": constraints.ExcludeSpecialCharactersRequested, // not in use
-            "nfs.key_path": constraints.pathConstrRequested, // not in use
+            "nfs.ssh_ip": {}, // not in use
+            "nfs.ssh_user": {}, // not in use
+            "nfs.key_path": {}, // not in use
             "nfs.nfs_path": constraints.pathConstrRequested,
             "downloadFilesList": {
                 array: constraints.pathConstrRequested
@@ -68,7 +68,7 @@ var filter = {
                 presence: true
             },
             "login.userName": constraints.userNameConstrRequested,
-            "login.email": constraints.emailConstrRequested,
+            "login.email": {}, // not in use
             "login.lang": {
                 "format": "^[.a-zA-Z0-9_\\-]+$",
                 "length": {
