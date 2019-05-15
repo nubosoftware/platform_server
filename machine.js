@@ -414,6 +414,14 @@ var initAndroid = function(reqestObj, logger, callback) {
                 });
             },
             function(callback) {
+                var opts = {
+                    mode: "0700",
+                    uid: 0,
+                    gid: 0
+                };
+                mkdirIfNotExist("/Android/data/mnt", opts, callback);
+            },
+            function(callback) {
                 var cmd = "/usr/bin/pulseaudio";
                 execFile(cmd, ["--start"], function(error, stdout, stderr) {
                     if (error) {
