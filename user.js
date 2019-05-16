@@ -5,6 +5,7 @@ var execFile = require('child_process').execFile;
 var async = require('async');
 var validate = require("validate.js");
 var _ = require('underscore');
+var ps = require('ps-node');
 //var Common = require('./common.js');
 //var logger = Common.logger;
 var ThreadedLogger = require('./ThreadedLogger.js');
@@ -483,6 +484,20 @@ function endSessionByUnum(unum, logger, callback) {
                                         var userProcs = _.filter(procs, function(procObj) {return (userTest.test(procObj.uid));});
                                         if(userProcs.length !== 0) {
                                             logger.warn("User's processes still exist after pm remove-user: " + JSON.stringify(userProcs));
+                                            // kill processes
+                                            async.eachSeries(userProcs,function(process,cb) {
+                                                ps.kill(process.pid, 'SIGKILL', function(err) {
+                                                    if (err) {
+                                                        logger.error("Unable to kill pid "+process.pid+", kill error: ", err);
+                                                    } else {
+                                                        logger.info("pid "+process.pid+" has been killed.");
+                                                    }
+                                                    cb();
+                                                });
+                                            },function(err) {
+                                                //callback(null);
+                                                logger.info("Finished processes kill for user "+unum);
+                                            })
                                         }
                                         callback(null);
                                     }
