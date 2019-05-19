@@ -91,44 +91,6 @@ function startPlatformPost(req, res) {
         });
 }
 
-var validateStartPlatformRequestObj = function(reqestObj, logger, callback) {
-    var validate = require("validate.js");
-    var constraints = require("nubo-validateConstraints");
-
-    var constraint = {
-        platid: constraints.platIdConstrRequested,
-        platUID: constraints.requestedPlatformUIDConstr,
-        gateway: { presence: true },
-        "gateway.apps_port": constraints.portNumberConstrRequested,
-        "gateway.external_ip": {}, //not in use
-        "gateway.player_port": {}, //not in use
-        "gateway.ssl": {}, //not in use
-        "gateway.index": {}, //not in use
-        "gateway.internal_ip": constraints.ipConstrOptional,
-        "gateway.isGWDisabled": {}, //not in use
-        "gateway.controller_port": constraints.portNumberConstrRequested,
-        management: { presence: true },
-        "management.url": constraints.hostConstr,
-        "management.ip": constraints.ipConstrRequested,
-        nfs: { presence: true },
-        "nfs.nfs_ip": constraints.ipConstrRequested,
-        "nfs.ssh_ip": {}, //not in use
-        "nfs.ssh_user": {}, //not in use
-        "nfs.key_path": {}, //not in use
-        "nfs.nfs_path": constraints.pathConstr,
-        downloadFilesList: { array: constraints.pathConstr },
-        settings: { presence: true },
-        "settings.withService": constraints.boolConstrOptional,
-        "settings.hideControlPanel": constraints.boolConstrOptional,
-        "settings.additionalSettings" : {},
-        rsyslog: {},
-        "rsyslog.ip": constraints.ipConstrOptional,
-        "rsyslog.port": constraints.ipConstrOptional
-    };
-    var res = validate(reqestObj, constraint);
-    callback(res);
-};
-
 function killPlatform(req, res) {
     var resobj;
     resobj.status = 0;
@@ -193,12 +155,14 @@ function prepareNetworkConfiguration(callback) {
             function(callback) {
                 var ni = os.networkInterfaces();
                 ninames = Object.keys(ni);
-                niname = ninames[1];
-                if(niname) {
+                niname = common.defaultNetworkInterface || ninames[1];
+                if(ni[niname]) {
                     ipconfig.ipAddress = ni[niname][0]["address"];
                     ipconfig.ipAddressMask = calculateNetmask(ni[niname][0]["netmask"]);
+                    callback(null);
+                } else {
+                    callback("invalid network interface");
                 }
-                callback(null);
             },
             function(callback) {
                 execFile("ip", ["r"], function(error, stdout, stderr) {
@@ -268,10 +232,12 @@ function createIpconfigTxt(ipconfig, callback) {
     writeString(ipconfig.ipAddress);
     writeInt(ipconfig.ipAddressMask);
 
-    writeString("gateway");
-    writeInt(0); // Default route.
-    writeInt(1); // Have a gateway.
-    writeString(ipconfig.gateway);
+    if (ipconfig.gateway) {
+        writeString("gateway");
+        writeInt(0); // Default route.
+        writeInt(1); // Have a gateway.
+        writeString(ipconfig.gateway);
+    }
 
     ipconfig.dns.forEach(function(row) {
         writeString("dns");
@@ -550,29 +516,6 @@ var afterInitAndroid = function(reqestObj, logger, callback) {
                     callback(err);
                 });
             },
-            //function(callback) {
-            //    var timeoutSec = 90;
-            //    logger.info("Waiting upto " + timeoutSec + " seconds for android ssh server...");
-            //    waitForProcessWithTimeout("/system/bin/sshd", timeoutSec, callback);
-            //},
-            //function(callback) {
-            //    if(reqestObj.rsyslog && reqestObj.rsyslog.ip) {
-            //        platform.execFile("busybox", ["syslogd", "-R", reqestObj.rsyslog.ip], function(err, stdout, stderr) {
-            //            callback(null);
-            //        });
-            //    } else {
-            //        callback(null);
-            //    }
-            //},
-            //function(callback) {
-            //    if(reqestObj.rsyslog && reqestObj.rsyslog.ip) {
-            //        platform.execFile("busybox", ["klogd"], function(err, stdout, stderr) {
-            //            callback(null);
-            //        });
-            //    } else {
-            //        callback(null);
-            //    }
-            //},
             function(callback) {
                 var timeoutSec = 900;
                 logger.info("Waiting upto " + timeoutSec + " seconds for 1st boot of android...");
