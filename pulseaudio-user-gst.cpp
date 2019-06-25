@@ -80,7 +80,7 @@ void sig_handler(int signo)
 }
 
 static int out_write(struct thread_args *ta, const void *buf, int size) {
-    int res;
+    int res = 0;
     int response = size;
     int error;
     struct timeval now;
@@ -88,18 +88,21 @@ static int out_write(struct thread_args *ta, const void *buf, int size) {
     if(ta->s) {
         //gettimeofday(&now, NULL);
         //syslog(LOG_DEBUG, "time: %ld.%03d out_write1: size=%d, pa_simple_write  return %d\n", now.tv_sec, (int)now.tv_usec/1000, size, res);
-        res = pa_simple_write(ta->s, buf, size, &error);
+
         write(gst_pipe[1], buf, size);
         if (gst_data.state != GST_STATE_PLAYING) {
             syslog(LOG_INFO, "%s set playing state\n", __FUNCTION__);
             gst_element_set_state (gst_data.pipeline, GST_STATE_PLAYING);
         }
+        send(ta->sock_fd, &response, 4, 0);
+        res = pa_simple_write(ta->s, buf, size, &error);
         //gettimeofday(&now, NULL);
         //syslog(LOG_DEBUG, "time: %ld.%03d out_write2: size=%d, pa_simple_write  return %d\n", now.tv_sec, (int)now.tv_usec/1000, size, res);
     } else {
         syslog(LOG_ERR, "out_write() called before pulseaudio initialization\n");
+        send(ta->sock_fd, &response, 4, 0);
     }
-    send(ta->sock_fd, &response, 4, 0);
+
     return res;
 }
 
@@ -481,7 +484,7 @@ static void *start_gst_thread(void *userdata) {
     GSource *bus_source;
     bool initialized;  /* To avoid informing the UI multiple times about the initialization */
     char pipestr[1024];
-    sprintf(pipestr, "fdsrc fd=%d ! audioparse rate=44100 channels=2 ! audioconvert ! audioresample ! opusenc audio-type=voice frame-size=5 ! rtpopuspay ssrc=%d ! udpsink host=%s port=%d", gst_pipe[0], gst_data.ssrc, gst_data.host, gst_data.port);
+    sprintf(pipestr, "fdsrc fd=%d ! audioparse rate=44100 channels=2 ! audioconvert ! audioresample ! opusenc audio-type=voice frame-size=20 ! rtpopuspay ssrc=%d ! udpsink host=%s port=%d", gst_pipe[0], gst_data.ssrc, gst_data.host, gst_data.port);
     //sprintf(pipestr, "fdsrc fd=%d ! audioparse rate=44100 channels=2 ! audio/x-raw,channels=2,clock-rate=44100 ! opusenc audio-type=voice ! rtpopuspay ssrc=%d ! udpsink host=%s port=%d", gst_pipe[0], gst_data.ssrc, gst_data.host, gst_data.port);
     //sprintf(pipestr, "fdsrc fd=%d ! audioparse rate=44100 channels=2 ! audioconvert ! audioresample ! autoaudiosink", gst_pipe[0]);
     //sprintf(pipestr, "filesrc location=./mpthreetest.mp3 ! mad ! audioconvert ! audioresample ! autoaudiosink");

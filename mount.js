@@ -604,13 +604,31 @@ function mountAdditionalFolders(mounts, mediaFolder, callback) {
                                 callback(err);
                                 return;
                             }
-
+                            if (source.nomediaParent === true) {
+                                let parentDir = path.dirname(localFolder);
+                                let nomediaFile = buildPath(parentDir,".nomedia");
+                                fs.open(nomediaFile, 'w', (err, fd) => {
+                                    if (err) {
+                                        logger.error("Unable to open .nomedia file: "+nomediaFile+", err: "+err);
+                                        return;
+                                    };
+                                    fs.close(fd, err => {
+                                        if (err) {
+                                            logger.error("Unable to create .nomedia file: "+nomediaFile+", err: "+err);
+                                            return;
+                                        }
+                                        fs.chown(nomediaFile,1023,1023,err => {
+                                            logger.error("Unable to chown .nomedia file: "+nomediaFile+", err: "+err);
+                                        });
+                                    });
+                                  });
+                            }
                             callback(null);
                         });
                     },
                     function(callback) {
                         var options = "user="+escapeMountParam(source.orgUser)+",password="+escapeMountParam(source.orgPassword)+
-                            ",domain="+escapeMountParam(source.domain)+",serverino,ip="+source.serverIP+",uid=1023,gid=1023,actimeo=1";
+                            ",domain="+escapeMountParam(source.domain)+",serverino,ip="+source.serverIP+",uid=1023,gid=1023,vers=3.0,actimeo=1";
                         var mountParams = ['-t', 'cifs', '-o', options, source.shareName, localFolder];
                         var mountOpts = {
                             timeout: 10000

@@ -13,6 +13,7 @@ var mount = require('./mount.js');
 var Platform = require('./platform.js');
 var http = require('./http.js');
 var Audio = require('./audio.js');
+var ps = require('ps-node');
 
 module.exports = {
     attachUser: attachUser,
@@ -90,6 +91,54 @@ function detachUser(req, res) {
     }
 }
 
+
+
+var sessCache = {};
+
+function saveUserSessionParams(localid,session,cb) {
+    sessCache['sess_'+localid] = session;
+    let fileName = "./sessions/localid_"+localid+".json";
+    let sessStr = JSON.stringify(session,null,2);
+    fs.writeFile(fileName,sessStr,function(err){
+        cb(err);
+    });
+}
+
+function loadUserSessionParams(localid,cb) {
+    let session = sessCache['sess_'+localid];
+    if (session) {
+        cb(null,session);
+        return;
+    }
+    let fileName = "./sessions/localid_"+localid+".json";
+    fs.readFile(fileName,'utf8',function(err, data){
+        if (err) {
+            logger.error("Error read session file: "+err);
+            console.error(err);
+            cb(err,null);
+            return;
+        }
+        try {
+            session = JSON.parse(data);
+            cb(null,session);
+        } catch(err) {
+            logger.error("Error parsing session file: "+err);
+            console.error(err);
+            cb(err,null);
+        }
+    });
+}
+
+function deleteSessionParams(localid,cb) {
+    sessCache['sess_'+localid] = null;
+    let fileName = "./sessions/localid_"+localid+".json";
+    fs.unlink(fileName,function(err){
+        if (cb) {
+            cb(err);
+        }
+    });
+}
+
 function createUser(obj, logger, callback) {
     var timeZone = obj.timeZone;
     var localid = 0;
@@ -105,6 +154,26 @@ function createUser(obj, logger, callback) {
     var addToErrorsPlatforms = false;
     var platformErrorFlag = false;
 
+
+    function debugCheckConfFile(step, cb) {
+        let fileName = "/Android/data/system/users/" + localid + "/package-restrictions.xml";
+        fs.readFile(fileName, 'utf8', function (err, data) {
+            if (err) {
+                logger.error("Error read package-restrictions.xml file: " + err);
+                console.error(err);
+                cb(null);
+                return;
+            }
+            if ( data.indexOf("pkg name=\"amirz.rootless.nexuslauncher\" inst=\"false\"") >= 0 ) {
+                logger.error("debugCheckConfFile. package-restrictions.xml changed! step: "+step+", file: "+data);
+            } else {
+                logger.info("debugCheckConfFile. package-restrictions.xml is ok. step: "+step);
+            }
+            cb(null);
+
+        });
+
+    }
 
     function createSessionFiles(session, callback) {
         if (!session.xml_file_content || session.xml_file_content.length == 0) {
@@ -306,6 +375,10 @@ function createUser(obj, logger, callback) {
                 callback(err);
             });
         },
+        function (cb) {
+            session.params.localid = localid;
+            saveUserSessionParams(localid,session,cb);
+        },
         // create session files
 //            function(callback) {
 //                createSessionFiles(platform, session, function(err) {
@@ -315,7 +388,6 @@ function createUser(obj, logger, callback) {
 //            },
         // mount all nfs folders
         function (callback) {
-            session.params.localid = localid;
             mount.fullMount(session, null, function (err) {
                 if(err) logger.error("Cannot mount user's directories");
                 logger.logTime("fullMount");
@@ -390,12 +462,40 @@ function setPerUserEnvironments(session, timeZone, callback) {
                     session.logger.error("ERROR: missing timeZone param.");
                     callback(null);
                 }
-            },
+            }/*,
             function(callback) {
                 session.platform.execFile("getprop", [], function() {callback(null);});
-            }
+            }*/
         ], function(err) {
         callback(null);
+        }
+    );
+}
+
+function removePerUserEnvironments(localid,platform,logger,cb) {
+    logger.info("removePerUserEnvironments. localid: "+localid);
+    async.series(
+        [
+            function(callback) {
+                platform.execFile("setprop", ["nubo.language.u" + localid, ""], function() {callback(null);});
+            },
+            function(callback) {
+                platform.execFile("setprop", ["nubo.country.u" + localid, ""], function() {callback(null);});
+            },
+            function(callback) {
+                platform.execFile("setprop", ["nubo.localevar.u" + localid, ""], function() {callback(null);});
+            },
+            function(callback) {
+                platform.execFile("setprop", ["nubo.locale.u" + localid, ""], function() {callback(null);});
+            },
+            function(callback) {
+                platform.execFile("setprop", ["nubo.timezone.u" + localid, ""], function() {callback(null);});
+            }
+        ], function(err) {
+            if (cb) {
+                logger.info("removePerUserEnvironments. finished. localid: "+localid);
+                cb(err);
+            };
         }
     );
 }
@@ -413,6 +513,9 @@ function refreshPackages(session, callback) {
 //            function (callback) {
 //                platform.execFile("pm", ["disable", "--user", localid, "com.android.vending"], function(err) {callback(null);});
 //            },
+            function (callback) {
+                platform.execFile("pm", ["grant", "--user", localid,"com.google.android.gms","android.permission.ACCESS_FINE_LOCATION"], function (err) { callback(null); });
+            },
             function (callback) {
                 if(deviceType === 'Web') {
                     platform.execFile("pm", ["disable", "--user", localid, "com.android.browser"], function(err) {callback(null);});
@@ -438,6 +541,7 @@ function refreshPackages(session, callback) {
 function endSessionByUnum(unum, logger, callback) {
     var platform = new Platform(logger);
     var sessLogger = logger;
+    var session;
     async.series(
         [
             function (callback) {
@@ -446,6 +550,15 @@ function endSessionByUnum(unum, logger, callback) {
                 } else {
                     async.series(
                         [
+                            function(callback) {
+                                loadUserSessionParams(unum,function(err,sessObj){
+                                    session = sessObj;
+                                    if (!session) {
+                                        session = { };
+                                    }
+                                    callback();
+                                });
+                            },
                             // Logout. pm remove-user close all user's applications
                             function (callback) {
                                 platform.execFile("pm", ["remove-user", unum.toString()], function (err, stdout, stderr) {
@@ -506,12 +619,7 @@ function endSessionByUnum(unum, logger, callback) {
                             }, // function(callback)
                             // unmount folders
                             function (callback) {
-                                var session = {
-                                    params: {
-                                        localid: unum
-                                    },
-                                    platform: platform
-                                };
+                                session.platform = platform;
                                 mount.fullUmount(session, null, function (err) {
                                     if(err) {
                                         logger.info("ERROR: cannot umount user's directories, err:" + err);
@@ -522,25 +630,31 @@ function endSessionByUnum(unum, logger, callback) {
                                 });
                             }, // function(callback)
                             function (callback) {
-                                execFile("rm", ["-rf", "/Android/data/system/users/" + unum +"/settings_system.xml"], function(err) {callback(null);});
-                            },
-			    function (callback) {
-                                execFile("rm", ["-rf", "/Android/data/system/users/" + unum +"/settings_secure.xml"], function(err) {callback(null);});
+                                execFile("rm", ["-f", "/Android/data/system/users/" + unum + "/settings_system.xml"], function (err) { callback(null); });
                             },
                             function (callback) {
-                                removeDirIfEmpty("/Android/data/user/" + unum, callback);
-                            },
-			    function (callback) {
-                                removeDirIfEmpty("/Android/data/user_de/" + unum, callback);
+                                execFile("rm", ["-f", "/Android/data/system/users/" + unum + "/settings_secure.xml"], function (err) { callback(null); });
                             },
                             function (callback) {
-                                removeDirIfEmpty("/Android/data/media/" + unum, callback);
+                                removeDirIfEmpty("/Android/data/user/" + unum, logger, callback);
                             },
                             function (callback) {
-                                removeDirIfEmpty("/Android/data/misc/keystore/user_" + unum, callback);
+                                removeDirIfEmpty("/Android/data/user_de/" + unum, logger, callback);
                             },
                             function (callback) {
-                                execFile("rm", ["/Android/data/system/users/" + unum + ".xml"], function(err) {callback(null);});
+                                removeDirIfEmpty("/Android/data/media/" + unum, logger, callback);
+                            },
+                            function (callback) {
+                                removeDirIfEmpty("/Android/data/misc/keystore/user_" + unum, logger, callback);
+                            },
+                            function (callback) {
+                                execFile("rm", ["/Android/data/system/users/" + unum + ".xml"], function (err) { callback(null); });
+                            },
+                            function (callback) {
+                                removePerUserEnvironments(unum, platform,logger,callback);
+                            },
+                            function (callback) {
+                                deleteSessionParams(unum,callback);
                             }
                         ], function (err, results) {
                             callback(err);
@@ -557,17 +671,14 @@ function endSessionByUnum(unum, logger, callback) {
     );
 }
 
-function removeDirIfEmpty(dir, callback) {
-    fs.readdir(dir, function(err, files) {
+function removeDirIfEmpty(dir, logger, callback) {
+    fs.rmdir(dir, function (err) {
         if (err) {
-           // some sort of error
-	   callback(err);
+            logger.error("rmdir error: "+err);
         } else {
-           if (!files.length) {
-               // directory appears to be empty
-               execFile("rm", ["-rf", dir], function(err) {callback(err);});
-           }
+            logger.info("Removed empty dir: "+dir);
         }
+        callback(null);
     });
 }
 
