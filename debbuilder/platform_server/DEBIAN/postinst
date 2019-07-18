@@ -12,3 +12,4 @@ if [ -x "/etc/init.d/platform_server" ]; then
 	fi
 	invoke-rc.d platform_server $_dh_action || exit $?
 fi
+mkdir -p /opt/platform_server/sessions || true
