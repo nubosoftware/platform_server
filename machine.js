@@ -6,6 +6,7 @@ var path = require("path");
 var url = require("url");
 var async = require('async');
 var _ = require('underscore');
+const dns = require('dns');
 var http = require('./http.js');
 var execFile = require('child_process').execFile;
 var ThreadedLogger = require('./ThreadedLogger.js');
@@ -571,23 +572,48 @@ function checkPlatform(req, res) {
     var logger = new ThreadedLogger();
     logger.info("Running checkPlatform");
     var platform = new Platform(logger);
-    platform.execFile("pm", ["list", "users"], function(err, stdout, stderr) {
+    async.series( [
+        // check the ability to run pm commands on the android shell
+        (cb) => {
+            platform.execFile("pm", ["list", "users"], function(err, stdout, stderr) {
+                var resobj;
+                if (err) {
+                    logger.error("checkPlatform. Andorid access error: "+ err);
+                    cb("PM is not available: "+err);
+                } else {
+                    logger.info("Android is up. pm output: " + stdout);
+                    cb(null);
+                }
+            });
+        },
+        // check DNS
+        (cb) => {
+            dns.lookup('gw.nubosoftware.com', (err, address, family) => {
+                if (err) {
+                    logger.error("checkPlatform. DNS error: "+ err);
+                    cb("DNS is not working: "+err);
+                } else {
+                    logger.info("DNS is up: "+address);
+                    cb(null);
+                }
+            });
+        }
+    ],(err) => {
         var resobj;
         if (err) {
             resobj = {
                 status: 0,
-                msg: "Platform access error: " + err
+                msg: "Platform error: " + err
             };
-            logger.error("Andorid access error", err);
         } else {
             resobj = {
                 status: 1,
-                msg: "Platform is up"
+                msg: "Platform is alive, no error found"
             };
-            logger.info("Platform is up. pm output: " + stdout);
         }
         res.end(JSON.stringify(resobj, null, 2));
     });
+
 }
 
 var waitForProcessWithTimeout = function(name, timeoutSec, callback) {
