@@ -104,7 +104,7 @@ function saveUserSessionParams(localid,session,cb) {
     });
 }
 
-function loadUserSessionParams(localid,cb) {
+function loadUserSessionParams(localid,logger,cb) {
     let session = sessCache['sess_'+localid];
     if (session) {
         cb(null,session);
@@ -551,7 +551,7 @@ function endSessionByUnum(unum, logger, callback) {
                     async.series(
                         [
                             function(callback) {
-                                loadUserSessionParams(unum,function(err,sessObj){
+                                loadUserSessionParams(unum,logger,function(err,sessObj){
                                     session = sessObj;
                                     if (!session) {
                                         session = { };
