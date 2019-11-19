@@ -165,6 +165,12 @@ var filter = {
             "pdu": {}
         }
     }, {
+        "path": "/declineCall",
+        "constraints": {},
+        "bodyConstraints": {
+            "localid": constraints.NaturalNumberConstrRequested
+        }
+    },{
         "path": "/applyFirewall",
         "constraints": {},
         "bodyConstraints": {

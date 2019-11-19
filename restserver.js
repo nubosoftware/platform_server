@@ -231,6 +231,7 @@ function buildServerObject(server) {
     server.post("/applyFirewall", firewallModule.post);
     server.get("/createNewUserTarGz", createNewUserTarGzModule.create);
     server.post("/receiveSMS", userModule.receiveSMS);
+    server.post("/declineCall", userModule.declineCall);
     // server.post("/connectToVpn",vpn.connectToVpn);
 
 }

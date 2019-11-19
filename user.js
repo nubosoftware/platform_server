@@ -21,7 +21,8 @@ module.exports = {
     //for tests
     createUser: createUser,
     endSessionByUnum: endSessionByUnum,
-    receiveSMS: receiveSMS
+    receiveSMS: receiveSMS,
+    declineCall: declineCall
 };
 
 function attachUser(req, res) {
@@ -744,6 +745,34 @@ function receiveSMS(req, res) {
         logger.info("err: "+err+", stdout: "+stdout+", stderr: "+stderr);
         res.end(JSON.stringify(resobj,null,2));
         logger.logTime("Finish process request receiveSMS");
+    });
+}
+
+function declineCall(req, res) {
+    var params = req.body;
+    var unum = params.localid;
+
+    var logger = new ThreadedLogger();
+    logger.logTime("Start process request declineCall");
+    var platform = new Platform(logger);
+    var resobj;
+
+    if(isNaN(unum) || (unum <= 0)) {   // is unum does not greater that 0 mean check if unum is number too
+        resobj = {status: 0, message: "invalid unum, unum is " + unum};
+        res.end(JSON.stringify(resobj,null,2));
+        return;
+    }
+    var args = ["broadcast", "--user", unum, "-a", "com.nubo.sip.DECLINE_INCOMING_CALL" ];
+    logger.info("Command: am "+args);
+    platform.execFile("am", args, function(err, stdout, stderr) {
+        if(err) {
+            resobj = {status: 0, error: err};
+        } else {
+            resobj = {status: 1, message: "Message send to user."};
+        }
+        logger.info("err: "+err+", stdout: "+stdout+", stderr: "+stderr);
+        res.end(JSON.stringify(resobj,null,2));
+        logger.logTime("Finish process request declineCall");
     });
 
 
