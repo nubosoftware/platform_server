@@ -560,7 +560,18 @@ var afterInitAndroid = function(reqestObj, logger, callback) {
 
                     callback(null);
                 });
+            },
+            function(callback) {
+                if (common.additionalNetworkInterface) {
+                    execFile("dhclient", [common.additionalNetworkInterface], function(err, stdout, stderr) {
+                        logger.info("dhclient "+common.additionalNetworkInterface+": " + err + " OUT=" + stdout + " ERR=" + stderr);
+                        callback(null);
+                    });
+                } else {
+                    callback(null);
+                }
             }
+
         ],
         function(err) {
             callback(err);

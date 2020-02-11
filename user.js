@@ -496,6 +496,9 @@ function removePerUserEnvironments(localid,platform,logger,cb) {
             },
             function(callback) {
                 platform.execFile("setprop", ["nubo.timezone.u" + localid, ""], function() {callback(null);});
+            },
+            function(callback) {
+                platform.execFile("setprop", ["nubo.appname.u" + localid, ""], function() {callback(null);});
             }
         ], function(err) {
             if (cb) {
