@@ -360,7 +360,8 @@ function createUser(obj, logger, callback) {
         function (callback) {
             session.params = {
                 email: obj.session.email,
-                deviceid: obj.session.deviceid
+                deviceid: obj.session.deviceid,
+                appName: obj.session.appName
             };
             callback(null);
         },
@@ -444,6 +445,7 @@ function setPerUserEnvironments(session, timeZone, callback) {
     var lang = login.lang;
     var countrylang = login.countrylang;
     var localevar = login.localevar;
+    var appName = (session.params.appName ? session.params.appName : "Nubo");
 
     async.series(
         [
@@ -455,6 +457,9 @@ function setPerUserEnvironments(session, timeZone, callback) {
             },
             function(callback) {
                 session.platform.execFile("setprop", ["nubo.localevar.u" + localid, localevar], function() {callback(null);});
+            },
+            function(callback) {
+                session.platform.execFile("setprop", ["nubo.appname.u" + localid, appName], function() {callback(null);});
             },
             function(callback) {
                 if(timeZone !== null && timeZone !== "") {
