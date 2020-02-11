@@ -96,6 +96,7 @@ var filter = {
             },
             "session.email": constraints.emailConstrRequested,
             "session.deviceid": constraints.ExcludeSpecialCharactersRequested,
+            "session.appName": {},
             "nfs": {
                 presence: true
             },
