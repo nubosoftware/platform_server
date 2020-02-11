@@ -6,8 +6,8 @@ LINUX_IMG_FULL_PATH:=/opt/Android-Nougat/linux.img
 
 current_dir := $(shell pwd)
 
-BASE_TAG := nubo_release_2.5
-BASE_VERSION := 2.5
+BASE_TAG := nubo_release_3.0
+BASE_VERSION := 3.0
 
 define get_project_version
 $(eval $1_version=$(BASE_VERSION))
