@@ -173,7 +173,7 @@ static pa_simple *pa_create_playback(char *appname) {
         .tlength = 1 * OUT_WRITE_BLOCK,
         .prebuf = 1 * OUT_WRITE_BLOCK,
         .minreq = 1 * OUT_WRITE_BLOCK,
-        .fragsize = -1
+        .fragsize = -1U
     };
     s = pa_simple_new(NULL, appname, PA_STREAM_PLAYBACK, NULL, "playback", &ss_out, NULL, NULL, &error);
     return s;
@@ -188,10 +188,10 @@ static pa_simple *pa_create_record(char *appname) {
         .channels = 1
     };
     static const pa_buffer_attr ba_in = {
-        .maxlength = 0.5 * 1024,
-        .tlength = -1,
-        .prebuf = -1,
-        .minreq = -1,
+        .maxlength = 512,
+        .tlength = -1U,
+        .prebuf = -1U,
+        .minreq = -1U,
         .fragsize = 320
     };
     s = pa_simple_new(NULL, appname, PA_STREAM_RECORD, NULL, "record", &ss_in, NULL, &ba_in, &error);

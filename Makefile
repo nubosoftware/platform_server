@@ -43,17 +43,18 @@ $(nubo_proj_dir)/debs/latest/platform-server-$(platform_server_version)-$(platfo
 	./debbuilder/platform_server/debbuilder.sh && \
 	fakeroot dpkg-deb -b debbuild/platform_server $(nubo_proj_dir)/debs/latest/platform-server-$(platform_server_version)-$(platform_server_buildid).deb
 
-rpm: $(nubo_proj_dir)/rpms/latest/nuboplatform_server-$(platform_server_version)-$(platform_server_buildid).noarch.rpm
+rpm: $(nubo_proj_dir)/rpms/latest/nuboplatform_server-$(platform_server_version)-$(platform_server_buildid).x86_64.rpm
 
-$(nubo_proj_dir)/rpms/latest/nuboplatform_server-$(platform_server_version)-$(platform_server_buildid).noarch.rpm: pulseaudio-user
+$(nubo_proj_dir)/rpms/latest/nuboplatform_server-$(platform_server_version)-$(platform_server_buildid).x86_64.rpm: pulseaudio-user
 	NUBO_PROJ_PATH=$(nubo_proj_dir) \
 	PROJ_PATH=$(current_dir) \
 	rpmbuild -v \
 	--define "_topdir $(current_dir)/rpmbuild" \
 	--define "_version $(platform_server_version)" \
 	--define "_release $(platform_server_buildid)" \
-	-ba rpmbuild/platform_server.spec
-	cp $(nubo_proj_dir)/platform_server/rpmbuild/RPMS/noarch/nuboplatform_server-$(platform_server_version)-$(platform_server_buildid).noarch.rpm $(nubo_proj_dir)/rpms/latest/
+	--define "_build_id_links none" \
+	-bb rpmbuild/SPECS/platform_server.spec
+	cp $(nubo_proj_dir)/platform_server/rpmbuild/RPMS/x86_64/nuboplatform_server-$(platform_server_version)-$(platform_server_buildid).x86_64.rpm $(nubo_proj_dir)/rpms/latest/
 
 $(LINUX_IMG_FULL_PATH):
 	scp nubo@lab2.nubosoftware.com:N7/linux.img $(LINUX_IMG_FULL_PATH)

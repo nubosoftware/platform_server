@@ -3,10 +3,9 @@ Name: nuboplatform_server
 Version: %{_version}
 Release: %{_release}
 Group: System Environment/Daemons
-BuildArch: noarch
-#BuildArch: x86_64
+BuildArch: x86_64
 License: none
-Requires: node-forever, nodejs >= 4.4.5, nubo-common, wget, nfs-utils
+Requires: node-forever, nodejs >= 4.4.5, nubo-common, wget, nfs-utils, fuse, pulseaudio, pulseaudio-utils, gstreamer1, gstreamer1-plugins-base, gstreamer1-plugins-good, gstreamer1-plugins-bad-free, gstreamer1-plugins-ugly-free 
 
 %description
 Service that implement api of possible requests to nubo platform
@@ -33,14 +32,17 @@ install -m 755 $NUBO_PROJ_PATH/scripts/rootfs/etc/init.d/platform_server-rh $RPM
 install -m 644 $PROJ_PATH/rsyslog-platform_server.conf $RPM_BUILD_ROOT/etc/rsyslog.d/18-nubo-platform_server.conf
 install -m 644 $PROJ_PATH/package.json $RPM_BUILD_ROOT/opt/platform_server/package.json
 install -m 755 $PROJ_PATH/init-files.sh $RPM_BUILD_ROOT/opt/platform_server/init-files.sh
+install -m 755 $PROJ_PATH/pulseaudio-user $RPM_BUILD_ROOT/opt/platform_server/pulseaudio-user
 
 cd $RPM_BUILD_ROOT/opt/platform_server
 npm install
 rm package.json
+find $RPM_BUILD_ROOT/opt/platform_server/node_modules -type f -exec sed "s?$RPM_BUILD_ROOT?/?g" -i {} \;
 cd -
 
 %post
 /sbin/chkconfig --add platform_server
+mkdir /opt/platform_server/sessions ||:
 
 #Restart after every install/update
 service platform_server restart > /dev/null 2>&1 ||:
