@@ -105,7 +105,17 @@ function fixHostsFile(path, ip, managementUrl, callback) {
         callback(null);
     } else {
         var hostsLine = ip + ' ' + managementUrlObj.hostname + '\n';
-        fs.appendFile(path, hostsLine, callback);
+        fs.readFile(path, function(err, data) {
+            if(err) {
+                callback(err)
+            } else {
+                if(data.indexOf(hostsLine) === -1) {
+                    fs.appendFile(path, hostsLine, callback);
+                } else {
+                    callback(null);
+                }
+            }
+        });
     }
 }
 
@@ -390,7 +400,7 @@ var initAndroid = function(reqestObj, logger, callback) {
             },
             function(callback) {
                 var cmd = "/usr/bin/pulseaudio";
-                execFile(cmd, ["--start"], function(error, stdout, stderr) {
+                execFile(cmd, ["--start", "--daemonize=yes"], function(error, stdout, stderr) {
                     if (error) {
                         logger.error("cmd: " + cmd);
                         logger.error("error: " + JSON.stringify(error, null, 2));

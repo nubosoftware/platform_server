@@ -299,6 +299,7 @@ function fullMount(session, keys, callback) {
     ];
 
     var bindSrc = [
+        "/Android/data/mnt/nfs/" + localid + "/misc_keystore",
         "/Android/data/mnt/nfs/" + localid + "/misc_ce",
         "/Android/data/mnt/nfs/" + localid + "/misc_de",
         "/Android/data/mnt/nfs/" + localid + "/system/users",
@@ -306,6 +307,7 @@ function fullMount(session, keys, callback) {
         "/Android/data/mnt/nfs/" + localid + "/system_de"
     ];
     var bindDst = [
+        "/Android/data/misc/keystore/user_" + localid,
         "/Android/data/misc_ce/" + localid,
         "/Android/data/misc_de/" + localid,
         "/Android/data/system/users/" + localid,
@@ -327,6 +329,50 @@ function fullMount(session, keys, callback) {
         function(callback) {
             var options = "unum=" + localid;
             mountNubouserfs(nubouserfsSrc, nubouserfsDst, options, callback);
+        },
+        function(callback) {
+            var dirpath = ""
+            var mkdirParams = ["/Android/data/mnt/nfs/" + localid + "/misc_keystore"];
+            execFile('mkdir', mkdirParams, function(err, stdout, stderr) {
+                if (err) {
+                    logger.error(": mkdir: " + err);
+                    logger.error(": mkdir: " + stderr);
+                }
+                callback(null);
+            });
+        },
+        function(callback) {
+            var dirpath = ""
+            var chmodParams = ["700", "/Android/data/mnt/nfs/" + localid + "/misc_keystore"];
+            execFile('chmod', chmodParams, function(err, stdout, stderr) {
+                if (err) {
+                    logger.error(": chmod: " + err);
+                    logger.error(": chmod: " + stderr);
+                }
+                callback(null);
+            });
+        },
+        function(callback) {
+            var dirpath = ""
+            var chownParams = ["1017.1017", "/Android/data/mnt/nfs/" + localid + "/misc_keystore"];
+            execFile('chown', chownParams, function(err, stdout, stderr) {
+                if (err) {
+                    logger.error(": chown: " + err);
+                    logger.error(": chown: " + stderr);
+                }
+                callback(null);
+            });
+        },
+        function(callback) {
+            var dirpath = ""
+            var mkdirParams = ["/Android/data/misc/keystore/user_" + localid];
+            execFile('mkdir', mkdirParams, function(err, stdout, stderr) {
+                if (err) {
+                    logger.error(": mkdir: " + err);
+                    logger.error(": mkdir: " + stderr);
+                }
+                callback(null);
+            });
         },
         function(callback) {
             bindDirs(bindSrc, bindDst, callback);
@@ -363,6 +409,7 @@ function fullUmount(session, user, callback) {
     var UNum = session.params.localid;
     var platform = session.platform;
     var dirs = [
+        "/Android/data/misc/keystore/user_" + UNum,
         "/Android/data/misc/profiles/cur/" + UNum,
         "/Android/data/misc_ce/" + UNum,
         "/Android/data/misc_de/" + UNum,
