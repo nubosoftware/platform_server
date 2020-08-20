@@ -2,7 +2,9 @@
   "dependencies": {
     "accesslog": "0.0.2",
     "async": "^2.0.0-rc.3",
+    "jsonwebtoken": "^8.5.1",
     "nubo-validateConstraints": "0.0.36",
+    "pem": "^1.14.4",
     "permission-parser": "0.0.7",
     "ps-node": "0.1.6",
     "restify": "^7.2.3",

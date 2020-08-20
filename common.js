@@ -11,6 +11,7 @@ var Common = {
         "key": "../cert/platform.key",
         "cert": "../cert/platformFull.crt"
     },
+    managementPublicKey: "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAzvlbq4mQcmE4DbdlGE3c\nniWijiYG6IX1MJ8dyFzAdsxkj94rap59BLFc6lnQsxcuqvtOGxt18bNQUnUDdrwb\nJbn/Out4LE7QhFm29eYHxcS1BVArPGB+KwDUEACL1DRHvsVkBVSXynH/Y5v4Mb2W\n9Ot5TZnMns2IZBlNredCEagnyqPboiOTjSvRZXORVHg+nITydksgTEz+Wo57wX9Z\n/HKzLKcOZ7amRe28l+NslwgUQM2VH8oh+C4h15K/jVseFEeCDq8JBVf/LxXh1wq0\nvwj1lbcHiM94wnuVfjK0Vp3nUsAScQrdEdKNiZwhxsJbqhKibKtVIaO34sNSHL/i\nTQIDAQAB\n-----END PUBLIC KEY-----",
     managementCertsFingerprint: [],
     managementCertIssuerFingerprint: "B9:60:12:5A:15:AE:6A:5B:09:12:24:04:DC:0A:1E:E0:6B:15:93:85",
     setMgmtHostName: false

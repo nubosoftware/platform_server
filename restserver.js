@@ -15,6 +15,8 @@ var appModule = require('./app.js');
 var filesModule = require('./files.js');
 var firewallModule = require('./firewall.js');
 var createNewUserTarGzModule = require('./createNewUserTarGz.js');
+var jwt = require('jsonwebtoken');
+const pem = require('pem');
 var vpn = require('./vpn.js');
 
 var filterModule = require('permission-parser');
@@ -96,8 +98,6 @@ var mainFunction = function(err, firstTimeLoad) {
                                 callback(err);
                                 return;
                             } else {
-                                opts.requestCert = true;
-                                opts.rejectUnauthorized = true;
                                 callback(null, host, port, opts);
                             }
                         });
@@ -142,7 +142,7 @@ var mainFunction = function(err, firstTimeLoad) {
                 });
             },
             function(err) {
-                callback(err, sslCerts);
+                checkCerts(sslCerts,callback);
             }
         );
     };
@@ -158,6 +158,58 @@ var mainFunction = function(err, firstTimeLoad) {
     });
 };
 
+var checkCerts = function (sslCerts,cb)  {
+    let item;
+    async.series([
+        (cb) => {
+            pem.readCertificateInfo(sslCerts.cert,(err,obj) => {
+                //logger.info(`readCertificateInfo. obj: ${JSON.stringify(obj,null,2)}`);
+                let now = new Date().getTime();
+                let valid = (!err && now >= obj.validity.start && now <=obj.validity.end);
+                logger.info(`readCertificateInfo. valid: ${valid}`);
+                if (valid) {
+                    cb("certificate is valid");
+                } else {
+                    cb();
+                }
+            });
+        },
+        (cb) => {
+            logger.info("Generating new https certificate..");
+            pem.createCertificate({ days: 3650, selfSigned: true }, function (err, keys) {
+                //console.log(`keys: ${JSON.stringify(keys,null,2)}`);
+                item = keys;
+                sslCerts.key = item.clientKey;
+                sslCerts.cert = item.certificate;
+                cb(err);
+              });
+        },
+
+        (cb) => {
+            fs.writeFile(Common.sslCerts.key,item.clientKey,(err) => {
+                cb(err);
+            });
+        },
+        (cb) => {
+            fs.chmod(Common.sslCerts.key, 0o600, (err) => {
+                cb(err);
+            });
+        },
+        (cb) => {
+            fs.writeFile(Common.sslCerts.cert,item.certificate,(err) => {
+                cb(err);
+            });
+        },
+        (cb) => {
+            fs.chmod(Common.sslCerts.cert, 0o600, (err) => {
+                cb(err);
+            });
+        }
+    ],(err) => {
+        cb(null,sslCerts);
+    });
+}
+
 var accesslogger = accesslog({
     path: './log/access_log.log'
 });
@@ -171,26 +223,22 @@ function nocache(req, res, next) {
     next();
 }
 
-function validateCertificate(req, res, next) {
-    var certObj;
-    if (res.socket.authorized) {
-        certObj = res.socket.getPeerCertificate(true);
-        //sometime (next time: 2nd, 3rd) certObj come without certObj.issuerCertificate, so we keep fingerprints of known certificates
-        if (Common.managementCertsFingerprint.indexOf(certObj.fingerprint) !== -1) {
-            //Certificate in list of known certificates
-            next();
-        } else if (certObj.issuerCertificate && Common.managementCertIssuerFingerprint && (certObj.issuerCertificate.fingerprint === Common.managementCertIssuerFingerprint)) {
-            //Certificate is not in list of known certificates, but it's issuer is known issuer, then add certificate to list of  known certificates
-            Common.managementCertsFingerprint.push(certObj.fingerprint);
-            next();
-        } else {
-            logger.error("Reject try access to " + req.url + " with wrong nubo certificate: " + JSON.stringify(certObj.subject));
+function validateToken(req, res, next) {
+    let token = req.header('Jwt-Token');
+    if (!token) {
+        logger.error(`Rejectaccess to ${req.url} without token`);
+        res.send(401);
+        return;
+    }
+    jwt.verify(token,Common.managementPublicKey,{ algorithm: 'RS256'},function(err, decoded) {
+        if (err) {
+            logger.error(`Reject access to ${req.url}. Unable to verify token "${token}"`,err);
             res.send(401);
         }
-    } else {
-        // https listener request authorization with certificate, so if it is not authorized, it can been only http listener
+        //logger.info(`Token verified! decoded: ${JSON.stringify(decoded,null,2)}`);
         next();
-    }
+    });
+
 }
 
 function buildServerObject(server) {
@@ -204,11 +252,12 @@ function buildServerObject(server) {
         }
         return true;
     });
-    server.use(validateCertificate);
+
     server.use(restify.plugins.queryParser({ mapParams: true }));
     server.use(urlFilterObj.useHandler);
     server.use(restify.plugins.bodyParser({ mapParams: false }));
     server.use(bodyFilterObj.useHandler);
+    server.use(validateToken);
     server.use(function(req, res, next) {
         req.realIP = req.headers['x-real-ip'] || req.connection.remoteAddress;
         next();
