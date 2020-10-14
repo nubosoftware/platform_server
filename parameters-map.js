@@ -38,6 +38,7 @@ var filter = {
             "downloadFilesList": {
                 array: constraints.pathConstrRequested
             },
+            "proxy": {},
             "settings": {
                 "presence": true
             },
