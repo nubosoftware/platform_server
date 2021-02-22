@@ -10,3 +10,4 @@ rpmbuild/SRPMS
 debbuild
 pulseaudio-service
 pulseaudio-user
+package-lock.json

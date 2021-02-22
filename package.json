@@ -3,16 +3,16 @@
     "accesslog": "0.0.2",
     "async": "^2.0.0-rc.3",
     "jsonwebtoken": "^8.5.1",
-    "nubo-validateConstraints": "0.0.36",
+    "nubo-validateConstraints": "https://na01.nubosoftware.com:4872/nubo-validateConstraints/-/nubo-validateConstraints-0.0.36.tgz",
     "pem": "^1.14.4",
-    "permission-parser": "0.0.7",
+    "permission-parser": "https://na01.nubosoftware.com:4872/permission-parser/-/permission-parser-0.0.7.tgz",
     "ps-node": "0.1.6",
-    "restify": "^7.2.3",
+    "restify": "^8.5.1",
     "ssh2": "0.4.15",
     "underscore": "1.8.3",
-    "unix-dgram": "^2.0.2",
+    "unix-dgram": "^2.0.4",
     "validate.js": "^0.9.0",
-    "winston": "2.2.0",
-    "winston-syslog": "1.2.1"
+    "winston": "3.1.0",
+    "winston-syslog": "^2.1.0"
   }
 }

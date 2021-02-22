@@ -1,6 +1,5 @@
 "use strict";
 
-var winston = require('winston');
 var fs = require('fs');
 var path = require('path');
 var async = require('async');
@@ -26,23 +25,25 @@ var loggerName = path.basename(process.argv[1], '.js') + ".log";
 var exceptionLoggerName = path.basename(process.argv[1], '.js') + "_exceptions.log";
 console.log("log file: " + loggerName);
 
-require('winston-syslog').Syslog();
+const { createLogger , format, transports  } = require('winston');
+const { combine, timestamp, label, printf } = format;
+require('winston-syslog').Syslog;
 
-var logger = new (winston.Logger)({
+var logger = createLogger({
     transports:
         [
-            new (winston.transports.Console)({
+            new (transports.Console)({
                 json: false,
                 timestamp: true
             }),
-            new winston.transports.File({
+            new transports.File({
                 filename: __dirname + '/log/' + loggerName,
                 handleExceptions: true,
                 maxsize: 100*1024*1024, //100MB
                 maxFiles: 4,
                 json: false
             }),
-            new winston.transports.Syslog({
+            new transports.Syslog({
                 app_name: "platform_server",
                 handleExceptions: true,
                 localhost: null,
@@ -53,11 +54,11 @@ var logger = new (winston.Logger)({
         ],
     exceptionHandlers:
         [
-            new (winston.transports.Console)({
+            new (transports.Console)({
                 json: false,
                 timestamp: true
             }),
-            new winston.transports.File({
+            new transports.File({
                 filename: __dirname + '/log/' + exceptionLoggerName,
                 json: false
             })
