@@ -1,0 +1,18 @@
+[Unit]
+Description=Your Daemon
+After=network-online.target
+Wants=network-online.target systemd-networkd-wait-online.service
+
+StartLimitIntervalSec=500
+StartLimitBurst=5
+
+[Service]
+Restart=always
+RestartSec=5s
+KillSignal=SIGINT
+
+WorkingDirectory=/opt/platform_server
+ExecStart=/usr/bin/node restserver.js
+
+[Install]
+WantedBy=multi-user.target

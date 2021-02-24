@@ -1,6 +1,7 @@
 #!/bin/sh
 
 if [ "$1" = remove ]; then
-  invoke-rc.d platform_server stop
+  systemctl disable platform_server
+  systemctl stop platform_server
 fi
 

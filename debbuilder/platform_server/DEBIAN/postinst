@@ -2,14 +2,10 @@
 
 service rsyslog reload > /dev/null 2>&1 ||:
 
-if [ -x "/etc/init.d/platform_server" ]; then
-	update-rc.d platform_server defaults >/dev/null
+if [ ! -d /opt/platform_server/sessions ]; then mkdir -p /opt/platform_server/sessions; fi
+if [ ! -d /Android ]; then mkdir /Android; fi
+if [ ! -d /opt/Android ]; then mkdir /opt/Android; chown 1000.1000 /opt/Android; fi
 
-	if [ -n "$2" ]; then
-		_dh_action=restart
-	else
-		_dh_action=start
-	fi
-	invoke-rc.d platform_server $_dh_action || exit $?
-fi
-mkdir -p /opt/platform_server/sessions || true
+systemctl enable platform_server
+systemctl restart platform_server
+
