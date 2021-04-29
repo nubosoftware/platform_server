@@ -5,9 +5,10 @@ var _ = require('underscore');
 var validate = require("validate.js");
 var http = require('./http.js');
 var ThreadedLogger = require('./ThreadedLogger.js');
+var Common = require('./common.js');
 
 function post(req, res, next) {
-    var logger = new ThreadedLogger();
+    var logger = new ThreadedLogger(Common.getLogger(__filename));
     var reqestObj;
     var obj = req.body;
     async.waterfall(
@@ -26,8 +27,8 @@ function post(req, res, next) {
                 var err4 = "", err6 = "";
                 var restore4 = convertTasksToRestoreBlock(tasks_ip4, err4);
                 var restore6 = convertTasksToRestoreBlock(tasks_ip6, err6);
-                if(!restore4 && err4) logger.error("Cannot build input for iptable, err: " + err4 + "\ntasks: " + JSON.stringify(tasks_ip4)); 
-                if(!restore6 && err6) logger.error("Cannot build input for iptable, err: " + err6 + "\ntasks: " + JSON.stringify(tasks_ip6)); 
+                if(!restore4 && err4) logger.error("Cannot build input for iptable, err: " + err4 + "\ntasks: " + JSON.stringify(tasks_ip4));
+                if(!restore6 && err6) logger.error("Cannot build input for iptable, err: " + err6 + "\ntasks: " + JSON.stringify(tasks_ip6));
                 //logger.info("ip4 restore: " + restore4);
                 callback(null, restore4, restore6);
             },
@@ -173,7 +174,7 @@ var applyIptables = function(version, input, callback) {
         if(cmd) {
             var proc = require("child_process").spawn(cmd, ["-n"]);
             var output = "";
-            
+
             proc.stdin.write(input);
             proc.stdin.end();
 

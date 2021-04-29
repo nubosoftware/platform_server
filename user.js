@@ -6,7 +6,7 @@ var async = require('async');
 var validate = require("validate.js");
 var _ = require('underscore');
 var ps = require('ps-node');
-//var Common = require('./common.js');
+var Common = require('./common.js');
 //var logger = Common.logger;
 var ThreadedLogger = require('./ThreadedLogger.js');
 var mount = require('./mount.js');
@@ -27,7 +27,7 @@ module.exports = {
 
 function attachUser(req, res) {
     var resDone = false;
-    var logger = new ThreadedLogger();
+    var logger = new ThreadedLogger(Common.getLogger(__filename));
     var unum = 0;
     var obj = req.body;
     logger.logTime("Start process request attachUser");
@@ -72,7 +72,7 @@ function attachUser(req, res) {
 
 function detachUser(req, res) {
     var unum = req.params.unum;
-    var logger = new ThreadedLogger();
+    var logger = new ThreadedLogger(Common.getLogger(__filename));
     logger.logTime("Start process request detachUser");
     var platform = new Platform(logger);
     var resobj;
@@ -722,7 +722,7 @@ function receiveSMS(req, res) {
     var from = params.from;
     var text = params.text;
     var pdu = params.pdu;
-    var logger = new ThreadedLogger();
+    var logger = new ThreadedLogger(Common.getLogger(__filename));
     logger.logTime("Start process request receiveSMS");
     var platform = new Platform(logger);
     var resobj;
@@ -760,7 +760,7 @@ function declineCall(req, res) {
     var params = req.body;
     var unum = params.localid;
 
-    var logger = new ThreadedLogger();
+    var logger = new ThreadedLogger(Common.getLogger(__filename));
     logger.logTime("Start process request declineCall");
     var platform = new Platform(logger);
     var resobj;

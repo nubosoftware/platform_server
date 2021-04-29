@@ -3,6 +3,7 @@
 var fs = require('fs');
 var path = require('path');
 var async = require('async');
+var _ = require('underscore');
 
 var Common = {
     "sslCerts": {
@@ -21,51 +22,124 @@ try {
 } catch(err) {
 }
 
-var loggerName = path.basename(process.argv[1], '.js') + ".log";
-var exceptionLoggerName = path.basename(process.argv[1], '.js') + "_exceptions.log";
+const scriptName = (process.argv[1] ? process.argv[1] : "script");
+var loggerName = path.basename(scriptName, '.js') + ".log";
+var exceptionLoggerName = path.basename(scriptName, '.js') + "_exceptions.log";
 console.log("log file: " + loggerName);
 
 const { createLogger , format, transports  } = require('winston');
 const { combine, timestamp, label, printf } = format;
 require('winston-syslog').Syslog;
 
-var logger = createLogger({
-    transports:
-        [
-            new (transports.Console)({
-                json: false,
-                timestamp: true
-            }),
-            new transports.File({
-                filename: __dirname + '/log/' + loggerName,
-                handleExceptions: true,
-                maxsize: 100*1024*1024, //100MB
-                maxFiles: 4,
-                json: false
-            }),
-            new transports.Syslog({
-                app_name: "platform_server",
-                handleExceptions: true,
-                localhost: null,
-                protocol: "unix",
-                path: "/dev/log",
-                json: true
-            })
-        ],
-    exceptionHandlers:
-        [
-            new (transports.Console)({
-                json: false,
-                timestamp: true
-            }),
-            new transports.File({
-                filename: __dirname + '/log/' + exceptionLoggerName,
-                json: false
-            })
-        ],
-    exitOnError: false
+const myFormat = printf(info => {
+    return `${info.timestamp} [${info.label}] ${info.level}: ${info.message}`;
 });
-Common.logger = logger;
+
+Common.intLogger = createLogger({
+    format: combine(
+        //label({ label:  Common.path.basename(scriptName, '.js') }),
+        timestamp(),
+        myFormat
+    ),
+    transports : [
+        new (transports.Console)({
+            name: 'console',
+            json : false,
+            handleExceptions : true,
+            timestamp: true,
+            colorize: true
+        }),
+        new transports.File({
+            name: 'file',
+            filename : __dirname + '/log/' + loggerName,
+            handleExceptions : true,
+            maxsize: 100*1024*1024, //100MB
+            maxFiles: 4,
+        }),
+        new transports.Syslog({
+            app_name : "platform_server",
+            handleExceptions : true,
+            localhost: null,
+            protocol: "unix",
+            path: "/dev/log",
+            format: format.json()
+        })
+    ],
+    exceptionHandlers : [
+        new (transports.Console)({
+            json : false,
+            timestamp : true
+        }),
+        new transports.File({
+            filename : __dirname + '/log/' + exceptionLoggerName,
+            json : false
+        })
+    ],
+    exitOnError : false
+});
+
+let cacheLoggers = {};
+Common.getLogger = (fileName) => {
+    let name = path.basename(scriptName, '.js') + ( fileName ? "_"+path.basename(fileName) : "");
+    if (cacheLoggers[name]) {
+        return cacheLoggers[name];
+    }
+    let moduleLogger = {
+        error: (text, err) => {
+            let msg = text;
+            if (err) {
+                if (err.stack) {
+                    msg += " " + err.stack;
+                } else {
+                    msg += " " + err;
+                }
+            }
+            Common.intLogger.log({
+                level: 'error',
+                message: msg,
+                label: name
+            });
+        },
+        info: (text) => {
+            Common.intLogger.log({
+                level: 'info',
+                message: text,
+                label: name
+            });
+        },
+        warn: (text) => {
+            Common.intLogger.log({
+                level: 'warn',
+                message: text,
+                label: name
+            });
+        },
+        debug: (text) => {
+            Common.intLogger.log({
+                level: 'debug',
+                message: text,
+                label: name
+            });
+        },
+        log: (...args) => {
+            let extra_meta = {label: name};
+            let len = args.length;
+            if(typeof args[len-1] === 'object' && Object.prototype.toString.call(args[len-2]) !== '[object RegExp]') {
+                _.extend(args[len-1], extra_meta);
+            } else {
+                args.push(extra_meta);
+            }
+            Common.intLogger.log.apply(Common.intLogger,args);
+        }
+    };
+    cacheLoggers[name] = moduleLogger;
+    return moduleLogger;
+};
+
+Common.logger = Common.getLogger("");
+
+var logger = Common.getLogger(__filename);
+
 
 var firstTimeLoad = true;
 

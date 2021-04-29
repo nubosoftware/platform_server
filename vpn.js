@@ -6,9 +6,10 @@ var async = require('async');
 var Platform = require('./platform.js');
 var ThreadedLogger = require('./ThreadedLogger.js');
 var http = require('./http.js');
+var Common = require('./common.js');
 
 function connectToVpn(req, res, next) {
-	var logger = new ThreadedLogger();
+	var logger = new ThreadedLogger(Common.getLogger(__filename));
 
 	async.waterfall(
 		[

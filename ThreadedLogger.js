@@ -2,12 +2,11 @@
 
 var _ = require('underscore');
 var Common = require('./common.js');
-var logger = Common.logger;
 
 var logLevel = ["debug", "info", "warn", "error"];
 var lastLog = 0;
 
-var TreadedLogger = function () {
+var TreadedLogger = function (moduleLogger) {
     lastLog++;
 
     (function(obj) {
@@ -15,6 +14,7 @@ var TreadedLogger = function () {
             logid: 'logid_'+lastLog,
             user: ""
         };
+        obj.logger = (moduleLogger ? moduleLogger : Common.logger);
         obj.startTime = new Date();
         obj.prevTime = obj.startTime;
         logLevel.forEach(function(level) {
@@ -30,7 +30,7 @@ var TreadedLogger = function () {
                 } else {
                     arr[len+1] = extra_meta;
                 }
-                Common.logger.log.apply(Common.logger, arr);
+                obj.logger.log.apply(Common.logger, arr);
             };
         });
         obj.logTime = function(text) {

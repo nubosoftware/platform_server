@@ -6,7 +6,7 @@ var restify = require("restify");
 var fs = require("fs");
 var async = require("async");
 var Common = require('./common.js');
-var logger = Common.logger;
+var logger = Common.getLogger(__filename);
 var ThreadedLogger = require('./ThreadedLogger.js');
 
 var machineModule = require('./machine.js');
@@ -109,7 +109,7 @@ var mainFunction = function(err, firstTimeLoad) {
                     var myserver = restify.createServer(server_options);
                     buildServerObject(myserver);
                     myserver.listen(port, host, function() {
-                        logger.info('%s listening at %s', myserver.name, myserver.url);
+                        logger.info(`${(server_options ? "HTTPS" : "HTTP")}: listening at ${host}:${port}`);
                         callback(null);
                     });
                     var closeListener = function(callback) {

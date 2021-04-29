@@ -25,7 +25,7 @@ function startPlatformGet(req, res) {
 }
 
 function startPlatformPost(req, res) {
-    var logger = new ThreadedLogger();
+    var logger = new ThreadedLogger(common.getLogger(__filename));
     var requestInProgress = true;
 
     if (flagInitAndroidStatus > 0) {
@@ -391,7 +391,30 @@ var afterInitAndroid = function(reqestObj, logger, callback) {
                 } else {
                     callback(null);
                 }
-            }
+            },
+            // execute custom scripts
+            function(callback) {
+                const scriptDir = './post-init.d';
+                fs.readdir(scriptDir, function (err, files) {
+                    if (err) {
+                        callback(null);
+                        return;
+                    }
+                    async.eachSeries(files,
+                        function(file, callback) {
+                            const filePath = path.join(scriptDir,file);
+                            logger.info(`Exec post-init script ${filePath}`);
+                            execFile(filePath, [], function(err, stdout, stderr) {
+                                logger.info(file+": " + err + " OUT=" + stdout + " ERR=" + stderr);
+                                callback(null);
+                            });
+                        },
+                        function(err) {
+                            callback(null);
+                        }
+                    )
+                });
+            },
 
         ],
         function(err) {
@@ -401,7 +424,7 @@ var afterInitAndroid = function(reqestObj, logger, callback) {
 };
 
 function checkPlatform(req, res) {
-    var logger = new ThreadedLogger();
+    var logger = new ThreadedLogger(common.getLogger(__filename));
     logger.info("Running checkPlatform");
     var platform = new Platform(logger);
     async.series( [
@@ -420,7 +443,17 @@ function checkPlatform(req, res) {
         },
         // check DNS
         (cb) => {
-            dns.lookup('gw.nubosoftware.com', (err, address, family) => {
+            if (!common.checkDNS) {
+                cb(null);
+                return;
+            }
+            let hostCheck;
+            if (typeof common.checkDNS === 'string' || common.checkDNS instanceof String) {
+                hostCheck = common.checkDNS;
+            } else {
+                hostCheck = 'gw.nubosoftware.com';
+            }
+            dns.lookup(hostCheck, (err, address, family) => {
                 if (err) {
                     logger.error("checkPlatform. DNS error: "+ err);
                     cb("DNS is not working: "+err);

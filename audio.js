@@ -1,6 +1,6 @@
 "use strict";
 var Common = require('./common.js');
-var logger = Common.logger;
+var logger = Common.getLogger(__filename);
 var async = require('async');
 var execFile = require('child_process').execFile;
 var spawn = require('child_process').spawn;
@@ -53,7 +53,7 @@ function deInitAudio(localid, callback) {
             var arg1 =  "audiomanager.js";
             var arg2 =  localid;
             ps.lookup({
-                command: cmd//,                
+                command: cmd//,
                 //arguments: "audiomanager.js",
             }, function(err, resultList) {
                 if (err) {

@@ -6,6 +6,7 @@ var validate = require("validate.js");
 var Platform = require('./platform.js');
 var ThreadedLogger = require('./ThreadedLogger.js');
 var http = require('./http.js');
+var Common = require('./common.js');
 
 module.exports = {
     installApk: installApk,
@@ -17,7 +18,7 @@ var INSTALL_TASK = [1, "i", "install"];
 var UNINSTALL_TASK = [0, "u", "uninstall"];
 
 function installApk(req, res) {
-    var logger = new ThreadedLogger();
+    var logger = new ThreadedLogger(Common.getLogger(__filename));
     var apk = req.params.apk;
     // Test for path manipulation
     if ((apk.indexOf('..') >= 0) || (apk.indexOf('/data/tmp/') !== 0)) {
@@ -84,7 +85,7 @@ var tryInstallApk = function(apkPath, retries, wait, logger, callback) {
  *   task: 1,"i", "install" for installation; 0, "u", "uninstall" for uninstallation
  */
 function attachApps(req, res) {
-    var logger = new ThreadedLogger();
+    var logger = new ThreadedLogger(Common.getLogger(__filename));
     logger.logTime("Start process request attachApps");
     var obj = req.body;
 
@@ -167,7 +168,7 @@ var processTasks = function(tasks, logger, callback) {
 };
 
 function getPackagesList(req, res) {
-    var logger = new ThreadedLogger();
+    var logger = new ThreadedLogger(Common.getLogger(__filename));
     var filter = req.params.filter;
 
     logger.logTime("Start process request getPackagesList");

@@ -5,6 +5,7 @@ var execFile = require('child_process').execFile;
 var async = require("async");
 var ThreadedLogger = require('./ThreadedLogger.js');
 var Platform = require('./platform.js');
+var Common = require('./common.js');
 
 var userDataDirs = [
     "/misc/profiles/cur/", "/misc_ce/", "/misc_de/",
@@ -13,7 +14,7 @@ var userDataDirs = [
 ]
 
 function create(req, res) {
-    var logger = new ThreadedLogger();
+    var logger = new ThreadedLogger(Common.getLogger(__filename));
     var platform = new Platform(logger);
     var localid;
     var dest = "/Android/data/createDirUser/";

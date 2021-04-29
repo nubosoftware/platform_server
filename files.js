@@ -6,6 +6,7 @@ var validate = require("validate.js");
 var Platform = require('./platform.js');
 var ThreadedLogger = require('./ThreadedLogger.js');
 var http = require('./http.js');
+var Common = require('./common.js');
 
 module.exports = {
     refreshMedia: refreshMedia
@@ -17,7 +18,7 @@ function safePathJoin(path1, path2) {
 }
 
 function refreshMedia(req, res) {
-    var logger = new ThreadedLogger();
+    var logger = new ThreadedLogger(Common.getLogger(__filename));
     logger.logTime("Start process request refreshMedia");
     var platform = new Platform(logger);
     var obj = req.body;
