@@ -589,42 +589,7 @@ function endSessionByUnum(unum, logger, callback) {
                             },
                             // force close all user's applications if it still exist
                             function (callback) {
-                                execFile("ps", ["auxn"], function (err, stdout, stderr) {
-                                    if(err) {
-                                        callback(err);
-                                    } else {
-                                        var lines = stdout.split("\n");
-                                        var procs = _.map(lines, function(line) {
-                                            var fields = line.split(/[ ]+/, 3);
-                                            var procObj = {
-                                                uid: fields[1] || "",
-                                                pid: fields[2] || ""
-                                            };
-                                            return procObj;
-                                        });
-                                        var userTest = new RegExp("^" + unum.toString() + "[0-9]{5}$");
-                                        var userProcs = _.filter(procs, function(procObj) {return (userTest.test(procObj.uid));});
-                                        if(userProcs.length !== 0) {
-                                            logger.warn("User's processes still exist after pm remove-user: " + JSON.stringify(userProcs));
-                                            // kill processes
-                                            async.eachSeries(userProcs,function(process,cb) {
-                                                ps.kill(process.pid, 'SIGKILL', function(err) {
-                                                    if (err) {
-                                                        logger.error("Unable to kill pid "+process.pid+", kill error: ", err);
-                                                    } else {
-                                                        logger.info("pid "+process.pid+" has been killed.");
-                                                    }
-                                                    cb();
-                                                });
-                                            },function(err) {
-                                                //callback(null);
-                                                logger.info("Finished processes kill for user "+unum);
-                                            })
-                                        }
-                                        callback(null);
-                                    }
-                                });
-                                // platform.exec
+                                closeUserProcesses(unum,logger,callback);
                             }, // function(callback)
                             // unmount folders
                             function (callback) {
@@ -678,6 +643,95 @@ function endSessionByUnum(unum, logger, callback) {
             callback(err);
         }
     );
+}
+
+function closeUserProcesses(unum,logger,callback) {
+    const maxWaitTime = 30;
+    const waitForIteration = 2;
+    let timePassed = 0;
+    let userProcs = null;
+    async.doWhilst(function(callback) {
+        execFile("ps", ["auxn"], function (err, stdout, stderr) {
+            if(err) {
+                logger.info(`ps error: ${err}`);
+                callback(err);
+                return;
+            }
+            var lines = stdout.split("\n");
+            var procs = _.map(lines, function(line) {
+                var fields = line.split(/[ ]+/);
+                var procObj = {
+                    uid: fields[1] || "",
+                    pid: fields[2] || "",
+                    name: fields[11] || ""
+                };
+                return procObj;
+            });
+            var userTest = new RegExp("^" + unum.toString() + "[0-9]{5}$");
+            userProcs = _.filter(procs, function(procObj) {return (userTest.test(procObj.uid));});
+            if (userProcs.length !== 0) {
+                logger.info(`closeUserProcesses Remaining processes: ${JSON.stringify(userProcs,null,2)}`);
+            } else {
+                logger.info(`closeUserProcesses all user processes closed. time: ${timePassed}`);
+            }
+            timePassed += waitForIteration;
+            if (userProcs.length !== 0 && timePassed < maxWaitTime) {
+                setTimeout(function(){
+                    callback(null);
+                },waitForIteration * 1000);
+            } else {
+                callback(null);
+            }
+        });
+    }, function() {
+        return (userProcs.length !== 0 && timePassed < maxWaitTime);
+    }, function(err){
+        if (err) {
+            logger.info("closeUserProcesses failed with error: "+err);
+        } else {
+            if (userProcs.length !== 0) {
+                logger.info(`closeUserProcesses failed after waiting ${timePassed} seconds. Killing remaining processes...`);
+                // kill processes
+                async.eachSeries(userProcs,function(process,cb) {
+                    ps.kill(process.pid, 'SIGKILL', function(err) {
+                        if (err) {
+                            logger.error("Unable to kill pid "+process.pid+", kill error: ", err);
+                        } else {
+                            logger.info("pid "+process.pid+" has been killed.");
+                        }
+                        cb();
+                    });
+                },function(err) {
+                    logger.info("Finished processes kill for user "+unum);
+                });
+            } else {
+                logger.info(`closeUserProcesses finished sucessfully.`);
+            }
+        }
+        callback(null);
+    });
+
+}
+
+function checkDir(step,dir, logger, callback) {
+    execFile("ls", ["-la",dir], function (err,stdout,stderr) {
+        logger.info(`${step}. ls -la ${dir}: ${stdout}`);
+        callback(null);
+    });
+}
+
+function removeDirIfEmptyEx(dir, logger, callback) {
+    execFile("ls", ["-la",dir], function (err,stdout,stderr) {
+        logger.info(`removeDirIfEmptyEx. ls -la. : ${stdout}`);
+        fs.rmdir(dir, function (err) {
+            if (err) {
+                logger.error("rmdir error: "+err);
+            } else {
+                logger.info("Removed empty dir: "+dir);
+            }
+            callback(null);
+        });
+    });
 }
 
 function removeDirIfEmpty(dir, logger, callback) {
