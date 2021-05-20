@@ -1,6 +1,7 @@
 #!/bin/sh
 
 service rsyslog reload > /dev/null 2>&1 ||:
+mkdir -p /opt/platform_server/sessions || true
 
 if [ ! -d /opt/platform_server/sessions ]; then mkdir -p /opt/platform_server/sessions; fi
 if [ ! -d /Android ]; then mkdir /Android; fi

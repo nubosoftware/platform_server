@@ -5,7 +5,7 @@ Release: %{_release}
 Group: System Environment/Daemons
 BuildArch: x86_64
 License: none
-Requires: nodejs >= 4.4.5, nubo-common, wget, nfs-utils, fuse, pulseaudio, pulseaudio-utils, gstreamer1, gstreamer1-plugins-base, gstreamer1-plugins-good, gstreamer1-plugins-bad-free, gstreamer1-plugins-ugly-free 
+Requires: nodejs, android-dkms, nubouserfs-dkms, nubo-common, wget, nfs-utils, fuse, pulseaudio, pulseaudio-utils, gstreamer1, gstreamer1-plugins-base, gstreamer1-plugins-good, gstreamer1-plugins-bad-free, gstreamer1-plugins-ugly-free
 
 %description
 Service that implement api of possible requests to nubo platform
@@ -28,7 +28,7 @@ for file in ${FILES}; do
     install -D -m 644 $PROJ_PATH/$file $RPM_BUILD_ROOT/opt/platform_server/$file
 done
 install -m 644 $PROJ_PATH/Settings.json.init $RPM_BUILD_ROOT/opt/platform_server/Settings.json
-install -m 755 $PROJ_PATH/platform_server.service $RPM_BUILD_ROOT/etc/systemd/system/platform_server.service
+install -m 644 $PROJ_PATH/platform_server.service $RPM_BUILD_ROOT/etc/systemd/system/platform_server.service
 install -m 644 $PROJ_PATH/rsyslog-platform_server.conf $RPM_BUILD_ROOT/etc/rsyslog.d/18-nubo-platform_server.conf
 install -m 644 $PROJ_PATH/package.json $RPM_BUILD_ROOT/opt/platform_server/package.json
 install -m 755 $PROJ_PATH/init-files.sh $RPM_BUILD_ROOT/opt/platform_server/init-files.sh
@@ -45,6 +45,9 @@ systemctl enable platform_server
 mkdir /opt/platform_server/sessions ||:
 mkdir /Android ||:
 mkdir /opt/Android ||:
+mkdir /opt/platform_server/sessions ||:
+
+systemctl enable platform_server > /dev/null 2>&1 ||:
 
 #Restart after every install/update
 systemctl restart platform_server > /dev/null 2>&1 ||:
@@ -52,8 +55,8 @@ systemctl restart platform_server > /dev/null 2>&1 ||:
 %preun
 if [ $1 = 0 ]; then
 	#Stop service and remove from services list on full remove
+	systemctl disable platform_server > /dev/null 2>&1 ||:
 	systemctl stop platform_server > /dev/null 2>&1 ||:
-	systemctl disable platform_server
 fi
 
 %postun
@@ -70,7 +73,6 @@ rm -rf $RPM_BUILD_ROOT
 
 /opt/platform_server
 %config(noreplace) /opt/platform_server/Settings.json
-
 /etc/systemd/system/platform_server.service
 %config(noreplace) /etc/rsyslog.d/18-nubo-platform_server.conf
 

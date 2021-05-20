@@ -1,5 +1,5 @@
 [Unit]
-Description=Your Daemon
+Description=Platform service
 After=network-online.target
 Wants=network-online.target systemd-networkd-wait-online.service
 
