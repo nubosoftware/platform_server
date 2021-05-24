@@ -7,6 +7,7 @@ var Platform = require('./platform.js');
 var ThreadedLogger = require('./ThreadedLogger.js');
 var http = require('./http.js');
 var Common = require('./common.js');
+const path = require('path');
 
 module.exports = {
     installApk: installApk,
@@ -46,6 +47,7 @@ function installApk(req, res) {
                 status: 1,
                 msg: "OK"
             };
+
         }
         res.end(JSON.stringify(resobj, null, 2));
         logger.logTime("Finish process request installApk");
@@ -71,6 +73,7 @@ var tryInstallApk = function(apkPath, retries, wait, logger, callback) {
                         callback(null);
                     }
                 } else {
+                    disableUserZero(apkPath,platform,logger);
                     callback(null);
                 }
             });
@@ -78,6 +81,18 @@ var tryInstallApk = function(apkPath, retries, wait, logger, callback) {
     };
     retryInstallApk(apkPath, retries, wait, logger, callback);
 };
+
+var disableUserZero = function(apkPath,platform,logger, callback) {
+    let packagename = path.basename(apkPath, '.apk');
+    platform.execFile("pm", ["disable", "--user", "0", packagename], function(err, stdout, stderr) {
+        if (err) {
+            logger.info(`disableUserZero. packagename: ${packagename}, err: ${err}, stdout: ${stdout}, stderr: ${stderr}`);
+        }
+        if (callback) {
+            callback(null);
+        }
+    });
+}
 
 /*
  * Send data:
