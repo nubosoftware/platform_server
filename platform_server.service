@@ -12,7 +12,7 @@ RestartSec=5s
 KillSignal=SIGINT
 
 WorkingDirectory=/opt/platform_server
-ExecStart=/usr/bin/node restserver.js
+ExecStart=/usr/bin/node dist/restserver.js
 
 [Install]
 WantedBy=multi-user.target

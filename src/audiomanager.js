@@ -230,7 +230,7 @@ var startAudioManager = function () {
                 ((userConf.platformID & 0xFFFF) << 16) | (localid & 0xFFFF)
             ];
             //console.info(`Spawn pulseaudio-user. args: ${args}`);
-            var child = spawn("./pulseaudio-user", args);
+            var child = spawn("./dist/pulseaudio-user", args);
             var userid = localid;
             child.stdout.on('data', (data) => {
                 console.info(`pulseaudio-user userid: ${userid}, stdout: ${data}`);

@@ -59,8 +59,8 @@ $(nubo_proj_dir)/rpms/latest/nuboplatform_server-$(platform_server_version)-$(pl
 $(LINUX_IMG_FULL_PATH):
 	scp nubo@lab2.nubosoftware.com:N7/linux.img $(LINUX_IMG_FULL_PATH)
 
-pulseaudio-user: pulseaudio-user-gst.cpp
-	g++ $? -o pulseaudio-user -lpulse -lpthread -lpulse-simple `pkg-config --cflags --libs gstreamer-1.0`
+pulseaudio-user: src/pulseaudio-user-gst.cpp
+	g++ $? -o dist/pulseaudio-user -lpulse -lpthread -lpulse-simple `pkg-config --cflags --libs gstreamer-1.0`
 
 .PHONY: deb default img rpm
 

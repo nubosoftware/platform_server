@@ -34,7 +34,7 @@ var urlFilterObj = new filterModule.filter([], urlFilterOpts);
 var bodyFilterObj = new filterModule.filter([], bodyFilterOpts);
 var filterFile = "./parameters-map.js";
 
-function watchFilterFile() {
+/*function watchFilterFile() {
     fs.watchFile(filterFile, {
         persistent: false,
         interval: 5007
@@ -42,16 +42,16 @@ function watchFilterFile() {
         logger.info(filterFile + ' been modified');
         refresh_filter();
     });
-}
+}*/
 
 var refresh_filter = function() {
-    try {
+    /*try {
         delete require.cache[require.resolve(filterFile)];
-    } catch (e) {}
+    } catch (e) {}*/
 
     var obj;
     try {
-        obj = require(filterFile);
+        obj = require("./parameters-map.js");
     } catch (e) {
         logger.error('Error: Cannot load ' + filterFile + ' file, err: ' + e);
         return;
@@ -76,7 +76,7 @@ var mainFunction = function(err, firstTimeLoad) {
     if (!firstTimeLoad) // execute the following code only in the first time
         return;
 
-    watchFilterFile();
+    //watchFilterFile();
 
     var initPortListener = function(listenAddress, callback) {
         async.waterfall(

@@ -16,7 +16,7 @@ var fs = require('fs');
 function initAudio(localid, callback) {
     async.series([
         (cb) => {
-            var child = spawn("node",["audiomanager.js", localid]);
+            var child = spawn("node",["dist/audiomanager.js", localid]);
             logger.info("Starting ","node",["audiomanager.js", localid]);
             var userid = localid;
             child.stdout.on('data', (data) => {
