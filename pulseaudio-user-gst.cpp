@@ -562,7 +562,7 @@ int parse_args(int argc, char *argv[]) {
 
     if(argc > 1) {
         l = strlen(argv[1]);
-        if((l > 0) && (l < 3)) {
+        if((l > 0) && (l < 6)) {
             isNum = true;
             for(i=0; i<l; i++) {
                 p = &argv[1][i];

@@ -64,13 +64,12 @@ function deInitAudio(localid, callback) {
                 var processFound = false;
                 resultList.forEach(function(process) {
                     if (process) {
-                        logger.info('PID: %s, COMMAND: %s, ARGUMENTS: %s', process.pid, process.command, process.arguments);
+                        //logger.info('PID: %s, COMMAND: %s, ARGUMENTS: %s', process.pid, process.command, process.arguments);
                         var matchUser = (process.arguments.indexOf(arg1) > -1 && process.arguments.indexOf(arg2) > -1) ;
                         if (matchUser) {
                             processFound = true;
                             ps.kill(process.pid, 'SIGINT', function(err) {
                                 if (err) {
-                        var matchUser = (process.arguments.indexOf(arg1) > -1) ;
                                     logger.error("Unable to kill audiomanager.js, kill error: ", err);
                                 } else {
                                     logger.info('audiomanager.js has been killed.');
@@ -81,7 +80,7 @@ function deInitAudio(localid, callback) {
                     }
                 });
                 if (!processFound) {
-                    logger.info('"Unable to kill gst-launch-1.0, process not found.');
+                    logger.info('"Unable to kill audiomanager.js, process not found.');
                 }
                 callback(null);
             });
