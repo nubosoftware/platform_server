@@ -15,8 +15,6 @@ var Platform = require('./platform.js');
 
 var localid;
 var nullSinkIn,nullSinkOut;
-var gstInPID,gstOutPID;
-var gstPlaybackProc;
 var gstRecordProc;
 var pulseaudioUserProc;
 var audioServerProc;
@@ -231,21 +229,22 @@ var startAudioManager = function () {
                 userConf.rtpOutPort,
                 ((userConf.platformID & 0xFFFF) << 16) | (localid & 0xFFFF)
             ];
+            //console.info(`Spawn pulseaudio-user. args: ${args}`);
             var child = spawn("./pulseaudio-user", args);
             var userid = localid;
             child.stdout.on('data', (data) => {
-                console.info(`initAudio.gst-launch-1.0 userid: ${userid}, stdout: ${data}`);
+                console.info(`pulseaudio-user userid: ${userid}, stdout: ${data}`);
             });
 
             child.stderr.on('data', (data) => {
-                console.log(`initAudio.gst-launch-1.0 userid: ${userid}, stderr: ${data}`);
+                console.log(`pulseaudio-user userid: ${userid}, stderr: ${data}`);
             });
 
             child.on('close', (code) => {
-                console.info(`initAudio.gst-launch-1.0 userid: ${userid}, child process exited with code ${code}`);
-                gstRecordProc = undefined;
+                console.info(`pulseaudio-user userid: ${userid}, child process exited with code ${code}`);
+                pulseaudioUserProc = undefined;
             });
-            console.info(`Spawned child pid: ${child.pid}`);
+            console.info(`Spawned pulseaudio-user child pid: ${child.pid}`);
             pulseaudioUserProc = child;
             cb();
         },
@@ -274,7 +273,7 @@ var startAudioManager = function () {
                 console.info(`initAudio.gst-launch-1.0 userid: ${userid}, child process exited with code ${code}`);
                 gstRecordProc = undefined;
             });
-            console.info(`Spawned child pid: ${child.pid}`);
+            console.info(`Spawned gst-launch-1.0 child pid: ${child.pid}`);
             gstRecordProc = child;
             cb();
         },
@@ -333,48 +332,21 @@ var startAudioManager = function () {
                 cb(error);
             });
         },
-        // start gst for audio out
-        (cb) => {
-            return cb(null); //run gst for playback moved to c
-            var ssrc = ((userConf.platformID & 0xFFFF) << 16) | (localid & 0xFFFF);
-            var cmd = "gst-launch-1.0";
-            var params = [
-              "pulsesrc","device=rtpu"+localid+".monitor" , /*"!", "queue",*/ "!",
-              "audioconvert", "!",
-              "opusenc", "bitrate-type=0", "audio-type=voice" , "inband-fec=true", "!",
-              "rtpopuspay", "ssrc=" + ssrc, "!",
-              "udpsink", "host=" + userConf.rtpOutHost, "port=" + userConf.rtpOutPort];
-            console.info(cmd,params);
-            var child = spawn(cmd,params);
-            var userid = localid;
-            child.stdout.on('data', (data) => {
-                console.log(`initAudio.gst-launch-1.0 userid: ${userid}, stdout: ${data}`);
-            });
-
-            child.stderr.on('data', (data) => {
-                console.log(`initAudio.gst-launch-1.0 userid: ${userid}, stderr: ${data}`);
-            });
-
-            child.on('close', (code) => {
-                console.log(`initAudio.gst-launch-1.0 userid: ${userid}, child process exited with code ${code}`);
-            });
-            console.info(`Spawned child pid: ${child.pid}`);
-            gstPlaybackProc = child;
-            cb(null);
-        }
     ], function (err) {
         if (err && err !== "Audio is not enabled") {
             console.error("startAudioManager error", err);
             stopAudioManager();
+            return;
         }
         audioServerProc = platform.spawn("user_audioserver", [localid]);
         mediaServerProc = platform.spawn("user_mediaserver", [localid]);
 
         audioServerProc.on('close', (code) => {
+            console.info("audioServerProc closed with code " + code);
             audioServerProc = undefined;
         });
         mediaServerProc.on('close', (code) => {
-            console.info("audioServerProc closed with code " + code);
+            console.info("mediaServerProc closed with code " + code);
             mediaServerProc = undefined;
         });
         console.info("Audio Manager initiated.");
@@ -431,21 +403,17 @@ var stopAudioManager = function () {
         },
         (cb) => {
             if (gstRecordProc) gstRecordProc.kill('SIGINT');
-            if (gstPlaybackProc) gstPlaybackProc.kill('SIGINT');
             if(audioServerProc) audioServerProc.kill('SIGINT');
             if(mediaServerProc) mediaServerProc.kill('SIGINT');
             if (pulseaudioUserProc) pulseaudioUserProc.kill('SIGINT');
             cb();
         },
         (cb) => {
+            let cnt = 0;
             var checkKilled = function(callback) {
                 var needWaitFlag = false;
                 if(gstRecordProc && !gstRecordProc.killed) {
                     console.info("waiting for quit of gst-lunch of record");
-                    needWaitFlag = true;
-                }
-                if(gstPlaybackProc && !gstPlaybackProc.killed) {
-                    console.info("waiting for quit of gst-lunch of playback");
                     needWaitFlag = true;
                 }
                 if(audioServerProc && !audioServerProc.killed) {
@@ -460,14 +428,20 @@ var stopAudioManager = function () {
                     console.info("waiting for quit of pulseaudio-user");
                     needWaitFlag = true;
                 }
-                if(needWaitFlag) {
+                cnt++;
+                if(needWaitFlag && cnt < 60) {
+
                     setTimeout(function() {
                         checkKilled(callback);
                     }, 1000);
                 } else {
+                    if (cnt >= 60) {
+                        console.error("Waiting too much for processes to quit");
+                    }
                     callback();
                 }
             }
+            checkKilled(cb);
         }
     ], function (err) {
         if (err) {
