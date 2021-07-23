@@ -50,7 +50,7 @@ function deInitAudio(localid, callback) {
         // kill the audio manager process
         function(callback) {
             var cmd = "node";
-            var arg1 =  "audiomanager.js";
+            var arg1 =  "dist/audiomanager.js";
             var arg2 =  localid;
             ps.lookup({
                 command: cmd//,
@@ -64,7 +64,7 @@ function deInitAudio(localid, callback) {
                 var processFound = false;
                 resultList.forEach(function(process) {
                     if (process) {
-                        //logger.info('PID: %s, COMMAND: %s, ARGUMENTS: %s', process.pid, process.command, process.arguments);
+                        logger.info(`PID: ${process.pid}, COMMAND: ${process.command}, ARGUMENTS: ${process.arguments}`);
                         var matchUser = (process.arguments.indexOf(arg1) > -1 && process.arguments.indexOf(arg2) > -1) ;
                         if (matchUser) {
                             processFound = true;

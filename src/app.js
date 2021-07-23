@@ -230,8 +230,8 @@ function getPackagesList(req, res) {
                 resobj.data = data;
             }
             res.end(JSON.stringify(resobj, null, 2));
-            logger.info("resobj: " + JSON.stringify(resobj, null, 2));
-            logger.logTime("Finish process request getPackagesList");
+            //logger.info("resobj: " + JSON.stringify(resobj, null, 2));
+            //logger.logTime("Finish process request getPackagesList");
         }
     );
 }
