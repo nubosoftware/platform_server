@@ -288,12 +288,12 @@ function fullMount(session, keys, callback) {
     ];
 
     var nubouserfsSrc = [
-        "/Android/data/mnt/nfs/" + localid + "/misc/profiles/cur",
+        //"/Android/data/mnt/nfs/" + localid + "/misc/profiles/cur",
         "/Android/data/mnt/nfs/" + localid + "/user",
         "/Android/data/mnt/nfs/" + localid + "/user_de"
     ];
     var nubouserfsDst = [
-        "/Android/data/misc/profiles/cur/" + localid,
+        //"/Android/data/misc/profiles/cur/" + localid,
         "/Android/data/user/" + localid,
         "/Android/data/user_de/" + localid
     ];
@@ -410,7 +410,7 @@ function fullUmount(session, user, callback) {
     var platform = session.platform;
     var dirs = [
         "/Android/data/misc/keystore/user_" + UNum,
-        "/Android/data/misc/profiles/cur/" + UNum,
+        //"/Android/data/misc/profiles/cur/" + UNum,
         "/Android/data/misc_ce/" + UNum,
         "/Android/data/misc_de/" + UNum,
         "/Android/data/system/users/" + UNum,

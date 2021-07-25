@@ -603,13 +603,19 @@ function endSessionByUnum(unum, logger, callback) {
                                     }
                                 });
                             }, // function(callback)
-                            function (callback) {
+                            /*function (callback) {
                                 execFile("rm", ["-f", "/Android/data/system/users/" + unum + "/settings_system.xml"], function (err) { callback(null); });
                             },
                             function (callback) {
                                 execFile("rm", ["-f", "/Android/data/system/users/" + unum + "/settings_secure.xml"], function (err) { callback(null); });
+                            },*/
+                            function (callback) {
+                                removeNonMountedDirs(unum,logger,callback);
                             },
                             function (callback) {
+                                removeMountedDirs(unum,logger,callback);
+                            },
+                            /*function (callback) {
                                 removeDirIfEmpty("/Android/data/user/" + unum, logger, callback);
                             },
                             function (callback) {
@@ -623,7 +629,7 @@ function endSessionByUnum(unum, logger, callback) {
                             },
                             function (callback) {
                                 execFile("rm", ["/Android/data/system/users/" + unum + ".xml"], function (err) { callback(null); });
-                            },
+                            },*/
                             function (callback) {
                                 removePerUserEnvironments(unum, platform,logger,callback);
                             },
@@ -734,16 +740,71 @@ function removeDirIfEmptyEx(dir, logger, callback) {
     });
 }
 
+
+function removeMountedDirs(UNum,logger, callback) {
+    const mountedDirs = [
+        "/Android/data/misc/keystore/user_" + UNum,
+        "/Android/data/misc_ce/" + UNum,
+        "/Android/data/misc_de/" + UNum,
+        "/Android/data/system/users/" + UNum,
+        "/Android/data/system_ce/" + UNum,
+        "/Android/data/system_de/" + UNum,
+        "/Android/data/user/" + UNum,
+        "/Android/data/user_de/" + UNum,
+        "/Android/data/media/" + UNum,
+        "/Android/data/mnt/nfs/" + UNum
+    ];
+    async.eachSeries(
+        mountedDirs,
+        function(dir, callback) {
+            removeDirIfEmpty(dir,logger,callback)
+        },
+        function(err) {
+            callback();
+        });
+}
+
 function removeDirIfEmpty(dir, logger, callback) {
     fs.rmdir(dir, function (err) {
         if (err) {
-            logger.error("rmdir error: "+err);
+            logger.error(`removeDirIfEmpty error: ${err}, dir: ${dir}`);
         } else {
-            logger.info("Removed empty dir: "+dir);
+            //logger.info("Removed empty dir: "+dir);
         }
         callback(null);
     });
 }
+
+function removeNonMountedDirs(UNum,logger, callback) {
+    const dirs = [
+        `/Android/data/misc/profiles/cur/${UNum}`,
+        `/Android/data/misc/gatekeeper/${UNum}`,
+        `/Android/data/misc/user/${UNum}`,
+        `/Android/data/system/users/${UNum}/settings_system.xml`,
+        `/Android/data/system/users/${UNum}/settings_secure.xml`,
+        `/Android/data/system/users/${UNum}.xml`
+    ];
+    async.eachSeries(
+        dirs,
+        function(dir, callback) {
+            fs.rm(dir,{
+                force: true,
+                maxRetries: 100,
+                recursive: true,
+                retryDelay: 100
+            },function(err) {
+                if (err) {
+                    logger.error(`removeNonMountedDirs error: ${err}, dir: ${dir}`);
+                }
+                callback();
+            });
+        },
+        function(err) {
+            callback();
+        });
+}
+
+
 
 //function createFile(file, data, permissions, uid, gid, callback) {
 //    async.series(
