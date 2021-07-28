@@ -603,33 +603,12 @@ function endSessionByUnum(unum, logger, callback) {
                                     }
                                 });
                             }, // function(callback)
-                            /*function (callback) {
-                                execFile("rm", ["-f", "/Android/data/system/users/" + unum + "/settings_system.xml"], function (err) { callback(null); });
-                            },
-                            function (callback) {
-                                execFile("rm", ["-f", "/Android/data/system/users/" + unum + "/settings_secure.xml"], function (err) { callback(null); });
-                            },*/
                             function (callback) {
                                 removeNonMountedDirs(unum,logger,callback);
                             },
                             function (callback) {
                                 removeMountedDirs(unum,logger,callback);
                             },
-                            /*function (callback) {
-                                removeDirIfEmpty("/Android/data/user/" + unum, logger, callback);
-                            },
-                            function (callback) {
-                                removeDirIfEmpty("/Android/data/user_de/" + unum, logger, callback);
-                            },
-                            function (callback) {
-                                removeDirIfEmpty("/Android/data/media/" + unum, logger, callback);
-                            },
-                            function (callback) {
-                                removeDirIfEmpty("/Android/data/misc/keystore/user_" + unum, logger, callback);
-                            },
-                            function (callback) {
-                                execFile("rm", ["/Android/data/system/users/" + unum + ".xml"], function (err) { callback(null); });
-                            },*/
                             function (callback) {
                                 removePerUserEnvironments(unum, platform,logger,callback);
                             },

@@ -11,6 +11,7 @@ var ThreadedLogger = require('./ThreadedLogger.js');
 var Platform = require('./platform.js');
 var fs = require('fs');
 var common = require('./common.js');
+const si = require('systeminformation');
 
 var flagInitAndroidStatus = 0; // 0: not yet done, 1: in progress, 2: done
 var RESTfull_message = "the platform not yet initialized";
@@ -427,6 +428,7 @@ function checkPlatform(req, res) {
     var logger = new ThreadedLogger(common.getLogger(__filename));
     logger.info("Running checkPlatform");
     var platform = new Platform(logger);
+    let performance;
     async.series( [
         // check the ability to run pm commands on the android shell
         (cb) => {
@@ -462,6 +464,16 @@ function checkPlatform(req, res) {
                     cb(null);
                 }
             });
+        },
+        // read performance data
+        (cb) => {
+            checkPerformance().then(res => {
+                performance = res;
+                cb();
+            }).catch (err => {
+                logger.error("Error reading performance data",err);
+                cb();
+            });
         }
     ],(err) => {
         var resobj;
@@ -473,11 +485,19 @@ function checkPlatform(req, res) {
         } else {
             resobj = {
                 status: 1,
-                msg: "Platform is alive, no error found"
+                msg: "Platform is alive, no error found",
+                performance
             };
         }
         res.end(JSON.stringify(resobj, null, 2));
     });
+}
+
+async function checkPerformance() {
+    let res = { };
+    res.mem = await si.mem();
+    res.currentLoad = await si.currentLoad();
+    return res;
 
 }
 

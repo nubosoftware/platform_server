@@ -13,6 +13,7 @@
     "ps-node": "0.1.6",
     "restify": "^8.5.1",
     "ssh2": "0.4.15",
+    "systeminformation": "^5.7.12",
     "underscore": "1.8.3",
     "unix-dgram": "^2.0.4",
     "validate.js": "^0.9.0",
