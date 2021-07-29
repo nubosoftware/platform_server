@@ -563,7 +563,11 @@ function endSessionByUnum(unum, logger, callback) {
                                 loadUserSessionParams(unum,logger,function(err,sessObj){
                                     session = sessObj;
                                     if (!session) {
-                                        session = { };
+                                        session = {
+                                            params: {
+                                                localid: unum
+                                            }
+                                        };
                                     }
                                     callback();
                                 });
@@ -613,7 +617,12 @@ function endSessionByUnum(unum, logger, callback) {
                                 removePerUserEnvironments(unum, platform,logger,callback);
                             },
                             function (callback) {
-                                deleteSessionParams(unum,callback);
+                                deleteSessionParams(unum,function(err) {
+                                    if (err) {
+                                        logger.error("Error in deleteSessionParams",err)
+                                    }
+                                    callback();
+                                });
                             }
                         ], function (err, results) {
                             callback(err);

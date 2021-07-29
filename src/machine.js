@@ -12,6 +12,7 @@ var Platform = require('./platform.js');
 var fs = require('fs');
 var common = require('./common.js');
 const si = require('systeminformation');
+const { readdir, unlink } = require('fs/promises');
 
 var flagInitAndroidStatus = 0; // 0: not yet done, 1: in progress, 2: done
 var RESTfull_message = "the platform not yet initialized";
@@ -63,6 +64,16 @@ function startPlatformPost(req, res) {
                 preVpnConfiguration(logger, callback);
             },
             function(callback) {
+                RESTfull_message = "delete old session files";
+                logger.info(RESTfull_message);
+                deleteOldSessionFile(logger).then(() => {
+                    callback();
+                }).catch(err => {
+                    logger.error("deleteOldSessionFile error",err);
+                    callback();
+                });
+            },
+            function(callback) {
                 RESTfull_message = "init android";
                 logger.info(RESTfull_message);
                 initAndroid(requestObj, logger, callback);
@@ -90,6 +101,23 @@ function startPlatformPost(req, res) {
             res.end(JSON.stringify(resobj, null, 2));
             logger.logTime("Finish process request startPlatform");
         });
+}
+
+async function deleteOldSessionFile(logger) {
+    try {
+        const mainDir = './sessions';
+        const dir = await readdir(mainDir);
+        //logger.info(`deleteOldSessionFile. Found ${dir.length} files.`);
+        for (const file of dir) {
+            if (file.startsWith("localid_")) {
+                let fullpath = path.join(mainDir, file);
+                logger.info(`Found old session file: ${file}, delete it`);
+                await unlink(fullpath);
+            }
+        }
+    } catch (err) {
+        logger.error("deleteOldSessionFile error", err);
+    }
 }
 
 function killPlatform(req, res) {

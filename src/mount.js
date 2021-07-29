@@ -320,7 +320,7 @@ function fullMount(session, keys, callback) {
             mkDirs(mkdirs, callback);
         },*/
         function(callback) {
-            var nfsoptions = "nolock,hard,intr,noatime,async,fsc";
+            var nfsoptions = "nolock,hard,intr,vers=4,noatime,async,fsc";
             mountHostNfs(nfsSrc, nfsDst, nfsoptions, callback);
         },
         function(callback) {
