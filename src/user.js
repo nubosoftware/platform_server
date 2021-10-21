@@ -14,6 +14,10 @@ var Platform = require('./platform.js');
 var http = require('./http.js');
 var Audio = require('./audio.js');
 var ps = require('ps-node');
+const machineModule = require('./machine.js');
+const { docker, pullImage, execDockerCmd} = require('./dockerUtils');
+
+
 
 module.exports = {
     attachUser: attachUser,
@@ -22,8 +26,202 @@ module.exports = {
     createUser: createUser,
     endSessionByUnum: endSessionByUnum,
     receiveSMS: receiveSMS,
-    declineCall: declineCall
+    declineCall: declineCall,
+    loadUserSessionPromise
 };
+
+
+async function attachUserDocker(obj) {
+    let logger = Common.getLogger(__filename);
+    logger.info(`attachUserDocker. obj: ${JSON.stringify(obj,null,2)}`);
+    let result = {
+
+    };
+    let machineConf = machineModule.getMachineConf();
+
+    // get new unum
+    let unum = machineConf.unumCnt;
+    if (isNaN(unum) || unum == 0) {
+        unum = 10;
+    }
+    machineConf.unumCnt = unum + 1;
+    const linuxUserName = getLinuxUserName(obj.login.email,unum,machineConf);
+    await machineModule.saveMachineConf(machineConf);
+    result.unum = unum;
+    const registryURL = machineConf.registryURL;
+
+    let session = {
+        login: obj.login,      
+        logger: logger,
+        nfs: obj.nfs,
+        mounts: obj.mounts,
+        params: obj.session
+        //xml_file_content: obj.xml_file_content
+    };
+    session.params.localid = unum;
+    session.params.linuxUserName = linuxUserName;
+    session.params.tz = obj.timeZone;
+    session.params.userPass = makeid(16);
+    session.params.locale = `${session.login.lang}_${session.login.countrylang}.UTF-8`;
+
+    logger.info("Mount user home folder");
+    await mount.linuxMount(session);
+    logger.info(`User home folder mounted at ${session.params.homeFolder}`);
+
+    await saveUserSessionPromise(unum,session);
+    
+      
+    //let imageName = registryURL + '/nubo/nuboxrdp:latest';
+    let imageName = `${registryURL}/nubo/${session.params.docker_image}`;
+    logger.info(`Pulling user image: ${imageName}`); 
+    await pullImage(imageName);
+
+    logger.info(`Creating session container`); 
+    let container;
+    try {
+        container = await docker.createContainer({        
+            Image: imageName,
+            AttachStdin: false,
+            AttachStdout: true,
+            AttachStderr: true,
+            Tty: true,
+            OpenStdin: false,
+            StdinOnce: false,
+            HostConfig: {
+                Binds: [
+                    `${session.params.homeFolder}:/home/${linuxUserName}`                
+                ],
+                NetworkMode: "net_sess",
+                //Privileged: true
+            }
+        });
+    } catch (err) {
+        logger.info(`createContainer failed: ${err}`);
+        console.error(err);
+        throw new Error("createContainer failed");
+    }
+    //console.log(`container created: ${JSON.stringify(container,null,2)}`);
+    logger.info(`container created: ${container.id}`);
+    //let stream = await container.attach({stream: true, stdout: true, stderr: true});
+    //stream.pipe(process.stdout);
+    let data = await container.start();
+    //console.log(`container started: ${JSON.stringify(data, null, 2)}`);
+
+
+    let sesscontainer = await docker.getContainer(container.id);
+    let cinsp = await sesscontainer.inspect();
+    let ipAddress = cinsp.NetworkSettings.Networks["net_sess"].IPAddress;
+    //console.log(`container inspect: ${JSON.stringify(cinsp,null,2)}`);
+    //console.log(`container inspect: ${JSON.stringify(sesscontainer,null,2)}`);
+    
+    
+    const { stdout, stderr } = await execDockerCmd(
+        ['exec' , container.id, '/usr/bin/create_rdp_user.sh',
+        linuxUserName,
+        session.params.userPass,
+        session.params.tz,
+        session.params.locale
+        ]
+    );
+    console.log(`Crete user. stdout: ${stdout}\n stderr: ${stderr}`);
+
+    let xrdpStarted = false;
+    let startTime = Date.now();
+    do {
+        try {
+            await sleep(300);
+            //console.log(`check for supervisord.log`);
+            const logRes = await execDockerCmd(
+                ['exec' , container.id, 'tail', '-10',
+                '/var/log/supervisor/supervisord.log'
+                ]
+            );
+            //console.log(`supervisord.log: ${JSON.stringify(logRes,null,2)}`);
+            xrdpStarted = (logRes.stdout.indexOf("spawned: 'xrdp-sesman' with pid") >= 0); 
+        } catch (e) {
+            //console.error(e);
+        }
+
+
+    } while ( !xrdpStarted && (Date.now() - startTime) < 30000  );
+
+
+    //console.log(`IP: ${ipAddress}, User: ${linuxUserName}, Password: ${session.params.userPass}`);
+    result.ipAddress = ipAddress;
+    result.linuxUserName = linuxUserName;
+    result.userPass = session.params.userPass;
+    logger.info(`Session created with active user: ${JSON.stringify(result,null,2)}`);
+    session.params.ipAddress = ipAddress;
+    session.params.containerId = container.id;
+    await saveUserSessionPromise(unum,session);
+
+    return result;
+}
+
+function sleep(ms) {
+    return new Promise((resolve, reject) => {
+        setTimeout( () => {
+            resolve();
+        },ms);
+    });
+}
+
+function makeid(length) {
+    var result = '';
+    var characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    var charactersLength = characters.length;
+    for (var i = 0; i < length; i++) {
+        result += characters.charAt(Math.floor(Math.random() *
+            charactersLength));
+    }
+    return result;
+}
+
+
+async function detachUserDocker(unum) {
+    let logger = Common.getLogger(__filename);
+    logger.info(`detachUserDocker. unum: ${unum} `);
+    let session = await loadUserSessionPromise(unum,logger);
+    logger.info(`detachUserDocker. session loaded: ${JSON.stringify(session,null,2)}`);
+    if (session.params.containerId) {
+        logger.info(`detachUserDocker. Stopping container ${session.params.containerId}`);
+        let sesscontainer = await docker.getContainer(session.params.containerId);
+        await sesscontainer.stop();
+        await sesscontainer.remove();
+
+    }
+    if (session.params.homeFolder && session.params.nfsHomeFolder != "local") {
+        logger.info(`detachUserDocker. unmount folder...`);
+        await mount.linuxUMount(session.params.homeFolder);
+    }
+    let machineConf = machineModule.getMachineConf();
+    if (session.params.linuxUserName) {
+        delete machineConf.linuxUserName[session.params.linuxUserName];
+        await machineModule.saveMachineConf(machineConf);
+    }
+    logger.info(`detachUserDocker. deleteSessionPromise...`);
+    await deleteSessionPromise(unum);
+    return true;
+}
+
+
+function getLinuxUserName(email,unum,machineConf) {
+    let nameParts = email.split("@");
+    let basename = nameParts.length==2 ? nameParts[0] : email;
+    let cnt=0;    
+    if (!machineConf.linuxUserName) {
+        machineConf.linuxUserName = {         
+        }
+    }
+    let name = basename;
+    while (machineConf.linuxUserName[name]) {
+        cnt++;
+        name = basename+cnt;
+    }
+    machineConf.linuxUserName[name] = unum;    
+    return name;
+}
+
 
 function attachUser(req, res) {
     var resDone = false;
@@ -31,6 +229,25 @@ function attachUser(req, res) {
     var unum = 0;
     var obj = req.body;
     logger.logTime("Start process request attachUser");
+    if (machineModule.isDockerPlatform()) {
+        attachUserDocker(obj).then((result) => {
+            var resobj = {
+                status: 1,
+                localid: result.unum,
+                params: result
+            };            
+            res.end(JSON.stringify(resobj,null,2));
+        }).catch(err => {
+            logger.info(`Error on attachUserDocker: ${err}`);
+            console.error(err);
+            var resobj = {
+                status: 0,
+                error: err
+            };
+            res.end(JSON.stringify(resobj,null,2));
+        });
+        return;
+    }
 
     async.waterfall(
         [
@@ -79,6 +296,23 @@ function detachUser(req, res) {
     if(isNaN(unum) || (unum <= 0)) {   // is unum does not greater that 0 mean check if unum is number too
         resobj = {status: 0, message: "invalid unum, unum is " + unum};
         res.end(JSON.stringify(resobj,null,2));
+        return;
+    }
+    if (machineModule.isDockerPlatform()) {
+        detachUserDocker(unum).then((result) => {
+            var resobj = {
+                status: 1,
+                message: "User " + unum + " removed"
+            };            
+            res.end(JSON.stringify(resobj,null,2));
+        }).catch(err => {
+            var resobj = {
+                status: 0,
+                error: err
+            };
+            res.end(JSON.stringify(resobj,null,2));
+        });
+        return;
     } else {
         endSessionByUnum(unum, logger, function (err) {
             if(err) {
@@ -90,11 +324,48 @@ function detachUser(req, res) {
             logger.logTime("Finish process request detachUser");
         });
     }
+    
 }
 
 
 
 var sessCache = {};
+
+function saveUserSessionPromise(localid,session) {
+    return new Promise((resolve,reject) => {
+        saveUserSessionParams(localid,session,function(err){
+            if (err) {
+                reject(err);
+            } else {
+                resolve();
+            }
+        })
+    });
+}
+function loadUserSessionPromise(localid,logger) {
+    return new Promise((resolve,reject) => {
+        loadUserSessionParams(localid,logger,function(err,session){
+            if (err) {
+                reject(err);
+            } else {
+                resolve(session);
+            }
+        })
+    });
+}
+
+function deleteSessionPromise(localid) {
+    return new Promise((resolve,reject) => {
+        deleteSessionParams(localid,function(err){
+            if (err) {
+                reject(err);
+            } else {
+                resolve();
+            }
+        })
+    });
+}
+
 
 function saveUserSessionParams(localid,session,cb) {
     sessCache['sess_'+localid] = session;

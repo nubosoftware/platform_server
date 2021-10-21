@@ -21,13 +21,20 @@ var vpn = require('./vpn.js');
 
 var filterModule = require('permission-parser');
 
+
+var filterLog = function(msg) {
+    logger.info(msg);
+}
+
 var urlFilterOpts = {
     loge: logger.error,
+    logd: filterLog,
     mode: filterModule.mode.URL
 };
 
 var bodyFilterOpts = {
     loge: logger.error,
+    logd: filterLog,
     mode: filterModule.mode.BODY
 };
 var urlFilterObj = new filterModule.filter([], urlFilterOpts);
@@ -56,7 +63,7 @@ var refresh_filter = function() {
         logger.error('Error: Cannot load ' + filterFile + ' file, err: ' + e);
         return;
     }
-    console.log("obj: " + JSON.stringify(obj));
+    //console.log("obj: " + JSON.stringify(obj));
 
     var permittedMode = Common.parametersMapPermittedMode ? Common.parametersMapPermittedMode : false;
 
@@ -147,6 +154,8 @@ var mainFunction = function(err, firstTimeLoad) {
         );
     };
 
+    machineModule.initMachine();
+
     async.eachSeries(
         Common.listenAddresses,
         initPortListener
@@ -156,6 +165,7 @@ var mainFunction = function(err, firstTimeLoad) {
         logger.info("restserver caught interrupt signal");
         Common.quit();
     });
+
 };
 
 var checkCerts = function (sslCerts,cb)  {
@@ -269,7 +279,7 @@ function buildServerObject(server) {
     server.get("/", function(req, res) { res.end("OK"); });
     server.get("/startPlatform", machineModule.startPlatformGet);
     server.post("/startPlatform", machineModule.startPlatformPost);
-    server.get("/killPlatform", machineModule.killPlatform);
+    server.post("/killPlatform", machineModule.killPlatform);
     server.get("/checkPlatform", machineModule.checkPlatform);
     server.post("/attachUser", userModule.attachUser);
     server.get("/detachUser", userModule.detachUser);

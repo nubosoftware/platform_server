@@ -24,9 +24,10 @@ img: $(LINUX_IMG_FULL_PATH) pulseaudio-user
 	$(eval LOOPDEVICE := $(shell sudo losetup -f --show $(LINUX_IMG_FULL_PATH) -o $$((2048 * 512)) ))
 	@echo "LOOPDEVICE=$(LOOPDEVICE)"
 	sudo mount $(LOOPDEVICE) mnt
-	cat ~/.ssh/id_rsa.pub > mnt/home/nubo/.ssh/authorized_keys
-	cat ~/.ssh/id_rsa.pub > mnt/opt/Android/authorized_keys
-	cat mnt/home/nubo/.ssh/id_rsa.pub >> mnt/opt/Android/authorized_keys
+	sudo bash -c "cat ~/.ssh/id_rsa.pub > mnt/home/nubo/.ssh/authorized_keys"
+	sudo bash -c "cat ~/.ssh/id_rsa.pub > mnt/opt/Android/authorized_keys"
+	sudo bash -c "cat mnt/home/nubo/.ssh/id_rsa.pub >> mnt/opt/Android/authorized_keys"
+	sudo rm -rf mnt/opt/platform_server/node_modules
 	sudo rsync ./ mnt/opt/platform_server/ -raF
 	@echo "You can change files on platform. Please enter any key to continue and close image";
 	@bash -c "read -sn 1";
@@ -61,6 +62,11 @@ $(LINUX_IMG_FULL_PATH):
 
 pulseaudio-user: src/pulseaudio-user-gst.cpp
 	g++ $? -o dist/pulseaudio-user -lpulse -lpthread -lpulse-simple `pkg-config --cflags --libs gstreamer-1.0`
+docker: deb
+	mkdir -p docker_build/debs/
+	cp $(nubo_proj_dir)/debs/latest/platform-server-$(platform_server_version)-$(platform_server_buildid).deb docker_build/debs/platform-server.deb	
+	cp $(nubo_proj_dir)/debs/latest/nubo-common-3.0-1.deb docker_build/debs/nubo-common.deb
+	sudo docker build -t nuboplatformserver:$(platform_server_version)-$(platform_server_buildid) docker_build/.
 
-.PHONY: deb default img rpm
+.PHONY: deb default img rpm docker
 

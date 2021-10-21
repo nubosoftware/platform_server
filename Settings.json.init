@@ -1,6 +1,6 @@
-{
-  "sshPrivateKey": "/root/.ssh/id_rsa",
+{  
   "listenAddresses": [
-    "http://:3333"
+    "http://:3333",
+    "https://:3334"
   ]
 }

@@ -1,12 +1,23 @@
 #!/bin/sh
 
-service rsyslog reload > /dev/null 2>&1 ||:
-mkdir -p /opt/platform_server/sessions || true
-
 if [ ! -d /opt/platform_server/sessions ]; then mkdir -p /opt/platform_server/sessions; fi
-if [ ! -d /Android ]; then mkdir /Android; fi
-if [ ! -d /opt/Android ]; then mkdir /opt/Android; chown 1000.1000 /opt/Android; fi
 
-systemctl enable platform_server
-systemctl restart platform_server
+FILE=/etc/.nubo/.docker
+if [ -f "$FILE" ]; then
+# inside docker - TBD add docker restart of services
+    echo "Running in a docker container"
+   
+else 
+    service rsyslog reload > /dev/null 2>&1 ||:
+    if [ ! -d /Android ]; then mkdir /Android; fi
+    if [ ! -d /opt/Android ]; then mkdir /opt/Android; chown 1000.1000 /opt/Android; fi
+    systemctl enable platform_server
+    systemctl restart platform_server
+fi
+
+
+
+
+
+
 

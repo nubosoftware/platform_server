@@ -9,6 +9,16 @@ var filter = {
         "path": "/startPlatform",
         "constraints": {},
         "bodyConstraints": {
+            "platType": {
+                "inclusion": ["linux", "docker"]
+            },
+            "registryURL": {
+                "format": "^[.a-zA-Z0-9_\\-\:\/]+$",
+                "length": {
+                    "minimum": 1,
+                    "maximum": 255
+                }
+            },
             "platid": constraints.platIdConstrRequested,
             "platUID": constraints.requestedPlatformUIDConstr,
             "gateway": {
@@ -25,8 +35,8 @@ var filter = {
             "management": {
                 "presence": true
             },
-            "management.url": constraints.urlConstrRequested,
-            "management.ip": constraints.ipConstrOptional,
+            "management.url": {},
+            "management.ip": {},
             "nfs": {
                 "presence": true
             },
@@ -50,7 +60,11 @@ var filter = {
         }
     }, {
         "path": "/killPlatform",
-        "constraints": {}
+        "constraints": {},
+        "bodyConstraints": {            
+            "platid": constraints.platIdConstrOptional,
+            "platUID": constraints.PlatformUIDConstrOptional,
+        }
     }, {
         "path": "/checkPlatform",
         "constraints": {}
@@ -98,6 +112,7 @@ var filter = {
             "session.email": constraints.emailConstrRequested,
             "session.deviceid": constraints.ExcludeSpecialCharactersRequested,
             "session.appName": {},
+            "session.docker_image": {},
             "nfs": {
                 presence: true
             },
@@ -131,13 +146,14 @@ var filter = {
             "tasks": {
                 "isArray": true,
                 "array": {
-                    "packageName": constraints.packageNameConstrRequested,
+                    "packageName": constraints.pathConstrRequested,
                     "unum": constraints.NaturalNumberConstrRequested,
                     "task": {
                         "inclusion": {
                             "within": ["0", "1", 0, 1]
                         }
-                    }
+                    },
+                    "filename": constraints.pathConstrOptional
                 }
             }
         }

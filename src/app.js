@@ -4,10 +4,14 @@ var async = require('async');
 var fs = require('fs');
 var validate = require("validate.js");
 var Platform = require('./platform.js');
+const machineModule = require('./machine.js');
 var ThreadedLogger = require('./ThreadedLogger.js');
 var http = require('./http.js');
 var Common = require('./common.js');
 const path = require('path');
+const { logger } = require('./common.js');
+const { execDockerCmd , ExecCmdError } = require('./dockerUtils');
+const { stdout } = require('process');
 
 module.exports = {
     installApk: installApk,
@@ -73,7 +77,7 @@ var tryInstallApk = function(apkPath, retries, wait, logger, callback) {
                         callback(null);
                     }
                 } else {
-                    disableUserZero(apkPath,platform,logger);
+                    //disableUserZero(apkPath,platform,logger);
                     callback(null);
                 }
             });
@@ -133,7 +137,85 @@ var detachApps = function(req, res) {
 
 };
 
+
+var installAppInBackgrond = function(containerId,installTarget) {    
+    
+    execDockerCmd(
+        ['exec' , containerId, '/usr/bin/apt', 'install' , '-y' , installTarget]
+    ).then(obj => {
+        const { stdout, stderr } = obj;
+        logger.info(`Installed package ${installTarget} on container ${containerId}.\nstdout: ${stdout}\nstderr: ${stderr}`);
+    }).catch(e => {
+        const {err,stdout,stderr} = e;
+        logger.info(`Error installing package ${installTarget} on container ${containerId}.\nError: ${e}\nstdout: ${stdout}\nstderr: ${stderr}`);
+    });
+    
+}
+
+var processTasksDocker = async function(tasks, logger) {
+    let errFlag = false;
+    let results = [];
+    for (const task of tasks) {
+        try {
+            logger.info(`processTasksDocker task: ${JSON.stringify(task,null,2)}`);
+            // load the user session
+            let session = await require('./user').loadUserSessionPromise(task.unum,logger);
+            const containerId = session.params.containerId;
+
+            if (INSTALL_TASK.indexOf(task.task) !== -1) {
+                let installTarget = task.packageName;                
+                if (task.filename) {
+                    // we will need to copy the file into the container
+                    let debPath = path.resolve("./debs",task.filename);
+                    installTarget = `/root/${task.filename}`;
+
+                    await execDockerCmd(
+                        ['cp' , debPath, `${containerId}:${installTarget}`]
+                    );
+                }
+                // run the install command
+                logger.info(`Installing in background. package: ${installTarget}, container: ${containerId}`);
+                installAppInBackgrond(containerId,installTarget);                
+                task.status = 1;
+            } else if (UNINSTALL_TASK.indexOf(task.task) !== -1) {
+                // run the install command
+                const { stdout, stderr } = await execDockerCmd(
+                    ['exec' , containerId, '/usr/bin/apt', 'purge' , '-y', task.packageName]
+                );
+                logger.info(`Uninstalled package ${task.packageName} on container ${containerId}.\nstdout: ${stdout}\nstderr: ${stderr}`);
+                task.status = 1;
+            } else {
+                task.status = 0;
+                task.statusMsg = "Bad task";
+                errFlag = true;
+            }
+        } catch (err) {
+            logger.info(`processTasksDocker. Error execute task: ${err}`);
+            if (err instanceof ExecCmdError) {
+                logger.info(`processTasksDocker. stdout: ${err.stdout}\n stderr: ${err.stderr}`);
+            }
+            task.status = 0;
+            task.statusMsg = `${err}`;            
+            errFlag = true;
+        }
+        results.push(task);
+    }
+    return({
+        errFlag,
+        results
+    });
+}
+
 var processTasks = function(tasks, logger, callback) {
+    if (machineModule.isDockerPlatform()) {
+        processTasksDocker(tasks,logger).then((result) => {
+            const {results, errFlag } = result;
+            callback(null, results, errFlag);
+        }).catch(err => {
+            callback(null, [], true);
+        });
+        return;
+    }
     var platform = new Platform(logger);
     var results = [];
     var errFlag = false;
@@ -141,7 +223,7 @@ var processTasks = function(tasks, logger, callback) {
         tasks,
         function(task, callback) {
             var cmd;
-            logger.info("processTasks task: ", task);
+            logger.info(`processTasks task: ${JSON.stringify(task,null,2)}`);
             if (INSTALL_TASK.indexOf(task.task) !== -1) {
                 platform.execFile("pm", ["install", "--user", task.unum, task.packageName], function(err, stdout, stderr) {
                     if (err) {

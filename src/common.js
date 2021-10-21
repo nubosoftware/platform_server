@@ -4,6 +4,7 @@ var fs = require('fs');
 var path = require('path');
 var async = require('async');
 var _ = require('underscore');
+var fsp = require('fs').promises;
 
 var Common = {
     "sslCerts": {
@@ -38,7 +39,7 @@ const myFormat = printf(info => {
 
 Common.intLogger = createLogger({
     format: combine(
-        //label({ label:  Common.path.basename(scriptName, '.js') }),
+        //label({ label:  path.basename(scriptName, '.js') }),
         timestamp(),
         myFormat
     ),
@@ -154,31 +155,96 @@ function to_array(args) {
     return arr;
 }
 
+async function fileExists(filepath) {
+    try {
+        await fsp.access(filepath);
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
+
+async function fileMoveIfNedded(newFilePath,oldFilePath) {
+    let exists = await fileExists(newFilePath);
+    if (exists) {
+        return;
+    }
+    let oldExists = await fileExists(oldFilePath);
+    if (oldExists) {
+        console.log(`Moving file ${oldFilePath} to new location at: ${newFilePath}`);
+        let dir = path.dirname(newFilePath);
+        await fsp.mkdir(dir,{recursive: true});
+        await fsp.copyFile(oldFilePath,newFilePath);
+        await fsp.unlink(oldFilePath);
+        return;
+    } else {
+        throw new Error(`File not found in both old location: ${oldFilePath} and new location: ${newFilePath}`);
+    }
+}
+
+
+
+const DOCKERKEY = '/etc/.nubo/.docker';
+
+async function checkDockerConf() {
+    if (!Common._isDockerChecked) {
+        let isDocker = await fileExists(DOCKERKEY);
+        Common.isDocker = true;
+        let settingsFileName;
+        if (isDocker) {
+            console.log("Runnig in a docker container");
+            settingsFileName = path.join(Common.rootDir,'conf','Settings.json');
+            // move file if needed
+            const oldfileLocation = path.join(Common.rootDir,'Settings.json');
+            await fileMoveIfNedded(settingsFileName,oldfileLocation);           
+        } else {
+            Common.isDocker = false;
+            settingsFileName = path.join(Common.rootDir,'Settings.json');
+        }  
+        Common._isDockerChecked = true;
+        Common.settingsFileName = settingsFileName;
+    }
+}
+
+var watcher;
+
 function parse_configs() {
     //logger.info('Load settings from file');
     var msg;
-    fs.readFile('Settings.json', function(err, data) {
-        if(err) {
-            Common.logger.error('Error: Cannot load settings from file');
-            return;
-        }
-        msg = data.toString().replace(/[\n|\t]/g, '');
-        var settings = JSON.parse(msg);
-        if(settings.logLevel && (settings.logLevel !== Common.logLevel)) logger.level = settings.logLevel;
-        Common.logger.debug(settings);
+    checkDockerConf().then(() => {
+        fs.readFile(Common.settingsFileName, function (err, data) {
+            if (err) {
+                Common.logger.error('Error: Cannot load settings from file');
+                return;
+            }
+            msg = data.toString().replace(/[\n|\t]/g, '');
+            var settings = JSON.parse(msg);
+            if (settings.logLevel && (settings.logLevel !== Common.logLevel)) logger.level = settings.logLevel;
+            Common.logger.debug(settings);
 
-        // load all attributes of settings in to Common
-        for(var attrname in settings) {
-            Common[attrname] = settings[attrname];
-        }
+            // load all attributes of settings in to Common
+            for (var attrname in settings) {
+                Common[attrname] = settings[attrname];
+            }
 
-        if(firstTimeLoad) {
-        }
+            if (firstTimeLoad) {
+                watcher = fs.watchFile(Common.settingsFileName, {
+                    persistent: false,
+                    interval: 5007
+                }, function (curr, prev) {
+                    logger.info('Settings.json. the current mtime is: ' + curr.mtime);
+                    logger.info('Settings.json. the previous mtime was: ' + prev.mtime);
+                    parse_configs();
+                });
+            }
 
-        if(Common.loadCallback)
-            Common.loadCallback(null, firstTimeLoad);
+            if (Common.loadCallback)
+                Common.loadCallback(null, firstTimeLoad);
 
-        firstTimeLoad = false;
+            firstTimeLoad = false;
+        });
+    }).catch(err => {
+        Common.logger.error(`Fatal error: cannot find Settings.json: ${err}`, err);
     });
 }
 Common.exitJobs = [];
@@ -195,14 +261,7 @@ Common.quit = function() {
 
 parse_configs();
 
-var watcher = fs.watchFile('Settings.json', {
-    persistent: false,
-    interval: 5007
-}, function(curr, prev) {
-    logger.info('Settings.json. the current mtime is: ' + curr.mtime);
-    logger.info('Settings.json. the previous mtime was: ' + prev.mtime);
-    parse_configs();
-});
+
 
 module.exports = Common;
 

@@ -6,6 +6,7 @@
   "dependencies": {
     "accesslog": "0.0.2",
     "async": "^2.0.0-rc.3",
+    "dockerode": "^3.3.1",
     "jsonwebtoken": "^8.5.1",
     "nubo-validateConstraints": "https://na01.nubosoftware.com:4872/nubo-validateConstraints/-/nubo-validateConstraints-0.0.36.tgz",
     "pem": "^1.14.4",

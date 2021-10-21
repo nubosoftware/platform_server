@@ -66,7 +66,7 @@ function isMounted(dir, platform, callback) {
     });
 }
 
-function umount(dir, platform, callback) {
+function umount(dir, callback) {
     function try_unmount(dirs, tries, callback) {
         if (tries <= 0) {
             var msg = "Cannot umount directories " + dirs;
@@ -111,11 +111,11 @@ function umount(dir, platform, callback) {
             );
         }
     }
-    if(platform === null) {
+    /*if(platform === null) {
         var msg = "umount: platform is not defined";
         callback(msg);
         return;
-    }
+    }*/
     var dir_arr;
     if (util.isArray(dir)) {
         dir_arr = dir;
@@ -233,6 +233,70 @@ function externalMounts(login, session, callback) {
         callback(null);
     }
 }
+
+
+async function linuxMount(session) {
+    let login = session.login;
+    let localid = session.params.localid;    
+    let email = login.email;
+    let deviceID = session.params.deviceid;
+    let nfs;
+    let nfshomefolder;    
+    if (session.nfs) {
+        nfs = session.nfs.nfs_ip;
+        nfshomefolder = session.nfs.nfs_path;
+    } else {
+        throw new Error("Missing session.nfs params");
+    }
+    if (nfs != "local") {
+        var nfsprefix = nfs + ":" + nfshomefolder + "/";
+        var userDeviceDataFolder = getUserHomeFolder(email) + deviceID + "/";    
+        session.params.nfsHomeFolder = nfsprefix + userDeviceDataFolder;
+        let nfsSrc = [session.params.nfsHomeFolder];
+        session.params.homeFolder = "/rdp/homes/"+session.params.linuxUserName;
+        let nfsDst = [session.params.homeFolder];
+        var nfsoptions = "nolock,hard,intr,vers=4,noatime,async,fsc";
+        logger.info(`linuxMount. nfs: ${session.params.nfsHomeFolder}, local: ${session.params.homeFolder} `);
+        await mountHostNfsPromise(nfsSrc, nfsDst, nfsoptions);
+    } else {
+        // if this a local path we do not need to mount to nfs, just set the properties
+        session.params.nfsHomeFolder = "local";
+        session.params.homeFolder = path.join(nfshomefolder,getUserHomeFolder(email),deviceID);
+    }
+
+}
+
+
+function mountHostNfsPromise(nfsSrc, nfsDst, nfsoptions) {
+    return new Promise((resolve,reject) => {
+        mountHostNfs(nfsSrc, nfsDst, nfsoptions, function(err) {
+            if (err) {
+                reject(err);
+            } else {
+                resolve();
+            }
+        });
+    });    
+}
+
+
+function linuxUMount(dir) {    
+    return new Promise((resolve,reject) => {
+        var dirs = [
+            dir      
+        ];
+        umount(dirs, function(err){
+            if (err) {
+                reject(err);
+            } else {
+                resolve();
+            }
+        });
+    });
+}
+
+
+
 
 function fullMount(session, keys, callback) {
     var login = session.login;
@@ -421,7 +485,7 @@ function fullUmount(session, user, callback) {
         "/Android/data/media/" + UNum,
         "/Android/data/mnt/nfs/" + UNum
     ];
-    umount(dirs, platform, callback);
+    umount(dirs, callback);
 }
 
 function getUserHomeFolder(email) {
@@ -754,5 +818,7 @@ module.exports = {
     isMounted : isMounted,
     fullMount : fullMount,
     fullUmount : fullUmount,
-    mountHostNfs: mountHostNfs
+    mountHostNfs: mountHostNfs,
+    linuxMount,
+    linuxUMount
 };

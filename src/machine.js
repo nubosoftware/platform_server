@@ -12,10 +12,16 @@ var Platform = require('./platform.js');
 var fs = require('fs');
 var common = require('./common.js');
 const si = require('systeminformation');
-const { readdir, unlink } = require('fs/promises');
+const { readdir, unlink, writeFile, readFile, mkdir } = require('fs/promises');
+const { logger } = require("./common.js");
+const DockerUtils = require('./dockerUtils');
+const docker = DockerUtils.docker;
+
 
 var flagInitAndroidStatus = 0; // 0: not yet done, 1: in progress, 2: done
 var RESTfull_message = "the platform not yet initialized";
+
+var machineConf = null;
 
 function startPlatformGet(req, res) {
     var resobj = {
@@ -29,6 +35,11 @@ function startPlatformGet(req, res) {
 function startPlatformPost(req, res) {
     var logger = new ThreadedLogger(common.getLogger(__filename));
     var requestInProgress = true;
+
+    if (req.body.platType == "docker") {
+        startDockerPlatform(req, res);
+        return;
+    }
 
     if (flagInitAndroidStatus > 0) {
         var resobj = { status: 0 };
@@ -103,6 +114,191 @@ function startPlatformPost(req, res) {
         });
 }
 
+async function startDockerPlatform(req, res) {
+    let resobj = {
+        status: 0.,
+        msg: "Internal error"
+
+    };
+    let requestObj = req.body;
+    try {
+        
+        startDockerPlatformImp(requestObj);
+        requestObj.unumCnt = 10;
+
+        // write machine conf to file to read in case of restart of platform server
+        await saveMachineConf(requestObj);
+        
+
+        resobj.status = 1;
+        resobj.msg = `Linux platform runnung with containers`;
+        logger.info(resobj.msg);
+    } catch (err) {
+        logger.error("Error during start platform: " + err);
+        resobj.status = 0;
+        resobj.msg = err;
+    }
+    res.end(JSON.stringify(resobj, null, 2));
+}
+
+
+async function startDockerPlatformImp(requestObj) {
+    logger.info(`startDockerPlatform. requestObj: ${JSON.stringify(requestObj,null,2)}`);
+    let registryURL = requestObj.registryURL;
+    if (!registryURL) {
+        registryURL = 'lrdp1.nubosoftware.com:5000'; // test env value
+    }
+    // create network NuboNetwork
+    /*let nets = await docker.listNetworks()
+    //console.log(`networks: ${JSON.stringify(nets,null,2)}`);
+    let nuboNet = null;
+    nets.forEach(function (net) {
+        if (net.Name == "NuboNetwork") {
+            logger.info(`Found NuboNetwork network`)
+            nuboNet = net;
+        }
+    });
+    if (!nuboNet) {
+        let net = await docker.createNetwork({ Name: "NuboNetwork" });
+        logger.info(`Created NuboNetwork network`)
+        nuboNet = net;
+    }
+
+    logger.info(`Pulling initial images from registry at ${registryURL}`);
+    await DockerUtils.pullImage(registryURL + '/nubo/guacd');
+    //await DockerUtils.pullImage(registryURL + '/nubo/nuboxrdp');
+
+    // create container for guacamole proxy
+    let imageName = registryURL + '/nubo/guacd:latest';
+    let guacd = null;
+    let containers = await docker.listContainers();
+    containers.forEach(function (container) {
+        if (container.Image == imageName) {
+            logger.info(`Found running guacamole proxy (guacd) container`);
+            guacd = container;
+        }
+    });
+    if (guacd == null) {
+        logger.info(`Creating guacamole proxy (guacd) container`);
+        guacd = await docker.createContainer({
+            Image: imageName,
+            AttachStdin: false,
+            AttachStdout: true,
+            AttachStderr: true,
+            Tty: true,
+            OpenStdin: false,
+            StdinOnce: false,
+            HostConfig: {
+                PortBindings: {
+                    "4822/tcp": [
+                        {
+                            "HostPort": "4822"
+                        }
+                    ]
+                },
+                NetworkMode: "NuboNetwork"
+            }
+        });
+        //console.log(`guacd container created: ${JSON.stringify(container, null, 2)}`);
+        let data = await guacd.start();
+    }*/
+    // mount debs folder
+    let debsFolder = path.resolve("./debs");
+    //logger.info(`Mount debs folder..`);
+    if (requestObj.nfs.nfs_ip != "local") {
+        await mkdir(debsFolder,{recursive: true});
+        await mountDebsFolder(requestObj.nfs,debsFolder);
+    } else {
+        // if it local address do not mount but create a symlink
+        try {
+            await fs.promises.unlink(debsFolder);
+            await fs.promises.symlink(debsFolder, path.join(nfs.nfs_path,"debs"));
+        } catch (e) {
+            logger.info(`Error create symlink for debs folder: ${e}`);
+        }
+    }
+    logger.info(`Debs folder mounted at ${debsFolder}`);
+}
+
+function mountDebsFolder(nfs,dstFolder) {
+    return new Promise((resolve, reject) => {
+        var nfsoptions = "nolock,hard,intr,noatime,async";        
+        var src = [
+            nfs.nfs_ip + ":" + nfs.nfs_path + "/debs"
+        ];
+        var dst = [
+            dstFolder
+        ];
+        require('./mount.js').mountHostNfs(src, dst, nfsoptions, function (err) {
+            if (err) {
+                logger.error("Cannot mount debs, err: " + err);
+                reject(err);
+                return;
+            }
+            resolve();
+        });
+    });
+}
+
+
+
+async function initMachine() {
+    try {        
+        let machineConfStr = await readFile("./machine.conf","utf8");
+        let conf = JSON.parse(machineConfStr);        
+        if (conf.platType == "docker") {
+            logger.info(`Loaded previous started machine with platType: ${conf.platType}`);
+            await startDockerPlatformImp(conf);
+        }
+        machineConf = conf;
+    } catch (err) {
+        logger.info(`initMachine cannot load machine details: ${err}`);
+    }
+}
+
+async function deinitMachine(params) {
+    try {
+        if (!machineConf) {
+            throw new Error("machineConf not defined");
+        }
+        if (machineConf.platid != params.platid) {
+            throw new Error(`platid mismatch. Current: ${machineConf.platid}, Requested: ${params.platid}`);
+        }
+        if (machineConf.platUID != params.platUID) {
+            throw new Error(`platUID mismatch. Current: ${machineConf.platUID}, Requested: ${params.platUID}`);
+        }
+        logger.info(`deinitMachine. platid: ${params.platid}, platUID: ${params.platUID}`);
+        await deleteOldContainers(machineConf);
+        machineConf = null;
+        await deleteOldSessionFile(logger);
+        await unlink("./machine.conf");
+        let debsFolder = path.resolve("./debs");
+        if (machineConf.nfs && machineConf.nfs.nfs_ip != "local") {
+            await require('./mount').linuxUMount(debsFolder);
+        }
+    } catch (err) {
+        logger.info(`deinitMachine error: ${err}`);
+        throw err;
+    }
+}
+
+async function deleteOldContainers(machineConf) {
+    
+    //lrdp1.nubosoftware.com:5000/nubo/user
+    const registryURL = machineConf.registryURL;
+    const imageName = registryURL + '/nubo/user';
+    let containers = await docker.listContainers();
+    for (const container of containers) {
+        if (container.Image.startsWith(imageName)) {
+            logger.info(`Found running user container: ${container.Id}. Closing it`);
+            let sesscontainer = docker.getContainer(container.Id);
+            await sesscontainer.stop();
+            await sesscontainer.remove();
+        }
+    }
+}
+
+
 async function deleteOldSessionFile(logger) {
     try {
         const mainDir = './sessions';
@@ -116,15 +312,25 @@ async function deleteOldSessionFile(logger) {
             }
         }
     } catch (err) {
-        logger.error("deleteOldSessionFile error", err);
+        logger.error("deleteOldSessionFile error", err);    
     }
 }
 
-function killPlatform(req, res) {
-    var resobj;
-    resobj.status = 0;
-    resobj.msg = "Not implemented";
-    res.end(JSON.stringify(resobj, null, 2));
+function killPlatform(req, res) {    
+    deinitMachine(req.body).then(() => {
+        var resobj = {
+            status: 0,
+            msg: "Platform killed"
+        }
+        res.end(JSON.stringify(resobj, null, 2));
+    }).catch(err => {
+        var resobj = {
+            status: 1,
+            msg: err.toString()
+        }        
+        res.end(JSON.stringify(resobj, null, 2));
+    });
+   
 }
 
 function fixHostsFile(path, ip, managementUrl, callback) {
@@ -452,14 +658,40 @@ var afterInitAndroid = function(reqestObj, logger, callback) {
     );
 };
 
+
+function isDockerPlatform() {
+    if (machineConf && machineConf.platType == "docker") {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+function getMachineConf() {
+    return machineConf;
+}
+
+async function saveMachineConf(requestObj) {
+    machineConf = requestObj;
+    await writeFile("./machine.conf",JSON.stringify(requestObj,null,2));    
+}
+
 function checkPlatform(req, res) {
     var logger = new ThreadedLogger(common.getLogger(__filename));
     logger.info("Running checkPlatform");
+    let platType = "N7";
+    if (machineConf && machineConf.platType) {
+        platType = machineConf.platType;
+    }
     var platform = new Platform(logger);
     let performance;
     async.series( [
         // check the ability to run pm commands on the android shell
         (cb) => {
+            if (platType == "docker") {
+                cb(null);
+                return;
+            }
             platform.execFile("pm", ["list", "users"], function(err, stdout, stderr) {
                 var resobj;
                 if (err) {
@@ -692,5 +924,9 @@ module.exports = {
     startPlatformGet: startPlatformGet,
     startPlatformPost: startPlatformPost,
     killPlatform: killPlatform,
-    checkPlatform: checkPlatform
+    checkPlatform: checkPlatform,
+    initMachine,
+    isDockerPlatform,
+    getMachineConf,
+    saveMachineConf
 };
