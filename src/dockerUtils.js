@@ -80,9 +80,10 @@ function followProgress(stream) {
 }
 async function pullImage(fullName) {
     //let fullName = registryURL + imageName;
-    let stream = await docker.pull(fullName);
-    let output = await followProgress(stream);
+    //let stream = await docker.pull(fullName);
+    //let output = await followProgress(stream);
     //console.log(`Pull result: ${output}`);
+    await execDockerCmd(['pull',fullName]);
     
     return;
 }

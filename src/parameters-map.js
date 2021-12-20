@@ -19,6 +19,8 @@ var filter = {
                     "maximum": 255
                 }
             },
+            "registryUser": {},
+            "registryPassword": {},
             "platid": constraints.platIdConstrRequested,
             "platUID": constraints.requestedPlatformUIDConstr,
             "gateway": {

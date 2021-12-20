@@ -14,8 +14,7 @@ var common = require('./common.js');
 const si = require('systeminformation');
 const { readdir, unlink, writeFile, readFile, mkdir } = require('fs/promises');
 const { logger } = require("./common.js");
-const DockerUtils = require('./dockerUtils');
-const docker = DockerUtils.docker;
+const {docker, execDockerCmd } = require('./dockerUtils');
 
 
 var flagInitAndroidStatus = 0; // 0: not yet done, 1: in progress, 2: done
@@ -147,6 +146,13 @@ async function startDockerPlatformImp(requestObj) {
     let registryURL = requestObj.registryURL;
     if (!registryURL) {
         registryURL = 'lrdp1.nubosoftware.com:5000'; // test env value
+    }
+    let registryUser = requestObj.registryUser;
+    let registryPassword = requestObj.registryPassword;
+    if (registryUser && registryPassword) {
+        // login to the registry
+        logger.info(`Running docker login...`);
+        await execDockerCmd(['login', '-u', registryUser, '-p',registryPassword,registryURL]);
     }
     // create network NuboNetwork
     /*let nets = await docker.listNetworks()
