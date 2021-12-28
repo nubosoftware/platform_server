@@ -274,8 +274,7 @@ async function deinitMachine(params) {
             throw new Error(`platUID mismatch. Current: ${machineConf.platUID}, Requested: ${params.platUID}`);
         }
         logger.info(`deinitMachine. platid: ${params.platid}, platUID: ${params.platUID}`);
-        await deleteOldContainers(machineConf);
-        machineConf = null;
+        await deleteOldContainers(machineConf);        
         await deleteOldSessionFile(logger);
         await unlink("./machine.conf");
         let debsFolder = path.resolve("./debs");
@@ -285,6 +284,8 @@ async function deinitMachine(params) {
     } catch (err) {
         logger.info(`deinitMachine error: ${err}`);
         throw err;
+    } finally {
+        machineConf = null;
     }
 }
 
@@ -934,5 +935,6 @@ module.exports = {
     initMachine,
     isDockerPlatform,
     getMachineConf,
-    saveMachineConf
+    saveMachineConf,
+    deinitMachine
 };

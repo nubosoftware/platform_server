@@ -160,13 +160,32 @@ var mainFunction = function(err, firstTimeLoad) {
         Common.listenAddresses,
         initPortListener
     );
+     
 
     process.on('SIGINT', function() {
-        logger.info("restserver caught interrupt signal");
-        Common.quit();
+        logger.info("Restserver caught SIGINT signal");
+        exitServer();
+    });
+    process.on('SIGTERM', function() {
+        logger.info("Restserver caught SIGTERM signal");
+        exitServer();
     });
 
 };
+
+async function exitServer() {
+    try {
+        if (machineModule.isDockerPlatform()) {
+            let machineConf = machineModule.getMachineConf();
+            if (machineConf) {
+                await machineModule.deinitMachine(machineConf);
+            }
+        }
+    } catch (err) {
+        logger.error(`exitServer error: ${err}`, err);
+    }
+    Common.quit();
+}
 
 var checkCerts = function (sslCerts,cb)  {
     let item;
