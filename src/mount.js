@@ -9,7 +9,7 @@ var Common = require('./common.js');
 var logger = Common.getLogger(__filename);
 var fs = require('fs');
 var validate = require("validate.js");
-var constraints = require("nubo-validateConstraints")(true);
+var constraints = require('@nubosoftware/nubo-validateconstraints')(validate);
 const path = require('path');
 
 

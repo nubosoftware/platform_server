@@ -18,8 +18,9 @@ var createNewUserTarGzModule = require('./createNewUserTarGz.js');
 var jwt = require('jsonwebtoken');
 const pem = require('pem');
 var vpn = require('./vpn.js');
+var validate = require('validate.js');
 
-var filterModule = require('permission-parser');
+var filterModule = require('@nubosoftware/permission-parser');
 
 
 var filterLog = function(msg) {
@@ -37,24 +38,11 @@ var bodyFilterOpts = {
     logd: filterLog,
     mode: filterModule.mode.BODY
 };
-var urlFilterObj = new filterModule.filter([], urlFilterOpts);
-var bodyFilterObj = new filterModule.filter([], bodyFilterOpts);
+var urlFilterObj = new filterModule.filter([], urlFilterOpts,validate);
+var bodyFilterObj = new filterModule.filter([], bodyFilterOpts,validate);
 var filterFile = "./parameters-map.js";
 
-/*function watchFilterFile() {
-    fs.watchFile(filterFile, {
-        persistent: false,
-        interval: 5007
-    }, function(curr, prev) {
-        logger.info(filterFile + ' been modified');
-        refresh_filter();
-    });
-}*/
-
-var refresh_filter = function() {
-    /*try {
-        delete require.cache[require.resolve(filterFile)];
-    } catch (e) {}*/
+var refresh_filter = function() {    
 
     var obj;
     try {
@@ -63,7 +51,7 @@ var refresh_filter = function() {
         logger.error('Error: Cannot load ' + filterFile + ' file, err: ' + e);
         return;
     }
-    //console.log("obj: " + JSON.stringify(obj));
+    //console.log("parameters-map: " + JSON.stringify(obj));
 
     var permittedMode = Common.parametersMapPermittedMode ? Common.parametersMapPermittedMode : false;
 
@@ -83,7 +71,6 @@ var mainFunction = function(err, firstTimeLoad) {
     if (!firstTimeLoad) // execute the following code only in the first time
         return;
 
-    //watchFilterFile();
 
     var initPortListener = function(listenAddress, callback) {
         async.waterfall(

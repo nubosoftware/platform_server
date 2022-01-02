@@ -320,7 +320,7 @@ function getPackagesList(req, res) {
 
 var validateAttachAppsRequestObj = function(reqestObj, logger, callback) {
     var validate = require("validate.js");
-    var constraints = require("nubo-validateConstraints");
+    var constraints = require("@nubosoftware/nubo-validateconstraints")(validate);
 
     var constraint = {
         tasks: {

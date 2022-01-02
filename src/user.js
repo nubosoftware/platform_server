@@ -182,7 +182,7 @@ async function detachUserDocker(unum) {
     let logger = Common.getLogger(__filename);
     logger.info(`detachUserDocker. unum: ${unum} `);
     let session = await loadUserSessionPromise(unum,logger);
-    logger.info(`detachUserDocker. session loaded: ${JSON.stringify(session,null,2)}`);
+    //logger.info(`detachUserDocker. session loaded: ${JSON.stringify(session,null,2)}`);
     if (session.params.containerId) {
         logger.info(`detachUserDocker. Stopping container ${session.params.containerId}`);
         let sesscontainer = await docker.getContainer(session.params.containerId);

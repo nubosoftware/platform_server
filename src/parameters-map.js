@@ -1,5 +1,6 @@
 "use strict";
-var constraints = require("nubo-validateConstraints")(false);
+let validate = require('validate.js');
+var constraints = require("@nubosoftware/nubo-validateconstraints")(validate);
 
 var filter = {
     "rules": [{
@@ -100,13 +101,7 @@ var filter = {
                     "maximum": 256
                 }
             },
-            "login.localevar": {
-                "format": "^[.a-zA-Z0-9_\\-]+$",
-                "length": {
-                    "minimum": 1,
-                    "maximum": 256
-                }
-            },
+            "login.localevar": { },
             "login.deviceType": constraints.ExcludeSpecialCharactersOptional,
             "session": {
                 presence: true

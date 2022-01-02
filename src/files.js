@@ -61,7 +61,7 @@ var processRefreshMedia = function(obj, logger, callback) {
 
 var validateRefreshMediaRequestObj = function(reqestObj, logger, callback) {
     var validate = require("validate.js");
-    var constraints = require("nubo-validateConstraints");
+    var constraints = require("@nubosoftware/nubo-validateconstraints")(validate);
 
     var constraint = {
         unum: constraints.IndexConstrRequested,

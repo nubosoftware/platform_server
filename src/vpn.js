@@ -1,7 +1,6 @@
 "use strict";
 
-var validate = require("validate.js");
-var constraints = require("nubo-validateConstraints");
+
 var async = require('async');
 var Platform = require('./platform.js');
 var ThreadedLogger = require('./ThreadedLogger.js');

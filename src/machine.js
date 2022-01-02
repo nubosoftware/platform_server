@@ -142,7 +142,7 @@ async function startDockerPlatform(req, res) {
 
 
 async function startDockerPlatformImp(requestObj) {
-    logger.info(`startDockerPlatform. requestObj: ${JSON.stringify(requestObj,null,2)}`);
+    //logger.info(`startDockerPlatform. requestObj: ${JSON.stringify(requestObj,null,2)}`);
     let registryURL = requestObj.registryURL;
     if (!registryURL) {
         registryURL = 'lrdp1.nubosoftware.com:5000'; // test env value
