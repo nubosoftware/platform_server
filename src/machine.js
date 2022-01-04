@@ -154,60 +154,10 @@ async function startDockerPlatformImp(requestObj) {
         logger.info(`Running docker login...`);
         await execDockerCmd(['login', '-u', registryUser, '-p',registryPassword,registryURL]);
     }
-    // create network NuboNetwork
-    /*let nets = await docker.listNetworks()
-    //console.log(`networks: ${JSON.stringify(nets,null,2)}`);
-    let nuboNet = null;
-    nets.forEach(function (net) {
-        if (net.Name == "NuboNetwork") {
-            logger.info(`Found NuboNetwork network`)
-            nuboNet = net;
-        }
-    });
-    if (!nuboNet) {
-        let net = await docker.createNetwork({ Name: "NuboNetwork" });
-        logger.info(`Created NuboNetwork network`)
-        nuboNet = net;
-    }
+    // make sure sessions folder created
+    let sessFolder = path.resolve("./sessions");
+    await mkdir(sessFolder,{recursive: true});
 
-    logger.info(`Pulling initial images from registry at ${registryURL}`);
-    await DockerUtils.pullImage(registryURL + '/nubo/guacd');
-    //await DockerUtils.pullImage(registryURL + '/nubo/nuboxrdp');
-
-    // create container for guacamole proxy
-    let imageName = registryURL + '/nubo/guacd:latest';
-    let guacd = null;
-    let containers = await docker.listContainers();
-    containers.forEach(function (container) {
-        if (container.Image == imageName) {
-            logger.info(`Found running guacamole proxy (guacd) container`);
-            guacd = container;
-        }
-    });
-    if (guacd == null) {
-        logger.info(`Creating guacamole proxy (guacd) container`);
-        guacd = await docker.createContainer({
-            Image: imageName,
-            AttachStdin: false,
-            AttachStdout: true,
-            AttachStderr: true,
-            Tty: true,
-            OpenStdin: false,
-            StdinOnce: false,
-            HostConfig: {
-                PortBindings: {
-                    "4822/tcp": [
-                        {
-                            "HostPort": "4822"
-                        }
-                    ]
-                },
-                NetworkMode: "NuboNetwork"
-            }
-        });
-        //console.log(`guacd container created: ${JSON.stringify(container, null, 2)}`);
-        let data = await guacd.start();
-    }*/
     // mount debs folder
     let debsFolder = path.resolve("./debs");
     //logger.info(`Mount debs folder..`);
