@@ -4,7 +4,7 @@
     "start": "node ./dist/restserver.js"
   },
   "dependencies": {
-    "@nubosoftware/nubo-validateconstraints": "^0.1.10",
+    "@nubosoftware/nubo-validateconstraints": "^0.1.12",
     "@nubosoftware/permission-parser": "^0.1.10",
     "accesslog": "0.0.2",
     "async": "^2.0.0-rc.3",

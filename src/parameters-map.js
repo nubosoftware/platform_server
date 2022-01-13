@@ -14,9 +14,9 @@ var filter = {
                 "inclusion": ["linux", "docker"]
             },
             "registryURL": {
-                "format": "^[.a-zA-Z0-9_\\-\:\/]+$",
+                "format": "^[.a-zA-Z0-9_\\-\:\/]+$|^$",
                 "length": {
-                    "minimum": 1,
+                    "minimum": 0,
                     "maximum": 255
                 }
             },
@@ -76,9 +76,9 @@ var filter = {
         "constraints": {},
         "bodyConstraints": {
             "timeZone": {
-                "format": "^[a-zA-Z0-9_\\-\/]+$",
+                "format": "^[a-zA-Z0-9_\\-\/]+$|^$",
                 "length": {
-                    "minimum": 1,
+                    "minimum": 0,
                     "maximum": 256
                 }
             },
@@ -88,16 +88,16 @@ var filter = {
             "login.userName": constraints.userNameConstrRequested,
             "login.email": {}, // not in use
             "login.lang": {
-                "format": "^[.a-zA-Z0-9_\\-]+$",
+                "format": "^[.a-zA-Z0-9_\\-]+$|^$",
                 "length": {
-                    "minimum": 1,
+                    "minimum": 0,
                     "maximum": 256
                 }
             },
             "login.countrylang": {
-                "format": "^[.a-zA-Z0-9_\\-]+$",
+                "format": "^[.a-zA-Z0-9_\\-]+$|^$",
                 "length": {
-                    "minimum": 1,
+                    "minimum": 0,
                     "maximum": 256
                 }
             },
@@ -211,9 +211,9 @@ var filter = {
                     },
                     "chain": {
                         "presence": true,
-                        "format": "^[A-Z0-9_]+$",
+                        "format": "^[A-Z0-9_]+$|^$",
                         "length": {
-                            "minimum": 1,
+                            "minimum": 0,
                             "maximum": 1000
                         }
                     },
@@ -229,16 +229,16 @@ var filter = {
                     "destination.ip": constraints.ipOptionalConstr,
                     "destination.port": constraints.portOptionalConstr,
                     "match": {
-                        "format": "^[.\ A-Za-z0-9,_\\-]+$",
+                        "format": "^[.\ A-Za-z0-9,_\\-]+$|^$",
                         "length": {
-                            "minimum": 1,
+                            "minimum": 0,
                             "maximum": 1000
                         }
                     },
                     "job": {
-                        "format": "^[.A-Z0-9_]+$",
+                        "format": "^[.A-Z0-9_]+$|^$",
                         "length": {
-                            "minimum": 1,
+                            "minimum": 0,
                             "maximum": 1000
                         }
                     }
