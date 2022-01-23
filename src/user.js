@@ -33,10 +33,14 @@ module.exports = {
 
 async function attachUserDocker(obj) {
     let logger = Common.getLogger(__filename);
-    logger.info(`attachUserDocker. obj: ${JSON.stringify(obj,null,2)}`);
+    //logger.info(`attachUserDocker. obj: ${JSON.stringify(obj,null,2)}`);
     let result = {
 
     };
+    let logMeta = {
+        user: obj.login.email,
+        mtype: "important"
+    }
     let machineConf = machineModule.getMachineConf();
 
     // get new unum
@@ -64,16 +68,16 @@ async function attachUserDocker(obj) {
     session.params.userPass = makeid(16);
     session.params.locale = `${session.login.lang}_${session.login.countrylang}.UTF-8`;
 
-    logger.info("Mount user home folder");
+    logger.log('info',"Mount user home folder");
     await mount.linuxMount(session);
-    logger.info(`User home folder mounted at ${session.params.homeFolder}`);
+    logger.log('info',`User home folder mounted at ${session.params.homeFolder}`,logMeta);
 
     await saveUserSessionPromise(unum,session);
     
       
     //let imageName = registryURL + '/nubo/nuboxrdp:latest';
     let imageName = `${registryURL}/nubo/${session.params.docker_image}`;
-    logger.info(`Pulling user image: ${imageName}`); 
+    logger.log('info',`Pulling user image: ${imageName}`,logMeta); 
     await pullImage(imageName);
 
     logger.info(`Creating session container`); 
@@ -101,7 +105,7 @@ async function attachUserDocker(obj) {
         throw new Error("createContainer failed");
     }
     //console.log(`container created: ${JSON.stringify(container,null,2)}`);
-    logger.info(`container created: ${container.id}`);
+    logger.log('info',`Container created: ${container.id}`,logMeta);
     //let stream = await container.attach({stream: true, stdout: true, stderr: true});
     //stream.pipe(process.stdout);
     let data = await container.start();
@@ -123,7 +127,7 @@ async function attachUserDocker(obj) {
         session.params.locale
         ]
     );
-    console.log(`Crete user. stdout: ${stdout}\n stderr: ${stderr}`);
+    //console.log(`Crete user. stdout: ${stdout}\n stderr: ${stderr}`);
 
     let xrdpStarted = false;
     let startTime = Date.now();
@@ -150,7 +154,8 @@ async function attachUserDocker(obj) {
     result.ipAddress = ipAddress;
     result.linuxUserName = linuxUserName;
     result.userPass = session.params.userPass;
-    logger.info(`Session created with active user: ${JSON.stringify(result,null,2)}`);
+    //logger.info(`Session created with active user: ${JSON.stringify(result,null,2)}`);
+    logger.log('info',`Session created on platform. ipAddress: ${ipAddress}, linuxUserName: ${linuxUserName}`,logMeta); 
     session.params.ipAddress = ipAddress;
     session.params.containerId = container.id;
     await saveUserSessionPromise(unum,session);
@@ -183,8 +188,13 @@ async function detachUserDocker(unum) {
     logger.info(`detachUserDocker. unum: ${unum} `);
     let session = await loadUserSessionPromise(unum,logger);
     //logger.info(`detachUserDocker. session loaded: ${JSON.stringify(session,null,2)}`);
+    let logMeta= {
+        user: session.params.email,
+        device: session.params.deviceid,
+        mtype: "important"
+    }
     if (session.params.containerId) {
-        logger.info(`detachUserDocker. Stopping container ${session.params.containerId}`);
+        logger.log('info',`detachUserDocker. Stopping container ${session.params.containerId}`,logMeta);
         let sesscontainer = await docker.getContainer(session.params.containerId);
         await sesscontainer.stop();
         await sesscontainer.remove();
@@ -198,9 +208,9 @@ async function detachUserDocker(unum) {
     if (session.params.linuxUserName) {
         delete machineConf.linuxUserName[session.params.linuxUserName];
         await machineModule.saveMachineConf(machineConf);
-    }
-    logger.info(`detachUserDocker. deleteSessionPromise...`);
+    }    
     await deleteSessionPromise(unum);
+    logger.log('info',`detachUserDocker. User removed.`,logMeta);
     return true;
 }
 
@@ -237,6 +247,7 @@ function attachUser(req, res) {
                 params: result
             };            
             res.end(JSON.stringify(resobj,null,2));
+            logger.logTime("Finish process request attachUser");
         }).catch(err => {
             logger.info(`Error on attachUserDocker: ${err}`);
             console.error(err);

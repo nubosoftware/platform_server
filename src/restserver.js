@@ -19,6 +19,7 @@ var jwt = require('jsonwebtoken');
 const pem = require('pem');
 var vpn = require('./vpn.js');
 var validate = require('validate.js');
+const axios = require('axios');
 
 var filterModule = require('@nubosoftware/permission-parser');
 
@@ -29,13 +30,13 @@ var filterLog = function(msg) {
 
 var urlFilterOpts = {
     loge: logger.error,
-    logd: filterLog,
+    //logd: filterLog,
     mode: filterModule.mode.URL
 };
 
 var bodyFilterOpts = {
     loge: logger.error,
-    logd: filterLog,
+    //logd: filterLog,
     mode: filterModule.mode.BODY
 };
 var urlFilterObj = new filterModule.filter([], urlFilterOpts,validate);
@@ -145,7 +146,11 @@ var mainFunction = function(err, firstTimeLoad) {
 
     async.eachSeries(
         Common.listenAddresses,
-        initPortListener
+        initPortListener,
+        function(err) {
+            // after finish listen - register to management
+            registerPlatform();            
+        }
     );
      
 
@@ -159,6 +164,105 @@ var mainFunction = function(err, firstTimeLoad) {
     });
 
 };
+
+let registeredPlatID;
+let registeredPlatIP;
+let registerRefreshInterval;
+
+async function registerPlatform(){
+    if (Common.registerParams) {
+        const params = Common.registerParams;
+        try {            
+            let platform_ip = params.platform_ip;
+            if (!platform_ip) {
+                platform_ip = await detectIP();
+            }
+            let response = await axios({
+                method: "get",
+                url: `${params.mgmtURL}/selfRegisterPlatform?platform_ip=${platform_ip}`,
+                headers: {
+                    'fe-user': params.user,
+                    'fe-pass': params.password
+                }       
+            });
+            if (response.data.status == "0" && response.data.platid) {
+                registeredPlatIP = platform_ip;
+                registeredPlatID = response.data.platid;                
+                logger.info(`Platform registered on management (${params.mgmtURL}). platid: ${registeredPlatID}, ip: ${registeredPlatIP}`);
+                startRegisterRefresh();
+            } else {
+                logger.info(`Unable to register on management (${params.mgmtURL}). status: ${response.data.status}, msg: ${response.data.msg}`);
+                setTimeout(registerPlatform,5000);
+            }
+        } catch (err) {
+            logger.error(`Unable to register on management (${params.mgmtURL}). err: ${err}`,err);
+            setTimeout(registerPlatform,5000);
+        }
+    }
+}
+
+
+/**
+ * Detect the local IP address
+ * Try to send request to management and get the localAddress from the socker
+ * @returns IP address
+ */
+async function detectIP() {
+    const params = Common.registerParams;
+    let response = await axios({
+        method: "get",
+        url: `${params.mgmtURL}/selfRegisterPlatformTtl?platform_ip=none&idx=99999`,
+        headers: {
+            'fe-user': params.user,
+            'fe-pass': params.password
+        } 
+    });
+    const ip = response.request.socket.localAddress;
+    logger.info(`Detected local ip address: ${ip} `);
+    return ip;
+}
+
+/**
+ * Refresh the platform registration on the server
+ * If refresh failed - re-register platform
+ */
+async function registerRefresh() {
+    const params = Common.registerParams;
+    try {
+        let response = await axios({
+            method: "get",
+            url: `${params.mgmtURL}/selfRegisterPlatformTtl?platform_ip=${registeredPlatIP}&idx=${registeredPlatID}`,
+            headers: {
+                'fe-user': params.user,
+                'fe-pass': params.password
+            }       
+        });
+        if (response.data.status == "0") {
+            //logger.info(`Updated...`);
+        } else {
+            logger.info(`Unable to refresh registration on management (${params.mgmtURL}). status: ${response.data.status}, msg: ${response.data.msg}`);
+            clearInterval(registerRefreshInterval);
+            registerRefreshInterval = null;
+            setTimeout(registerPlatform,5000);
+        }
+    } catch (err) {
+        logger.error(`Unable to refresh registration on management (${params.mgmtURL}). err: ${err}`,err);
+        clearInterval(registerRefreshInterval);
+        registerRefreshInterval = null;
+        setTimeout(registerPlatform,5000);
+    }
+}
+
+function startRegisterRefresh() {
+    if (registerRefreshInterval) {
+        clearInterval(registerRefreshInterval);
+        registerRefreshInterval = null;
+    }
+    
+    registerRefreshInterval = setInterval(registerRefresh,15000);
+}
+
+
 
 async function exitServer() {
     try {

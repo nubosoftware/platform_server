@@ -635,7 +635,7 @@ async function saveMachineConf(requestObj) {
 
 function checkPlatform(req, res) {
     var logger = new ThreadedLogger(common.getLogger(__filename));
-    logger.info("Running checkPlatform");
+    //logger.info("Running checkPlatform");
     let platType = "N7";
     if (machineConf && machineConf.platType) {
         platType = machineConf.platType;
