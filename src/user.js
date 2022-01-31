@@ -15,7 +15,9 @@ var http = require('./http.js');
 var Audio = require('./audio.js');
 var ps = require('ps-node');
 const machineModule = require('./machine.js');
-const { docker, pullImage, execDockerCmd} = require('./dockerUtils');
+const { docker, pullImage, execDockerCmd, ExecCmdError} = require('./dockerUtils');
+const fsp = fs.promises;
+const path = require('path');
 
 
 
@@ -59,108 +61,194 @@ async function attachUserDocker(obj) {
         logger: logger,
         nfs: obj.nfs,
         mounts: obj.mounts,
-        params: obj.session
+        params: obj.session,
         //xml_file_content: obj.xml_file_content
     };
     session.params.localid = unum;
-    session.params.linuxUserName = linuxUserName;
-    session.params.tz = obj.timeZone;
-    session.params.userPass = makeid(16);
-    session.params.locale = `${session.login.lang}_${session.login.countrylang}.UTF-8`;
-
-    logger.log('info',"Mount user home folder");
-    await mount.linuxMount(session);
-    logger.log('info',`User home folder mounted at ${session.params.homeFolder}`,logMeta);
-
-    await saveUserSessionPromise(unum,session);
-    
-      
-    //let imageName = registryURL + '/nubo/nuboxrdp:latest';
-    let imageName = `${registryURL}/nubo/${session.params.docker_image}`;
-    logger.log('info',`Pulling user image: ${imageName}`,logMeta); 
-    await pullImage(imageName);
-
-    logger.info(`Creating session container`); 
-    let container;
-    try {
-        container = await docker.createContainer({        
-            Image: imageName,
-            AttachStdin: false,
-            AttachStdout: true,
-            AttachStderr: true,
-            Tty: true,
-            OpenStdin: false,
-            StdinOnce: false,
-            HostConfig: {
-                Binds: [
-                    `${session.params.homeFolder}:/home/${linuxUserName}`                
-                ],
-                NetworkMode: "net_sess",
-                //Privileged: true
-            }
-        });
-    } catch (err) {
-        logger.info(`createContainer failed: ${err}`);
-        console.error(err);
-        throw new Error("createContainer failed");
-    }
-    //console.log(`container created: ${JSON.stringify(container,null,2)}`);
-    logger.log('info',`Container created: ${container.id}`,logMeta);
-    //let stream = await container.attach({stream: true, stdout: true, stderr: true});
-    //stream.pipe(process.stdout);
-    let data = await container.start();
-    //console.log(`container started: ${JSON.stringify(data, null, 2)}`);
+    if (session.login.deviceType == "Desktop") {
 
 
-    let sesscontainer = await docker.getContainer(container.id);
-    let cinsp = await sesscontainer.inspect();
-    let ipAddress = cinsp.NetworkSettings.Networks["net_sess"].IPAddress;
-    //console.log(`container inspect: ${JSON.stringify(cinsp,null,2)}`);
-    //console.log(`container inspect: ${JSON.stringify(sesscontainer,null,2)}`);
-    
-    
-    const { stdout, stderr } = await execDockerCmd(
-        ['exec' , container.id, '/usr/bin/create_rdp_user.sh',
-        linuxUserName,
-        session.params.userPass,
-        session.params.tz,
-        session.params.locale
-        ]
-    );
-    //console.log(`Crete user. stdout: ${stdout}\n stderr: ${stderr}`);
+        session.params.linuxUserName = linuxUserName;
+        session.params.tz = obj.timeZone;
+        session.params.userPass = makeid(16);
+        session.params.locale = `${session.login.lang}_${session.login.countrylang}.UTF-8`;
 
-    let xrdpStarted = false;
-    let startTime = Date.now();
-    do {
+        logger.log('info', "Mount user home folder");
+        await mount.linuxMount(session);
+        logger.log('info', `User home folder mounted at ${session.params.homeFolder}`, logMeta);
+
+        await saveUserSessionPromise(unum, session);
+
+
+        //let imageName = registryURL + '/nubo/nuboxrdp:latest';
+        let imageName = `${registryURL}/nubo/${session.params.docker_image}`;
+        logger.log('info', `Pulling user image: ${imageName}`, logMeta);
+        await pullImage(imageName);
+
+        logger.info(`Creating session container`);
+        let container;
         try {
-            await sleep(300);
-            //console.log(`check for supervisord.log`);
-            const logRes = await execDockerCmd(
-                ['exec' , container.id, 'tail', '-10',
-                '/var/log/supervisor/supervisord.log'
-                ]
-            );
-            //console.log(`supervisord.log: ${JSON.stringify(logRes,null,2)}`);
-            xrdpStarted = (logRes.stdout.indexOf("spawned: 'xrdp-sesman' with pid") >= 0); 
-        } catch (e) {
-            //console.error(e);
+            container = await docker.createContainer({
+                Image: imageName,
+                AttachStdin: false,
+                AttachStdout: true,
+                AttachStderr: true,
+                Tty: true,
+                OpenStdin: false,
+                StdinOnce: false,
+                HostConfig: {
+                    Binds: [
+                        `${session.params.homeFolder}:/home/${linuxUserName}`
+                    ],
+                    NetworkMode: "net_sess",
+                    //Privileged: true
+                }
+            });
+        } catch (err) {
+            logger.info(`createContainer failed: ${err}`);
+            console.error(err);
+            throw new Error("createContainer failed");
         }
+        //console.log(`container created: ${JSON.stringify(container,null,2)}`);
+        logger.log('info', `Container created: ${container.id}`, logMeta);
+        //let stream = await container.attach({stream: true, stdout: true, stderr: true});
+        //stream.pipe(process.stdout);
+        let data = await container.start();
+        //console.log(`container started: ${JSON.stringify(data, null, 2)}`);
 
 
-    } while ( !xrdpStarted && (Date.now() - startTime) < 30000  );
+        let sesscontainer = await docker.getContainer(container.id);
+        let cinsp = await sesscontainer.inspect();
+        let ipAddress = cinsp.NetworkSettings.Networks["net_sess"].IPAddress;
+        //console.log(`container inspect: ${JSON.stringify(cinsp,null,2)}`);
+        //console.log(`container inspect: ${JSON.stringify(sesscontainer,null,2)}`);
 
 
-    //console.log(`IP: ${ipAddress}, User: ${linuxUserName}, Password: ${session.params.userPass}`);
-    result.ipAddress = ipAddress;
-    result.linuxUserName = linuxUserName;
-    result.userPass = session.params.userPass;
-    //logger.info(`Session created with active user: ${JSON.stringify(result,null,2)}`);
-    logger.log('info',`Session created on platform. ipAddress: ${ipAddress}, linuxUserName: ${linuxUserName}`,logMeta); 
-    session.params.ipAddress = ipAddress;
-    session.params.containerId = container.id;
+        const { stdout, stderr } = await execDockerCmd(
+            ['exec', container.id, '/usr/bin/create_rdp_user.sh',
+                linuxUserName,
+                session.params.userPass,
+                session.params.tz,
+                session.params.locale
+            ]
+        );
+        //console.log(`Crete user. stdout: ${stdout}\n stderr: ${stderr}`);
+
+        let xrdpStarted = false;
+        let startTime = Date.now();
+        do {
+            try {
+                await sleep(300);
+                //console.log(`check for supervisord.log`);
+                const logRes = await execDockerCmd(
+                    ['exec', container.id, 'tail', '-10',
+                        '/var/log/supervisor/supervisord.log'
+                    ]
+                );
+                //console.log(`supervisord.log: ${JSON.stringify(logRes,null,2)}`);
+                xrdpStarted = (logRes.stdout.indexOf("spawned: 'xrdp-sesman' with pid") >= 0);
+            } catch (e) {
+                //console.error(e);
+            }
+
+
+        } while (!xrdpStarted && (Date.now() - startTime) < 30000);
+
+
+        //console.log(`IP: ${ipAddress}, User: ${linuxUserName}, Password: ${session.params.userPass}`);
+        result.ipAddress = ipAddress;
+        result.linuxUserName = linuxUserName;
+        result.userPass = session.params.userPass;
+        //logger.info(`Session created with active user: ${JSON.stringify(result,null,2)}`);
+        logger.log('info', `Session created on platform. ipAddress: ${ipAddress}, linuxUserName: ${linuxUserName}`, logMeta);
+        session.params.ipAddress = ipAddress;
+        session.params.containerId = container.id;
+    } else { // mobile user with docker
+
+        // mount user folder
+        logger.log('info', "Mount user home folder");
+        await mount.mobileMount(session);
+        logger.log('info', `User home folder mounted at ${session.params.homeFolder}`, logMeta);
+
+
+        // mount data.img as loop device
+        let loopDeviceNum;
+        const imgFilePath = path.join(session.params.homeFolder,'data.img');
+        const losetupRes = await execCmd('/usr/sbin/losetup',['-f','--show',imgFilePath]);
+        let re = new RegExp('/dev/loop([0-9]+)');
+        let m = re.exec(losetupRes.stdout);
+        if(m) {
+            loopDeviceNum = Number(m[1]);                      
+        } else {
+            throw new Error(`Error with losetup - cannot get loop device of data.img. losetupRes.stdout: ${losetupRes.stdout}, losetupRes.stderr: ${losetupRes.stderr}`);
+        }
+        let loopDeviceName = `/dev/loop${loopDeviceNum}`;
+        let { rdev } = await fsp.stat(loopDeviceName);
+        logger.log('info', `loopDeviceName: ${loopDeviceName}, loopDeviceNum: ${loopDeviceNum}, rdev: ${rdev}`);
+
+        // mount loop device into temp dir to add files to it
+        // const tmpData = path.resolve('./tmp/',unum);
+        // await fsp.mkdir(tmpData,{recursive: true});
+        // await execCmd('mount',loopDeviceName,tmpData);
+
+        // // create data dir if not exists
+        // const tmpDataDir = path.join(tmpData,'data');
+        // await fsp.mkdir(tmpDataDir,{recursive: true});
+
+        // if (!session.xml_file_content || session.xml_file_content.length == 0) {
+        //     throw new Error("xml_file_content not found!")
+        // }
+
+        // let xml_file = path.join(tmpDataDir,"Session.xml");
+        session.params.loopDeviceName = loopDeviceName;
+        await saveUserSessionPromise(unum, session);
+
+
+        //let imageName = registryURL + '/nubo/nuboxrdp:latest';
+        let imageName = `${registryURL}/nubo/${session.params.docker_image}`;
+        logger.log('info', `Pulling user image: ${imageName}`, logMeta);
+        await pullImage(imageName);
+
+        
+        //docker run --privileged --name droid64 --rm --security-opt label=disable --env-file env -it x86-android /init 1798
+        const dockerRunDir = path.resolve("./docker_run");
+        logger.info(`Creating session container. dockerRunDir: ${dockerRunDir}`);
+        const runRes = await execDockerCmd(
+            [   'run', '-d',
+                '--privileged', '--security-opt', 'label=disable',
+                '--env-file','env',
+                '--network', 'net_sess',
+                imageName,
+                '/init' , rdev
+            ],{cwd: dockerRunDir}
+        );
+
+        const containerID = runRes.stdout.trim();
+
+        session.params.containerId = containerID; 
+        logger.log('info', `Session created on platform. containerID: ${containerID}`, logMeta);        
+
+    }
     await saveUserSessionPromise(unum,session);
 
     return result;
+}
+
+function execCmd(cmd,params) {
+    return new Promise((resolve, reject) => {
+        execFile(cmd, params, {maxBuffer: 1024 * 1024 * 10} , function (error, stdout, stderr) {
+            if (error) {            
+                let e = new ExecCmdError(`${error}`,error,stdout,stderr);                             
+                reject(e);
+            }            
+            //logger.info("execCmd: " + "\'" + stdout + "\'");
+            resolve({
+                stdout,
+                stderr
+            });
+            return;
+        });
+    });
 }
 
 function sleep(ms) {
@@ -198,7 +286,10 @@ async function detachUserDocker(unum) {
         let sesscontainer = await docker.getContainer(session.params.containerId);
         await sesscontainer.stop();
         await sesscontainer.remove();
-
+    }
+    if (session.login.deviceType != "Desktop" && session.params.loopDeviceName) {
+        // detach loop device
+        await execCmd('/usr/sbin/losetup',['-d',session.params.loopDeviceName]);
     }
     if (session.params.homeFolder && session.params.nfsHomeFolder != "local") {
         logger.info(`detachUserDocker. unmount folder...`);

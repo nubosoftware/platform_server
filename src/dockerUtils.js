@@ -2,6 +2,7 @@
 const Docker = require('dockerode');
 const docker = new Docker({ socketPath: '/var/run/docker.sock' });
 const execFile = require('child_process').execFile;
+const _ = require('underscore');
 
 
 class ExecCmdError extends Error {
@@ -26,9 +27,13 @@ module.exports = {
 
 
 
-function execDockerCmd(params) {
+function execDockerCmd(params,options) {
     return new Promise((resolve, reject) => {
-        execFile('/usr/bin/docker', params, {maxBuffer: 1024 * 1024 * 10} , function (error, stdout, stderr) {
+        let opts = {maxBuffer: 1024 * 1024 * 10};
+        if (options) {
+            _.extend(opts, options)
+        }
+        execFile('/usr/bin/docker', params, opts , function (error, stdout, stderr) {
             if (error) {            
                 let e = new ExecCmdError(`${error}`,error,stdout,stderr);                             
                 reject(e);

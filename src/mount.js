@@ -266,6 +266,37 @@ async function linuxMount(session) {
 
 }
 
+async function mobileMount(session) {
+    let login = session.login;
+    let localid = session.params.localid;    
+    let email = login.email;
+    let deviceID = session.params.deviceid;
+    let nfs;
+    let nfshomefolder;    
+    if (session.nfs) {
+        nfs = session.nfs.nfs_ip;
+        nfshomefolder = session.nfs.nfs_path;
+    } else {
+        throw new Error("Missing session.nfs params");
+    }
+    if (nfs != "local") {
+        var nfsprefix = nfs + ":" + nfshomefolder + "/";
+        var userDeviceDataFolder = getUserHomeFolder(email) + deviceID + "/";    
+        session.params.nfsHomeFolder = nfsprefix + userDeviceDataFolder;
+        let nfsSrc = [session.params.nfsHomeFolder];
+        session.params.homeFolder = path.join("/mobile/homes",getUserHomeFolder(email),deviceID);
+        let nfsDst = [session.params.homeFolder];
+        var nfsoptions = "nolock,hard,intr,vers=4,noatime,async,fsc";
+        logger.info(`mobileMount. nfs: ${session.params.nfsHomeFolder}, local: ${session.params.homeFolder} `);
+        await mountHostNfsPromise(nfsSrc, nfsDst, nfsoptions);
+    } else {
+        // if this a local path we do not need to mount to nfs, just set the properties
+        session.params.nfsHomeFolder = "local";
+        session.params.homeFolder = path.join(nfshomefolder,getUserHomeFolder(email),deviceID);
+    }
+
+}
+
 
 function mountHostNfsPromise(nfsSrc, nfsDst, nfsoptions) {
     return new Promise((resolve,reject) => {
@@ -820,5 +851,6 @@ module.exports = {
     fullUmount : fullUmount,
     mountHostNfs: mountHostNfs,
     linuxMount,
-    linuxUMount
+    linuxUMount,
+    mobileMount
 };
