@@ -29,7 +29,8 @@ module.exports = {
     endSessionByUnum: endSessionByUnum,
     receiveSMS: receiveSMS,
     declineCall: declineCall,
-    loadUserSessionPromise
+    loadUserSessionPromise,
+    detachUserDocker
 };
 
 
@@ -57,7 +58,7 @@ async function attachUserDocker(obj) {
     const registryURL = machineConf.registryURL;
 
     let session = {
-        login: obj.login,      
+        login: obj.login,
         logger: logger,
         nfs: obj.nfs,
         mounts: obj.mounts,
@@ -178,7 +179,7 @@ async function attachUserDocker(obj) {
         let re = new RegExp('/dev/loop([0-9]+)');
         let m = re.exec(losetupRes.stdout);
         if(m) {
-            loopDeviceNum = Number(m[1]);                      
+            loopDeviceNum = Number(m[1]);
         } else {
             throw new Error(`Error with losetup - cannot get loop device of data.img. losetupRes.stdout: ${losetupRes.stdout}, losetupRes.stderr: ${losetupRes.stderr}`);
         }
@@ -186,20 +187,6 @@ async function attachUserDocker(obj) {
         let { rdev } = await fsp.stat(loopDeviceName);
         logger.log('info', `loopDeviceName: ${loopDeviceName}, loopDeviceNum: ${loopDeviceNum}, rdev: ${rdev}`);
 
-        // mount loop device into temp dir to add files to it
-        // const tmpData = path.resolve('./tmp/',unum);
-        // await fsp.mkdir(tmpData,{recursive: true});
-        // await execCmd('mount',loopDeviceName,tmpData);
-
-        // // create data dir if not exists
-        // const tmpDataDir = path.join(tmpData,'data');
-        // await fsp.mkdir(tmpDataDir,{recursive: true});
-
-        // if (!session.xml_file_content || session.xml_file_content.length == 0) {
-        //     throw new Error("xml_file_content not found!")
-        // }
-
-        // let xml_file = path.join(tmpDataDir,"Session.xml");
         session.params.loopDeviceName = loopDeviceName;
         await saveUserSessionPromise(unum, session);
 
@@ -209,15 +196,18 @@ async function attachUserDocker(obj) {
         logger.log('info', `Pulling user image: ${imageName}`, logMeta);
         await pullImage(imageName);
 
-        
+
         //docker run --privileged --name droid64 --rm --security-opt label=disable --env-file env -it x86-android /init 1798
         const dockerRunDir = path.resolve("./docker_run");
+        const apksDir = path.resolve(`./sessions/apks_${unum}`);
+        await fsp.mkdir(apksDir,{recursive: true});
         logger.info(`Creating session container. dockerRunDir: ${dockerRunDir}`);
         const runRes = await execDockerCmd(
             [   'run', '-d',
                 '--privileged', '--security-opt', 'label=disable',
                 '--env-file','env',
                 '--network', 'net_sess',
+                '-v',`${apksDir}:/system/vendor/apks:ro`,
                 imageName,
                 '/init' , rdev
             ],{cwd: dockerRunDir}
@@ -225,8 +215,8 @@ async function attachUserDocker(obj) {
 
         const containerID = runRes.stdout.trim();
 
-        session.params.containerId = containerID; 
-        logger.log('info', `Session created on platform. containerID: ${containerID}`, logMeta);        
+        session.params.containerId = containerID;
+        logger.log('info', `Session created on platform. containerID: ${containerID}`, logMeta);
 
     }
     await saveUserSessionPromise(unum,session);
@@ -237,10 +227,10 @@ async function attachUserDocker(obj) {
 function execCmd(cmd,params) {
     return new Promise((resolve, reject) => {
         execFile(cmd, params, {maxBuffer: 1024 * 1024 * 10} , function (error, stdout, stderr) {
-            if (error) {            
-                let e = new ExecCmdError(`${error}`,error,stdout,stderr);                             
+            if (error) {
+                let e = new ExecCmdError(`${error}`,error,stdout,stderr);
                 reject(e);
-            }            
+            }
             //logger.info("execCmd: " + "\'" + stdout + "\'");
             resolve({
                 stdout,
@@ -291,6 +281,11 @@ async function detachUserDocker(unum) {
         // detach loop device
         await execCmd('/usr/sbin/losetup',['-d',session.params.loopDeviceName]);
     }
+    if (session.login.deviceType != "Desktop") {
+        // remove apks folder
+        const apksDir = path.resolve(`./sessions/apks_${unum}`);
+        fsp.rm(apksDir,{ recursive: true, force: true })
+    }
     if (session.params.homeFolder && session.params.nfsHomeFolder != "local") {
         logger.info(`detachUserDocker. unmount folder...`);
         await mount.linuxUMount(session.params.homeFolder);
@@ -299,7 +294,7 @@ async function detachUserDocker(unum) {
     if (session.params.linuxUserName) {
         delete machineConf.linuxUserName[session.params.linuxUserName];
         await machineModule.saveMachineConf(machineConf);
-    }    
+    }
     await deleteSessionPromise(unum);
     logger.log('info',`detachUserDocker. User removed.`,logMeta);
     return true;
@@ -309,9 +304,9 @@ async function detachUserDocker(unum) {
 function getLinuxUserName(email,unum,machineConf) {
     let nameParts = email.split("@");
     let basename = nameParts.length==2 ? nameParts[0] : email;
-    let cnt=0;    
+    let cnt=0;
     if (!machineConf.linuxUserName) {
-        machineConf.linuxUserName = {         
+        machineConf.linuxUserName = {
         }
     }
     let name = basename;
@@ -319,7 +314,7 @@ function getLinuxUserName(email,unum,machineConf) {
         cnt++;
         name = basename+cnt;
     }
-    machineConf.linuxUserName[name] = unum;    
+    machineConf.linuxUserName[name] = unum;
     return name;
 }
 
@@ -336,7 +331,7 @@ function attachUser(req, res) {
                 status: 1,
                 localid: result.unum,
                 params: result
-            };            
+            };
             res.end(JSON.stringify(resobj,null,2));
             logger.logTime("Finish process request attachUser");
         }).catch(err => {
@@ -405,7 +400,7 @@ function detachUser(req, res) {
             var resobj = {
                 status: 1,
                 message: "User " + unum + " removed"
-            };            
+            };
             res.end(JSON.stringify(resobj,null,2));
         }).catch(err => {
             var resobj = {
@@ -426,7 +421,7 @@ function detachUser(req, res) {
             logger.logTime("Finish process request detachUser");
         });
     }
-    
+
 }
 
 

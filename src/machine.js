@@ -121,13 +121,13 @@ async function startDockerPlatform(req, res) {
     };
     let requestObj = req.body;
     try {
-        
+
         startDockerPlatformImp(requestObj);
         requestObj.unumCnt = 10;
 
         // write machine conf to file to read in case of restart of platform server
         await saveMachineConf(requestObj);
-        
+
 
         resobj.status = 1;
         resobj.msg = `Linux platform runnung with containers`;
@@ -158,17 +158,21 @@ async function startDockerPlatformImp(requestObj) {
     let sessFolder = path.resolve("./sessions");
     await mkdir(sessFolder,{recursive: true});
 
-    // mount debs folder
+    // mount debs adn apks folders
     let debsFolder = path.resolve("./debs");
-    //logger.info(`Mount debs folder..`);
+    let apksFolder = path.resolve("./apks");
+    //logger.info(`Mount debs/apks folders..`);
     if (requestObj.nfs.nfs_ip != "local") {
         await mkdir(debsFolder,{recursive: true});
         await mountDebsFolder(requestObj.nfs,debsFolder);
+        await mountAPKsFolder(requestObj.nfs,apksFolder);
     } else {
         // if it local address do not mount but create a symlink
         try {
             await fs.promises.unlink(debsFolder);
             await fs.promises.symlink(debsFolder, path.join(nfs.nfs_path,"debs"));
+            await fs.promises.unlink(apksFolder);
+            await fs.promises.symlink(apksFolder, path.join(nfs.nfs_path,"apks"));
         } catch (e) {
             logger.info(`Error create symlink for debs folder: ${e}`);
         }
@@ -178,7 +182,7 @@ async function startDockerPlatformImp(requestObj) {
 
 function mountDebsFolder(nfs,dstFolder) {
     return new Promise((resolve, reject) => {
-        var nfsoptions = "nolock,hard,intr,noatime,async";        
+        var nfsoptions = "nolock,hard,intr,noatime,async";
         var src = [
             nfs.nfs_ip + ":" + nfs.nfs_path + "/debs"
         ];
@@ -195,13 +199,32 @@ function mountDebsFolder(nfs,dstFolder) {
         });
     });
 }
+function mountAPKsFolder(nfs,dstFolder) {
+    return new Promise((resolve, reject) => {
+        var nfsoptions = "nolock,hard,intr,noatime,async";
+        var src = [
+            nfs.nfs_ip + ":" + nfs.nfs_path + "/apks"
+        ];
+        var dst = [
+            dstFolder
+        ];
+        require('./mount.js').mountHostNfs(src, dst, nfsoptions, function (err) {
+            if (err) {
+                logger.error("Cannot mount apks, err: " + err);
+                reject(err);
+                return;
+            }
+            resolve();
+        });
+    });
+}
 
 
 
 async function initMachine() {
-    try {        
+    try {
         let machineConfStr = await readFile("./machine.conf","utf8");
-        let conf = JSON.parse(machineConfStr);        
+        let conf = JSON.parse(machineConfStr);
         if (conf.platType == "docker") {
             logger.info(`Loaded previous started machine with platType: ${conf.platType}`);
             await startDockerPlatformImp(conf);
@@ -224,7 +247,8 @@ async function deinitMachine(params) {
             throw new Error(`platUID mismatch. Current: ${machineConf.platUID}, Requested: ${params.platUID}`);
         }
         logger.info(`deinitMachine. platid: ${params.platid}, platUID: ${params.platUID}`);
-        await deleteOldContainers(machineConf);        
+        await deleteOldSessions(logger);
+        await deleteOldContainers(machineConf);
         await deleteOldSessionFile(logger);
         await unlink("./machine.conf");
         let debsFolder = path.resolve("./debs");
@@ -240,7 +264,7 @@ async function deinitMachine(params) {
 }
 
 async function deleteOldContainers(machineConf) {
-    
+
     //lrdp1.nubosoftware.com:5000/nubo/user
     const registryURL = machineConf.registryURL;
     const imageName = registryURL + '/nubo/user';
@@ -256,6 +280,40 @@ async function deleteOldContainers(machineConf) {
 }
 
 
+async function deleteOldSessions(logger) {
+    try {
+        const mainDir = './sessions';
+        const dir = await readdir(mainDir);
+        //logger.info(`deleteOldSessionFile. Found ${dir.length} files.`);
+        for (const file of dir) {
+            if (file.startsWith("localid_")) {
+                let localid;
+                const regex = /localid_([0-9]+).json/
+                let m = file.match(regex);
+                if (m && m[1]) {
+                    localid = m[1];
+                }
+                if (localid) {
+                    logger.info(`Found session: ${localid}, remove it`);
+                    try {
+                        await require('./user').detachUserDocker(localid);
+                    } catch (e) {
+                        logger.error("detachUserDocker error", e);
+                    }
+                    let fullpath = path.join(mainDir, file);
+                    //logger.info(`Found old session file: ${file}, delete it`);
+                    await unlink(fullpath);
+                }
+
+            }
+        }
+    } catch (err) {
+        logger.error("deleteOldSessionFile error", err);
+    }
+}
+
+
+
 async function deleteOldSessionFile(logger) {
     try {
         const mainDir = './sessions';
@@ -269,11 +327,11 @@ async function deleteOldSessionFile(logger) {
             }
         }
     } catch (err) {
-        logger.error("deleteOldSessionFile error", err);    
+        logger.error("deleteOldSessionFile error", err);
     }
 }
 
-function killPlatform(req, res) {    
+function killPlatform(req, res) {
     deinitMachine(req.body).then(() => {
         var resobj = {
             status: 0,
@@ -284,10 +342,10 @@ function killPlatform(req, res) {
         var resobj = {
             status: 1,
             msg: err.toString()
-        }        
+        }
         res.end(JSON.stringify(resobj, null, 2));
     });
-   
+
 }
 
 function fixHostsFile(path, ip, managementUrl, callback) {
@@ -630,7 +688,7 @@ function getMachineConf() {
 
 async function saveMachineConf(requestObj) {
     machineConf = requestObj;
-    await writeFile("./machine.conf",JSON.stringify(requestObj,null,2));    
+    await writeFile("./machine.conf",JSON.stringify(requestObj,null,2));
 }
 
 function checkPlatform(req, res) {

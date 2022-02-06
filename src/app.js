@@ -11,7 +11,7 @@ var Common = require('./common.js');
 const path = require('path');
 const { logger } = require('./common.js');
 const { execDockerCmd , ExecCmdError } = require('./dockerUtils');
-const { stdout } = require('process');
+const fsp = fs.promises;
 
 module.exports = {
     installApk: installApk,
@@ -21,6 +21,7 @@ module.exports = {
 
 var INSTALL_TASK = [1, "i", "install"];
 var UNINSTALL_TASK = [0, "u", "uninstall"];
+var UPGRADE_TASK = [2, "g", "upgrade"];
 
 function installApk(req, res) {
     var logger = new ThreadedLogger(Common.getLogger(__filename));
@@ -138,8 +139,8 @@ var detachApps = function(req, res) {
 };
 
 
-var installAppInBackgrond = function(containerId,installTarget) {    
-    
+var installAppInBackgrond = function(containerId,installTarget) {
+
     execDockerCmd(
         ['exec' , containerId, '/usr/bin/apt', 'install' , '-y' , installTarget]
     ).then(obj => {
@@ -149,7 +150,7 @@ var installAppInBackgrond = function(containerId,installTarget) {
         const {err,stdout,stderr} = e;
         logger.info(`Error installing package ${installTarget} on container ${containerId}.\nError: ${e}\nstdout: ${stdout}\nstderr: ${stderr}`);
     });
-    
+
 }
 
 var processTasksDocker = async function(tasks, logger) {
@@ -163,27 +164,79 @@ var processTasksDocker = async function(tasks, logger) {
             const containerId = session.params.containerId;
 
             if (INSTALL_TASK.indexOf(task.task) !== -1) {
-                let installTarget = task.packageName;                
-                if (task.filename) {
-                    // we will need to copy the file into the container
-                    let debPath = path.resolve("./debs",task.filename);
-                    installTarget = `/root/${task.filename}`;
+                if (session.login.deviceType == "Desktop") {
+                    let installTarget = task.packageName;
+                    if (task.filename) {
+                        // we will need to copy the file into the container
+                        let debPath = path.resolve("./debs",task.filename);
+                        installTarget = `/root/${task.filename}`;
 
-                    await execDockerCmd(
-                        ['cp' , debPath, `${containerId}:${installTarget}`]
+                        await execDockerCmd(
+                            ['cp' , debPath, `${containerId}:${installTarget}`]
+                        );
+                    }
+
+                    // run the install command
+                    logger.info(`Installing in background. package: ${installTarget}, container: ${containerId}`);
+                    installAppInBackgrond(containerId,installTarget);
+                    task.status = 1;
+                } else {
+                    // instal in mobile
+                    // tbd copy to container apks
+                    let apkPath = path.resolve("./apks",task.filename);
+                    let sessApkPath = path.resolve(`./sessions/apks_${task.unum}`,task.filename);
+                    logger.info(`Copy apk from ${apkPath} to ${sessApkPath}`);
+                    await fsp.copyFile(apkPath,sessApkPath);
+
+                    let installTarget = path.resolve("/system/vendor/apks",task.filename);
+                    const { stdout, stderr } = await execDockerCmd(
+                        ['exec' , containerId, 'pm', 'install' , '--user','0', '-r', installTarget]
                     );
+                    logger.info(`Installed package ${task.packageName} on container ${containerId}.\nstdout: ${stdout}\nstderr: ${stderr}`);
+                    task.status = 1;
                 }
-                // run the install command
-                logger.info(`Installing in background. package: ${installTarget}, container: ${containerId}`);
-                installAppInBackgrond(containerId,installTarget);                
-                task.status = 1;
             } else if (UNINSTALL_TASK.indexOf(task.task) !== -1) {
-                // run the install command
-                const { stdout, stderr } = await execDockerCmd(
-                    ['exec' , containerId, '/usr/bin/apt', 'purge' , '-y', task.packageName]
-                );
-                logger.info(`Uninstalled package ${task.packageName} on container ${containerId}.\nstdout: ${stdout}\nstderr: ${stderr}`);
-                task.status = 1;
+                // run the uninstall command
+                if (session.login.deviceType == "Desktop") {
+                    const { stdout, stderr } = await execDockerCmd(
+                        ['exec' , containerId, '/usr/bin/apt', 'purge' , '-y', task.packageName]
+                    );
+                    logger.info(`Uninstalled package ${task.packageName} on container ${containerId}.\nstdout: ${stdout}\nstderr: ${stderr}`);
+                    task.status = 1;
+                } else {
+                    const { stdout, stderr } = await execDockerCmd(
+                        ['exec' , containerId, 'pm', 'uninstall' , '--user','0',task.packageName]
+                    );
+                    logger.info(`Uninstalled package ${task.packageName} on container ${containerId}.\nstdout: ${stdout}\nstderr: ${stderr}`);
+                    task.status = 1;
+                }
+            } else if (UPGRADE_TASK.indexOf(task.task) !== -1) {
+                // upgrade task
+                if (session.login.deviceType == "Desktop") {
+                    // TBD support upgrade in desktop
+                } else {
+                    // mobile upgrade
+                    // check if package installed
+                    const { stdoutList, stderrList } = await execDockerCmd(
+                        ['exec' , containerId, 'pm', 'list' , 'packages','--user','0', task.packageName]
+                    );
+                    if (stderrList.indexOf(task.packageName) >= 0) {
+                        logger.info(`Upgrading packge: ${task.packageName}`);
+                        let apkPath = path.resolve("./apks",task.filename);
+                        let sessApkPath = path.resolve(`./sessions/apks_${task.unum}`,task.filename);
+                        logger.info(`Copy apk from ${apkPath} to ${sessApkPath}`);
+                        await fsp.copyFile(apkPath,sessApkPath);
+
+                        let installTarget = path.resolve("/system/vendor/apks",task.filename);
+                        const { stdout, stderr } = await execDockerCmd(
+                            ['exec' , containerId, 'pm', 'install' , '--user','0', '-r', installTarget]
+                        );
+                        logger.info(`Upgraded package ${task.packageName} on container ${containerId}.\nstdout: ${stdout}\nstderr: ${stderr}`);
+                    } else {
+                        logger.info(`Upgrade. packge: ${task.packageName} is not installed in user`);
+                    }
+                    task.status = 1;
+                }
             } else {
                 task.status = 0;
                 task.statusMsg = "Bad task";
@@ -195,7 +248,7 @@ var processTasksDocker = async function(tasks, logger) {
                 logger.info(`processTasksDocker. stdout: ${err.stdout}\n stderr: ${err.stderr}`);
             }
             task.status = 0;
-            task.statusMsg = `${err}`;            
+            task.statusMsg = `${err}`;
             errFlag = true;
         }
         results.push(task);

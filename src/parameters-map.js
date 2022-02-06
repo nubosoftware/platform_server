@@ -64,7 +64,7 @@ var filter = {
     }, {
         "path": "/killPlatform",
         "constraints": {},
-        "bodyConstraints": {            
+        "bodyConstraints": {
             "platid": constraints.platIdConstrOptional,
             "platUID": constraints.PlatformUIDConstrOptional,
         }
@@ -147,7 +147,7 @@ var filter = {
                     "unum": constraints.NaturalNumberConstrRequested,
                     "task": {
                         "inclusion": {
-                            "within": ["0", "1", 0, 1]
+                            "within": ["0", "1", "2" ,0, 1, 2]
                         }
                     },
                     "filename": constraints.pathConstrOptional
