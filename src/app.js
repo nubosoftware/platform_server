@@ -217,10 +217,10 @@ var processTasksDocker = async function(tasks, logger) {
                 } else {
                     // mobile upgrade
                     // check if package installed
-                    const { stdoutList, stderrList } = await execDockerCmd(
+                    const listRet = await execDockerCmd(
                         ['exec' , containerId, 'pm', 'list' , 'packages','--user','0', task.packageName]
                     );
-                    if (stderrList.indexOf(task.packageName) >= 0) {
+                    if (listRet.stdout && listRet.stdout.indexOf(task.packageName) >= 0) {
                         logger.info(`Upgrading packge: ${task.packageName}`);
                         let apkPath = path.resolve("./apks",task.filename);
                         let sessApkPath = path.resolve(`./sessions/apks_${task.unum}`,task.filename);
@@ -233,7 +233,7 @@ var processTasksDocker = async function(tasks, logger) {
                         );
                         logger.info(`Upgraded package ${task.packageName} on container ${containerId}.\nstdout: ${stdout}\nstderr: ${stderr}`);
                     } else {
-                        logger.info(`Upgrade. packge: ${task.packageName} is not installed in user`);
+                        logger.info(`Upgrade. packge: ${task.packageName} is not installed in user: ${listRet.stdout}`);
                     }
                     task.status = 1;
                 }
@@ -243,7 +243,7 @@ var processTasksDocker = async function(tasks, logger) {
                 errFlag = true;
             }
         } catch (err) {
-            logger.info(`processTasksDocker. Error execute task: ${err}`);
+            logger.error(`processTasksDocker. Error execute task: ${err}`,err);
             if (err instanceof ExecCmdError) {
                 logger.info(`processTasksDocker. stdout: ${err.stdout}\n stderr: ${err.stderr}`);
             }
