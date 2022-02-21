@@ -175,47 +175,48 @@ async function attachUserDocker(obj) {
         // mount data.img as loop device
         let loopDeviceNum;
         const imgFilePath = path.join(session.params.homeFolder,'data.img');
-        const losetupRes = await execCmd('/usr/sbin/losetup',['-f','--show',imgFilePath]);
-        let re = new RegExp('/dev/loop([0-9]+)');
-        let m = re.exec(losetupRes.stdout);
-        if(m) {
-            loopDeviceNum = Number(m[1]);
-        } else {
-            throw new Error(`Error with losetup - cannot get loop device of data.img. losetupRes.stdout: ${losetupRes.stdout}, losetupRes.stderr: ${losetupRes.stderr}`);
-        }
-        let loopDeviceName = `/dev/loop${loopDeviceNum}`;
-        let { rdev } = await fsp.stat(loopDeviceName);
-        logger.log('info', `loopDeviceName: ${loopDeviceName}, loopDeviceNum: ${loopDeviceNum}, rdev: ${rdev}`);
-
-        session.params.loopDeviceName = loopDeviceName;
+        const dataDir = path.resolve(`./sessions/data_${unum}`);
+        await fsp.mkdir(dataDir,{recursive: true});
+        await execCmd('/usr/bin/mount',[imgFilePath, dataDir]);
         await saveUserSessionPromise(unum, session);
 
-
-        //let imageName = registryURL + '/nubo/nuboxrdp:latest';
         let imageName = `${registryURL}/nubo/${session.params.docker_image}`;
         logger.log('info', `Pulling user image: ${imageName}`, logMeta);
         await pullImage(imageName);
-
 
         //docker run --privileged --name droid64 --rm --security-opt label=disable --env-file env -it x86-android /init 1798
         const dockerRunDir = path.resolve("./docker_run");
         const apksDir = path.resolve(`./sessions/apks_${unum}`);
         await fsp.mkdir(apksDir,{recursive: true});
         logger.info(`Creating session container. dockerRunDir: ${dockerRunDir}`);
+        logger.info(`attachUserDocker. session: ${JSON.stringify(session,null,2)}`);
+        let vol_storage = await docker.createVolume({
+            Name: "nubo_" + session.params.localid + "_storage",
+            DriverOpts : {
+                device: session.params.nfsStorageFolder,
+                o: "addr=" + session.nfs.nfs_ip,
+                type: "nfs4"
+            }
+        });
         const runRes = await execDockerCmd(
             [   'run', '-d',
+                '--name', 'nubo_' + session.params.localid + "_android",
                 '--privileged', '--security-opt', 'label=disable',
                 '--env-file','env',
                 '--network', 'net_sess',
+                '-v', '/lib/modules:/system/lib/modules:ro',
                 '-v',`${apksDir}:/system/vendor/apks:ro`,
+                '-v',`${dataDir}:/data`,
+                '-v',`${vol_storage.name}:/data/media`,
                 imageName,
-                '/init' , rdev
+                '/init'
             ],{cwd: dockerRunDir}
         );
 
         const containerID = runRes.stdout.trim();
 
         session.params.containerId = containerID;
+        session.params.volumes = [vol_storage.name];
         logger.log('info', `Session created on platform. containerID: ${containerID}`, logMeta);
 
     }
@@ -277,14 +278,20 @@ async function detachUserDocker(unum) {
         await sesscontainer.stop();
         await sesscontainer.remove();
     }
-    if (session.login.deviceType != "Desktop" && session.params.loopDeviceName) {
-        // detach loop device
-        await execCmd('/usr/sbin/losetup',['-d',session.params.loopDeviceName]);
+    if(session.params.volumes) {
+        for(var i in session.params.volumes) {
+            logger.log('info',`detachUserDocker. remove volume ${session.params.volumes[i]}`,logMeta);
+            let vol = await docker.getVolume(session.params.volumes[i]);
+            await vol.remove();
+        }
     }
     if (session.login.deviceType != "Desktop") {
         // remove apks folder
         const apksDir = path.resolve(`./sessions/apks_${unum}`);
-        fsp.rm(apksDir,{ recursive: true, force: true })
+        fsp.rm(apksDir,{ recursive: true, force: true });
+        const dataDir = path.resolve(`./sessions/data_${unum}`);
+        await execCmd('/usr/bin/umount',[dataDir]);
+        await fsp.rmdir(dataDir);
     }
     if (session.params.homeFolder && session.params.nfsHomeFolder != "local") {
         logger.info(`detachUserDocker. unmount folder...`);

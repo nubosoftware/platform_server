@@ -283,6 +283,7 @@ async function mobileMount(session) {
         var nfsprefix = nfs + ":" + nfshomefolder + "/";
         var userDeviceDataFolder = getUserHomeFolder(email) + deviceID + "/";    
         session.params.nfsHomeFolder = nfsprefix + userDeviceDataFolder;
+        session.params.nfsStorageFolder = nfsprefix + getUserHomeFolder(email) + "storage/";
         let nfsSrc = [session.params.nfsHomeFolder];
         session.params.homeFolder = path.join("/mobile/homes",getUserHomeFolder(email),deviceID);
         let nfsDst = [session.params.homeFolder];

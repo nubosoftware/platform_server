@@ -6,7 +6,7 @@ LINUX_IMG_FULL_PATH:=/opt/Android-Nougat/linux.img
 
 current_dir := $(shell pwd)
 
-BASE_TAG := nubo_release_3.0
+BASE_TAG := 3d14eca014e70ad11789e9003883e716bbcc783b
 BASE_VERSION := 3.0
 
 define get_project_version
@@ -62,6 +62,7 @@ $(LINUX_IMG_FULL_PATH):
 
 pulseaudio-user: src/pulseaudio-user-gst.cpp
 	g++ $? -o dist/pulseaudio-user -lpulse -lpthread -lpulse-simple `pkg-config --cflags --libs gstreamer-1.0`
+
 docker: deb
 	mkdir -p docker_build/debs/
 	cp $(nubo_proj_dir)/debs/latest/platform-server-$(platform_server_version)-$(platform_server_buildid).deb docker_build/debs/platform-server.deb	
