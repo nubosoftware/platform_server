@@ -175,16 +175,21 @@ async function attachUserDocker(obj) {
         // mount data.img as loop device
         let loopDeviceNum;
         const imgFilePath = path.join(session.params.homeFolder,'data.img');
+
         const dataDir = path.resolve(`./sessions/data_${unum}`);
         await fsp.mkdir(dataDir,{recursive: true});
         await execCmd('/usr/bin/mount',[imgFilePath, dataDir]);
         await saveUserSessionPromise(unum, session);
 
+        // create the ipconfig.txt
+        await createIPConf(dataDir);
+
+        // get user image from registry
         let imageName = `${registryURL}/nubo/${session.params.docker_image}`;
         logger.log('info', `Pulling user image: ${imageName}`, logMeta);
         await pullImage(imageName);
 
-        //docker run --privileged --name droid64 --rm --security-opt label=disable --env-file env -it x86-android /init 1798
+        // creating container
         const dockerRunDir = path.resolve("./docker_run");
         const apksDir = path.resolve(`./sessions/apks_${unum}`);
         await fsp.mkdir(apksDir,{recursive: true});
@@ -223,6 +228,59 @@ async function attachUserDocker(obj) {
     await saveUserSessionPromise(unum,session);
 
     return result;
+}
+
+/**
+ * Create the ipconfig.txt file and
+ * save it to /data/misc/ethernet/ipconfig.txt
+ * @param {*} tmpData mounted data folder
+ */
+async function createIPConf(tmpData) {
+    const ethernetDir = path.join(tmpData,'misc/ethernet');
+    // create /data/misc/ethernet folder
+    await fsp.mkdir(ethernetDir,{recursive: true});
+    const filePath = path.join(ethernetDir,'ipconfig.txt');
+    let chunks = [];
+    let writeInt = function(int) {
+        var buf = Buffer.alloc(4);
+        buf.writeInt32BE(int, 0, 4);
+        chunks.push(buf);
+    };
+    let writeString = function(str) {
+        var len = str.length;
+        var buf = Buffer.alloc(len + 2);
+        buf.writeInt16BE(len, 0, 2);
+        buf.write(str, 2, len);
+        chunks.push(buf);
+    }
+    let ipconfig = Common.ipconfig;
+    if (!ipconfig) {
+        logger.console.warn('ipconfig not found in settings');
+        ipconfig = {};
+    }
+    writeInt(3); //Version 3
+
+    writeString("ipAssignment");
+    writeString("UNASSIGNED");
+
+    writeString("id");
+    writeString("eth0");    //1st network
+
+    if (ipconfig.gateway) {
+        writeString("gateway");
+        writeInt(0); // Default route.
+        writeInt(1); // Have a gateway.
+        writeString(ipconfig.gateway);
+    }
+
+    ipconfig.dns.forEach(function(row) {
+        writeString("dns");
+        writeString(row);
+    });
+
+    writeString("eos");
+    const buff = Buffer.concat(chunks);
+    await fsp.writeFile(filePath,buff);
 }
 
 function execCmd(cmd,params) {
