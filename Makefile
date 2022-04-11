@@ -6,8 +6,8 @@ LINUX_IMG_FULL_PATH:=/opt/Android-Nougat/linux.img
 
 current_dir := $(shell pwd)
 
-BASE_TAG := 3d14eca014e70ad11789e9003883e716bbcc783b
-BASE_VERSION := 3.0
+BASE_TAG := nubo_release_3.2
+BASE_VERSION := 3.2
 
 define get_project_version
 $(eval $1_version=$(BASE_VERSION))
@@ -63,11 +63,25 @@ $(LINUX_IMG_FULL_PATH):
 pulseaudio-user: src/pulseaudio-user-gst.cpp
 	g++ $? -o dist/pulseaudio-user -lpulse -lpthread -lpulse-simple `pkg-config --cflags --libs gstreamer-1.0`
 
-docker: deb
-	mkdir -p docker_build/debs/
-	cp $(nubo_proj_dir)/debs/latest/platform-server-$(platform_server_version)-$(platform_server_buildid).deb docker_build/debs/platform-server.deb	
-	cp $(nubo_proj_dir)/debs/latest/nubo-common-3.0-1.deb docker_build/debs/nubo-common.deb
-	sudo docker build -t nuboplatformserver:$(platform_server_version)-$(platform_server_buildid) docker_build/.
+# docker: deb
+# 	mkdir -p docker_build/debs/
+# 	cp $(nubo_proj_dir)/debs/latest/platform-server-$(platform_server_version)-$(platform_server_buildid).deb docker_build/debs/platform-server.deb
+# 	cp $(nubo_proj_dir)/debs/latest/nubo-common-3.0-1.deb docker_build/debs/nubo-common.deb
+# 	sudo docker build -t nuboplatformserver:$(platform_server_version)-$(platform_server_buildid) docker_build/.
+
+docker:
+	docker build --build-arg BUILD_VER=$(platform_server_version)-$(platform_server_buildid) --no-cache --pull -f  docker_build/Dockerfile -t nuboplatformserver:$(platform_server_version)-$(platform_server_buildid) .
+
+
+push-hub: docker
+	docker tag nuboplatformserver:$(platform_server_version)-$(platform_server_buildid) nubosoftware/nuboplatformserver:$(platform_server_version)-$(platform_server_buildid)
+	docker push nubosoftware/nuboplatformserver:$(platform_server_version)-$(platform_server_buildid)
+	docker tag nuboplatformserver:$(platform_server_version)-$(platform_server_buildid) nubosoftware/nuboplatformserver:$(platform_server_version)
+	docker push nubosoftware/nuboplatformserver:$(platform_server_version)
+
+push-hub-latest: push-nubo
+	docker tag nuboplatformserver:$(platform_server_version)-$(platform_server_buildid) nubosoftware/nuboplatformserver
+	docker push nubosoftware/nuboplatformserver
 
 .PHONY: deb default img rpm docker
 

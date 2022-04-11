@@ -1,4 +1,6 @@
 FROM ubuntu:20.04
+ARG BUILD_VER=3.2
+ARG TARGET_DIR=/opt/platform_server
 RUN apt-get -y update
 # install linux packages
 RUN apt install -y \
@@ -27,22 +29,37 @@ RUN apt update -y ; apt install -y docker-ce-cli
 RUN mkdir -p /etc/.nubo/ && \
     touch  /etc/.nubo/.docker
 
-# install nubo debs
-COPY debs /tmp
-RUN apt install -y \
-    /tmp/nubo-common.deb \
-    /tmp/platform-server.deb    
-    
-RUN rm -f /tmp/*.deb
-
-
 # configure
-ADD etc /etc
-ADD bin /usr/bin
+ADD docker_build/etc /etc
+ADD docker_build/bin /usr/bin
 RUN sed -i /imklog/s/module/#module/ /etc/rsyslog.conf
 
+# copy files to target dir
+RUN mkdir -p ${TARGET_DIR}
+COPY package.json ${TARGET_DIR}/.
+COPY webpack.config.js ${TARGET_DIR}/.
+ADD src ${TARGET_DIR}/src
+WORKDIR ${TARGET_DIR}
+RUN echo "VERSION: ${BUILD_VER}" > version.txt
+
+# add build essential
+RUN apt install -y build-essential
+
+# prepare the module
+RUN npm install
+
+# remove build-essntial
+RUN apt-get --purge autoremove -y build-essential
+
+# build the dist folder
+RUN npm run build
+
+# remove build dependencies
+RUN rm -rf src webpack.config.js
+
+
 # Docker config
-VOLUME ["/opt/platform_server/conf"]
+VOLUME ["${TARGET_DIR}/conf"]
 EXPOSE 3333 3334
 ENTRYPOINT ["/usr/bin/docker-entrypoint.sh"]
 CMD ["supervisord"]
