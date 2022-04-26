@@ -15,9 +15,4 @@ else
     systemctl restart platform_server
 fi
 
-
-
-
-
-
-
+loginctl enable-linger nubo

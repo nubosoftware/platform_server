@@ -21,7 +21,7 @@
 #define OP_IN_READ 2
 #define OP_OPEN_INPUT_STREAM 3
 #define OP_PA_CREATE 100
-#define SOCKETPREFIX "/Android/dev/socket/audio"
+#define SOCKETPREFIX "/opt/platform_server/sessions/audio"
 
 void *connection_handler(void *);
 static int unum;
@@ -69,9 +69,11 @@ void sig_handler(int signo)
             syslog(LOG_NOTICE, "signal %d has been received x\n", signo);
             syslog(LOG_INFO, "closing socket %d\n", server_out_args.sock_fd);
             close(server_out_args.sock_fd);
+            unlink(server_out_args.path);
             server_out_args.sock_fd = 0;
             syslog(LOG_INFO, "closing socket %d\n",server_in_args.sock_fd);
             close(server_in_args.sock_fd);
+            unlink(server_in_args.path);
             server_in_args.sock_fd = 0;
             break;
         default:
@@ -339,8 +341,6 @@ static int init_socket(const char *path, int userId) {
         close(fd);
         return -2;
     }
-    res = chmod(addr.sun_path, 0660);
-    res = chown(addr.sun_path, unum*100000 + 1041, 0);
 
     res = listen(fd, 3);
     if(res < 0) {
@@ -349,6 +349,9 @@ static int init_socket(const char *path, int userId) {
         close(fd);
         return -3;
     }
+
+    res = chmod(addr.sun_path, 0666);
+    //res = chown(addr.sun_path, 1041, 0);
     return fd;
 }
 
@@ -545,7 +548,8 @@ int init_gst_subsystem() {
     pthread_attr_init(&attrs);
     pthread_attr_setdetachstate(&attrs, PTHREAD_CREATE_JOINABLE);
     GST_DEBUG_CATEGORY_INIT (debug_category, "nubo_audio", 0, "Nubo Audio");
-    gst_debug_set_threshold_for_name("nubo_audio", GST_LEVEL_DEBUG);
+    //gst_debug_set_default_threshold(GST_LEVEL_INFO);
+    gst_debug_set_threshold_for_name("nubo_audio", GST_LEVEL_INFO);
     res = pthread_create(&(gst_data.gst_app_thread), &attrs, start_gst_thread, (void *) NULL);
     if( res < 0) {
         syslog(LOG_ERR, "could not create thread\n");

@@ -19,7 +19,7 @@ $(eval $(call get_project_version,platform_server))
 
 default: img
 
-img: $(LINUX_IMG_FULL_PATH) pulseaudio-user
+img: $(LINUX_IMG_FULL_PATH) dist/pulseaudio-user
 	mkdir mnt
 	$(eval LOOPDEVICE := $(shell sudo losetup -f --show $(LINUX_IMG_FULL_PATH) -o $$((2048 * 512)) ))
 	@echo "LOOPDEVICE=$(LOOPDEVICE)"
@@ -37,7 +37,7 @@ img: $(LINUX_IMG_FULL_PATH) pulseaudio-user
 
 deb: $(nubo_proj_dir)/debs/latest/platform-server-$(platform_server_version)-$(platform_server_buildid).deb
 
-$(nubo_proj_dir)/debs/latest/platform-server-$(platform_server_version)-$(platform_server_buildid).deb: pulseaudio-user
+$(nubo_proj_dir)/debs/latest/platform-server-$(platform_server_version)-$(platform_server_buildid).deb: dist/pulseaudio-user
 	NUBO_PROJ_PATH=$(nubo_proj_dir) \
 	PROJ_PATH=$(current_dir) \
 	Version=$(platform_server_version).$(platform_server_buildid) \
@@ -46,7 +46,7 @@ $(nubo_proj_dir)/debs/latest/platform-server-$(platform_server_version)-$(platfo
 
 rpm: $(nubo_proj_dir)/rpms/latest/nuboplatform_server-$(platform_server_version)-$(platform_server_buildid).x86_64.rpm
 
-$(nubo_proj_dir)/rpms/latest/nuboplatform_server-$(platform_server_version)-$(platform_server_buildid).x86_64.rpm: pulseaudio-user
+$(nubo_proj_dir)/rpms/latest/nuboplatform_server-$(platform_server_version)-$(platform_server_buildid).x86_64.rpm: dist/pulseaudio-user
 	NUBO_PROJ_PATH=$(nubo_proj_dir) \
 	PROJ_PATH=$(current_dir) \
 	rpmbuild -v \
@@ -60,7 +60,8 @@ $(nubo_proj_dir)/rpms/latest/nuboplatform_server-$(platform_server_version)-$(pl
 $(LINUX_IMG_FULL_PATH):
 	scp nubo@lab2.nubosoftware.com:N7/linux.img $(LINUX_IMG_FULL_PATH)
 
-pulseaudio-user: src/pulseaudio-user-gst.cpp
+dist/pulseaudio-user: src/pulseaudio-user-gst.cpp
+	[ ! -d dist ] && mkdir dist || true
 	g++ $? -o dist/pulseaudio-user -lpulse -lpthread -lpulse-simple `pkg-config --cflags --libs gstreamer-1.0`
 
 # docker: deb

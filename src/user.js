@@ -255,6 +255,7 @@ async function attachUserDocker(obj) {
         await fsp.mkdir(dataDir,{recursive: true});
         await execCmd('/usr/bin/mount',[imgFilePath, dataDir]);
         await saveUserSessionPromise(unum, session);
+        await Audio.initAudio(unum);
 
         // create the ipconfig.txt
         await createIPConf(dataDir);
@@ -278,19 +279,31 @@ async function attachUserDocker(obj) {
                 type: "nfs4"
             }
         });
-        const runRes = await execDockerCmd(
-            [   'run', '-d',
+        let startArgs = [
+                'run', '-d',
                 '--name', 'nubo_' + session.params.localid + "_android",
                 '--privileged', '--security-opt', 'label=disable',
                 '--env-file','env',
                 '--network', 'net_sess',
+        ];
+        let mountArgs = [
+                //'--mount', 'type=tmpfs,destination=/dev,tmpfs-mode=0755',
                 '-v', '/lib/modules:/system/lib/modules:ro',
                 '-v',`${apksDir}:/system/vendor/apks:ro`,
                 '-v',`${dataDir}:/data`,
-                '-v',`${vol_storage.name}:/data/media`,
-                imageName,
-                '/init'
-            ],{cwd: dockerRunDir}
+                '-v',`${vol_storage.name}:/data/media`
+        ];
+        if(session.params.audioStreamParams) {
+            mountArgs.push(
+                '-v', `/opt/platform_server/sessions/audio_in_${unum}:/nubo/audio_in`,
+                '-v', `/opt/platform_server/sessions/audio_out_${unum}:/nubo/audio_out`
+            );
+        }
+        let cmdArgs = ['/init'];
+        let args = startArgs.concat(mountArgs, imageName, cmdArgs);
+ console.log("start docker args: ", args);
+        const runRes = await execDockerCmd(
+            args,{cwd: dockerRunDir}
         );
 
         const containerID = runRes.stdout.trim();
@@ -440,6 +453,7 @@ async function detachUserDocker(unum) {
     }
 
     if (session.login.deviceType != "Desktop") {
+        Audio.deInitAudio(unum);
         // remove apks folder
         const apksDir = path.resolve(`./sessions/apks_${unum}`);
         fsp.rm(apksDir,{ recursive: true, force: true });

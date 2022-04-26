@@ -17,11 +17,8 @@ var localid;
 var nullSinkIn,nullSinkOut;
 var gstRecordProc;
 var pulseaudioUserProc;
-var audioServerProc;
-var mediaServerProc;
 
 var platform = new Platform();
-
 
 var args = process.argv;
 if (args.length < 3) {
@@ -35,7 +32,6 @@ if (isNaN(localid)) {
     return;
 }
 
-
 function getTagValue(xml, tag) {
     var re = new RegExp('<' + tag + '>(.+?)<\/' + tag + '>');
     var m = re.exec(xml);
@@ -47,26 +43,31 @@ function getTagValue(xml, tag) {
 }
 
 function getUserConf(localid, cb) {
-    var fileName = "/Android/data/user/" + localid + "/Session.xml";
-    //var fileName = './Session.xml';
-    fs.readFile(fileName, 'utf8', function (err, xml) {
+    var fileName = "./sessions/localid_" + localid + ".json";
+    fs.readFile(fileName, 'utf8', function (err, str) {
         if (err) {
-            console.error("Error reading session xml file", err);
-            cb(err)
-            return;
+            console.error("Error reading session description file", err);
+            return cb(err);
         }
-        console.info("Session XML: " + xml);
-        var conf = {
-            platformID: getTagValue(xml, "platformID"),
-            gateway_url: getTagValue(xml, "gateway_url"),
-            rtpOutHost: getTagValue(xml, "rtpOutHost"),
-            rtpOutPort: getTagValue(xml, "rtpOutPort"),
-            rtpInPort: getTagValue(xml, "rtpInPort"),
-            sessionid: getTagValue(xml, "sessionid"),
-            enableAudio: getTagValue(xml, "enableAudio")
-        };
-        cb(null, conf);
-        return;
+        var data = JSON.parse(str);
+
+        if(data.params.audioStreamParams) {
+            var split = data.params.audioStreamParams.split(":");
+            if(split.length === 3) {
+                var conf = {
+                    platformID: data.params.platid,
+                    rtpOutHost: split[0],
+                    rtpOutPort: split[1],
+                    rtpInPort: split[2],
+                    enableAudio: true
+                };
+                return cb(null, conf);
+            } else {
+                return cb("invalid data in audioStreamParams field");
+            }
+        } else {
+            return cb(null, {enableAudio: false});
+        }
     });
 }
 
@@ -164,7 +165,7 @@ var startAudioManager = function () {
         execFile("pacmd", ["list-source-outputs"], function(error, stdout, stderr) {
             var lines;
             var doneFlag = false;
-            //console.info("list-sink-inputs: "+stdout);
+            //console.info("list-source-outputs: "+stdout);
             if (error) stdout = "";
             lines = stdout.split("\n");
             var curIndex = -1;
@@ -213,8 +214,7 @@ var startAudioManager = function () {
                 if (err) {
                     callback(err);
                 } else {
-                    var enableAudio = (userConf.enableAudio === 'true');
-                    if (enableAudio) {
+                    if (userConf.enableAudio) {
                         callback(null);
                     } else {
                         callback("Audio is not enabled");
@@ -297,7 +297,7 @@ var startAudioManager = function () {
         },
         // create a null sink to redirect input of recorder
         (cb) => {
-            execFile("pactl", ["load-module", "module-null-sink", "sink_name=recu" + localid, "format=s16", "channels=1", "rate=8000", "sink_properties=\"device.description='RTP_U" + localid + "'\""], function(error, stdout, stderr) {
+            execFile("pactl", ["load-module", "module-null-sink", "sink_name=recu" + localid, "format=s16", "channels=1", "rate=8000", "sink_properties=\"device.description='REC_U" + localid + "'\""], function(error, stdout, stderr) {
                 if (error) {
                     console.error("initAudio.pactl.load-module.module-null-sink: stdout: " + stdout);
                 } else {
@@ -308,7 +308,8 @@ var startAudioManager = function () {
         },
         // redirect output of the player to the sink input that will connect to gst
         (cb) => {
-            execFile("pactl", ["move-sink-input", "" + sinkInputPlayerIdx, "rtpu" + localid], function(error, stdout, stderr) {
+            console.log("run: pacmd move-sink-input " + sinkInputPlayerIdx + " rtpu" + localid);
+            execFile("pacmd", ["move-sink-input", "" + sinkInputPlayerIdx, "rtpu" + localid], function(error, stdout, stderr) {
                 if (error) {
                     console.error("initAudio.pactl.move-sink-input: stdout: " + stdout);
                 }
@@ -317,7 +318,7 @@ var startAudioManager = function () {
         },
         // redirect input of the recorder
         (cb) => {
-            execFile("pactl", ["move-sink-input", "" + sinkInputRecorderIdx, "recu" + localid], function(error, stdout, stderr) {
+            execFile("pacmd", ["move-sink-input", "" + sinkInputRecorderIdx,, "recu" + localid], function(error, stdout, stderr) {
                 if (error) {
                     console.error("initAudio.pactl.move-sink-input: stdout: " + stdout);
                 }
@@ -325,9 +326,9 @@ var startAudioManager = function () {
             });
         },
         (cb) => {
-            execFile("pactl", ["move-source-output", "" + sourceOutputRecorderIdx, "recu" + localid + ".monitor"], function(error, stdout, stderr) {
+            execFile("pacmd", ["move-source-output", "" + sourceOutputRecorderIdx, "recu" + localid + ".monitor"], function(error, stdout, stderr) {
                 if (error) {
-                    console.error("initAudio.pactl.move-sink-input: stdout: " + stdout);
+                    console.error("initAudio.pactl.move-source-output: stdout: " + stdout);
                 }
                 cb(error);
             });
@@ -338,17 +339,6 @@ var startAudioManager = function () {
             stopAudioManager();
             return;
         }
-        audioServerProc = platform.spawn("user_audioserver", [localid]);
-        mediaServerProc = platform.spawn("user_mediaserver", [localid]);
-
-        audioServerProc.on('close', (code) => {
-            console.info("audioServerProc closed with code " + code);
-            audioServerProc = undefined;
-        });
-        mediaServerProc.on('close', (code) => {
-            console.info("mediaServerProc closed with code " + code);
-            mediaServerProc = undefined;
-        });
         console.info("Audio Manager initiated.");
     });
 
@@ -403,8 +393,6 @@ var stopAudioManager = function () {
         },
         (cb) => {
             if (gstRecordProc) gstRecordProc.kill('SIGINT');
-            if(audioServerProc) audioServerProc.kill('SIGINT');
-            if(mediaServerProc) mediaServerProc.kill('SIGINT');
             if (pulseaudioUserProc) pulseaudioUserProc.kill('SIGINT');
             cb();
         },
@@ -414,14 +402,6 @@ var stopAudioManager = function () {
                 var needWaitFlag = false;
                 if(gstRecordProc && !gstRecordProc.killed) {
                     console.info("waiting for quit of gst-lunch of record");
-                    needWaitFlag = true;
-                }
-                if(audioServerProc && !audioServerProc.killed) {
-                    console.info("waiting for quit of audioserver");
-                    needWaitFlag = true;
-                }
-                if(mediaServerProc && !mediaServerProc.killed) {
-                    console.info("waiting for quit of mediaserver");
                     needWaitFlag = true;
                 }
                 if(pulseaudioUserProc && !pulseaudioUserProc.killed) {

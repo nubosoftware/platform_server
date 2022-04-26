@@ -8,6 +8,7 @@ node_modules/
 rpmbuild/RPMS
 rpmbuild/SRPMS
 debbuild
+dist
 pulseaudio-service
 pulseaudio-user
 package-lock.json
