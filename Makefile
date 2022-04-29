@@ -79,7 +79,7 @@ push-hub: docker
 	docker tag nuboplatformserver:$(platform_server_version)-$(platform_server_buildid) nubosoftware/nuboplatformserver:$(platform_server_version)
 	docker push nubosoftware/nuboplatformserver:$(platform_server_version)
 
-push-hub-latest: push-nubo
+push-hub-latest: push-hub
 	docker tag nuboplatformserver:$(platform_server_version)-$(platform_server_buildid) nubosoftware/nuboplatformserver
 	docker push nubosoftware/nuboplatformserver
 

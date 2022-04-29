@@ -16,6 +16,7 @@ var Audio = require('./audio.js');
 var ps = require('ps-node');
 const machineModule = require('./machine.js');
 const { docker, pullImage, execDockerCmd, ExecCmdError} = require('./dockerUtils');
+const {getRules,createChain, deleteRule,insertRule } = require('./ipTables');
 const fsp = fs.promises;
 const path = require('path');
 
@@ -63,6 +64,7 @@ async function attachUserDocker(obj) {
         nfs: obj.nfs,
         mounts: obj.mounts,
         params: obj.session,
+        firewall: obj.firewall,
         //xml_file_content: obj.xml_file_content
     };
     session.params.localid = unum;
@@ -123,6 +125,79 @@ async function attachUserDocker(obj) {
         let ipAddress = cinsp.NetworkSettings.Networks["net_sess"].IPAddress;
         //console.log(`container inspect: ${JSON.stringify(cinsp,null,2)}`);
         //console.log(`container inspect: ${JSON.stringify(sesscontainer,null,2)}`);
+
+        // create firewall rules if needed
+        if (session.firewall && session.firewall.enabled) {
+            try {
+                logger.log('info',`Assign firewall rules`);
+                const NUBO_USER_CHAIN = "NUBO-USER";
+                let chains = await getRules();
+                let rules = chains[NUBO_USER_CHAIN];
+                if (rules) {
+                    console.log(`Found NUBO-USER chain with ${chains["NUBO-USER"].length} items`);
+                } else {
+                    console.log(`NUBO-USER chain not found. Creating new chain`);
+                    await createChain(NUBO_USER_CHAIN);
+                    await insertRule(NUBO_USER_CHAIN,null,['-j','RETURN']); // drop all incoming traffic to ip
+                    let fwdRules = chains['FORWARD'];
+                    let num;
+                    let foundNuboUser = false;
+                    for (const rule of fwdRules) {
+                        if (rule.target == "DOCKER-ISOLATION-STAGE-1") {
+                            num = rule.num + 1;
+                        }
+                        if (rule.target == NUBO_USER_CHAIN) {
+                            foundNuboUser = true;
+                            break;
+                        }
+                    }
+                    if (num && !foundNuboUser) {
+                        await insertRule('FORWARD',num,['-j',NUBO_USER_CHAIN]); // go to chain NUBO-USER from FORWARD chain
+                    }
+                    rules = [];
+                }
+
+                // delete old rules of this ip address
+                for (let i = rules.length-1; i>=0 ; i--) {
+                    const rule = rules[i];
+                    if (rule.source == ipAddress || rule.destination == ipAddress)  {
+                        console.log(`Delete rule: ${JSON.stringify(rule)}`);
+                        await deleteRule(NUBO_USER_CHAIN,rule.num);
+                    }
+                }
+
+                // insert default rules -- block all outgoing/incoming traffic
+                await insertRule(NUBO_USER_CHAIN,null,['-d',ipAddress,'-j','DROP']); // drop all incoming traffic to ip
+                await insertRule(NUBO_USER_CHAIN,null,['-d',ipAddress,'-m','conntrack','--ctstate','ESTABLISHED','-j','ACCEPT']); // allow incoming established
+                await insertRule(NUBO_USER_CHAIN,null,['-d',ipAddress,'-p','tcp','--dport','3389','-j','ACCEPT']); // allow incoming rdp connection
+                await insertRule(NUBO_USER_CHAIN,null,['-s',ipAddress,'-j','DROP']); // drop all outgoing traffic from ip
+                await insertRule(NUBO_USER_CHAIN,null,['-s',ipAddress,'-m','conntrack','--ctstate','ESTABLISHED','-j','ACCEPT']); // allow outgoinf established
+                let addedRules = 0;
+                // add aditional outgoing rules
+                for (const rule of session.firewall.rules) {
+                    let ruleparams = ['-s',ipAddress];
+                    if (rule.destination) {
+                        ruleparams.push('-d',rule.destination);
+                    }
+                    if (rule.prot) {
+                        ruleparams.push('-p',rule.prot);
+                    }
+                    if (rule.dport && rule.dport > 0) {
+                        ruleparams.push('--dport',rule.dport);
+                    }
+                    ruleparams.push('-j','ACCEPT');
+                    await insertRule(NUBO_USER_CHAIN,null,ruleparams); // add rule
+                    addedRules++;
+                }
+                logger.info(`Added ${addedRules} custom firewall rules`);
+                //await insertRule(NUBO_USER_CHAIN,null,['-s',ipAddress,'-d','159.89.188.39','-p','tcp','--dport','443','-j','ACCEPT']); // sampe rule to nubo website
+
+
+            } catch (err) {
+                logger.error(`Firewall create error: ${err}`,err);
+                throw new Error(`Firewall create error: ${err}`);
+            }
+        }
 
 
         const { stdout, stderr } = await execDockerCmd(
@@ -343,6 +418,27 @@ async function detachUserDocker(unum) {
             await vol.remove();
         }
     }
+
+    if (session.firewall && session.firewall.enabled && session.params.ipAddress) {
+        try {
+            logger.log('info',`Remove firewall rules`);
+            const NUBO_USER_CHAIN = "NUBO-USER";
+            let chains = await getRules(NUBO_USER_CHAIN);
+            let rules = chains[NUBO_USER_CHAIN];
+
+            // delete old rules of this ip address
+            for (let i = rules.length-1; i>=0 ; i--) {
+                const rule = rules[i];
+                if (rule.source == session.params.ipAddress || rule.destination == session.params.ipAddress)  {
+                    console.log(`Delete rule: ${JSON.stringify(rule)}`);
+                    await deleteRule(NUBO_USER_CHAIN,rule.num);
+                }
+            }
+        } catch (err) {
+            logger.error(`Firewall remove error: ${err}`,err);
+        }
+    }
+
     if (session.login.deviceType != "Desktop") {
         // remove apks folder
         const apksDir = path.resolve(`./sessions/apks_${unum}`);

@@ -121,7 +121,8 @@ var filter = {
             "nfs_slow.nfs_path": constraints.pathConstrOptional,
             "nfs_slow.nfs_path_slow": constraints.pathConstrOptional,
             "mounts" : {},
-            "xml_file_content": {}
+            "xml_file_content": {},
+            "firewall": {},
         }
     }, {
         "path": "/createNewUserTarGz",

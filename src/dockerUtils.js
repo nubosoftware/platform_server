@@ -21,21 +21,43 @@ module.exports = {
     pullImage,
     execCmd,
     execDockerCmd,
-    ExecCmdError
+    ExecCmdError,
+    execInHost
 };
 
 
+function execInHost(cmd,params,options) {
+    return new Promise((resolve, reject) => {
+        let opts = {maxBuffer: 1024 * 1024 * 10};
+        if (options) {
+            _.extend(opts, options)
+        }
+        execFile(cmd, params, opts , function (error, stdout, stderr) {
+            if (error) {
+                let e = new ExecCmdError(`${error}`,error,stdout,stderr);
+                reject(e);
+            }
+            resolve({
+                stdout,
+                stderr
+            });
+            return;
+        });
+    });
+}
 
 
 function execDockerCmd(params,options) {
+    return execInHost('/usr/bin/docker',params,options);
+    /*
     return new Promise((resolve, reject) => {
         let opts = {maxBuffer: 1024 * 1024 * 10};
         if (options) {
             _.extend(opts, options)
         }
         execFile('/usr/bin/docker', params, opts , function (error, stdout, stderr) {
-            if (error) {            
-                let e = new ExecCmdError(`${error}`,error,stdout,stderr);                             
+            if (error) {
+                let e = new ExecCmdError(`${error}`,error,stdout,stderr);
                 reject(e);
             }
 
@@ -47,7 +69,7 @@ function execDockerCmd(params,options) {
             });
             return;
         });
-    });
+    });*/
 }
 
 async function execCmd(container, cmd) {
@@ -80,7 +102,7 @@ function followProgress(stream) {
           function onProgress(event) {
             //console.log(`onProgress event: ${JSON.stringify(event,null,2)}`);
           }
-       
+
      });
 }
 async function pullImage(fullName) {
@@ -89,6 +111,6 @@ async function pullImage(fullName) {
     //let output = await followProgress(stream);
     //console.log(`Pull result: ${output}`);
     await execDockerCmd(['pull',fullName]);
-    
+
     return;
 }
