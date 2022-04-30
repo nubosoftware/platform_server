@@ -9,6 +9,7 @@ RUN apt install -y \
     rsyslog \
     vim \
     iputils-ping \
+    iptables \
     telnet \
     dnsutils \
     net-tools \
