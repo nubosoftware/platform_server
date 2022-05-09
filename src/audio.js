@@ -6,6 +6,7 @@ var execFile = require('child_process').execFile;
 var spawn = require('child_process').spawn;
 var ps = require('ps-node');
 var fs = require('fs');
+const path = require('path');
 
 
 
@@ -26,8 +27,9 @@ function initAudio(localid) {
                         "PULSE_RUNTIME_PATH": "/run/user/1000/pulse"
                     }
                 };
-                var child = spawn("node",["src/audiomanager.js", localid], pulse_opts);
-                logger.info("Starting ","node",["src/audiomanager.js", localid]);
+                const scriptPath = path.join(__dirname,"audiomanager.js");
+                var child = spawn("node",[scriptPath, localid], pulse_opts);
+                logger.info("Starting ","node",[scriptPath, localid]);
                 var userid = localid;
                 child.stdout.on('data', (data) => {
                     logger.info(`audiomanager.js userid: ${userid}, stdout: ${data}`);
@@ -62,11 +64,11 @@ function deInitAudio(localid) {
             // kill the audio manager process
             function(callback) {
                 var cmd = "node";
-                var arg1 =  "src/audiomanager.js";
+                var arg1 =  path.join(__dirname,"audiomanager.js");
                 var arg2 =  localid;
                 ps.lookup({
                     command: cmd,
-                    arguments: ["audiomanager.js", localid],
+                    arguments: [arg1, localid],
                     psargs: 'ax'
                 }, function(err, resultList) {
                     if (err) {
