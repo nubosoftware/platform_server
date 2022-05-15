@@ -189,7 +189,7 @@ var processTasksDocker = async function(tasks, logger) {
                     await fsp.copyFile(apkPath,sessApkPath);
 
                     let installTarget = path.resolve("/system/vendor/apks",task.filename);
-                    const { stdout, stderr } = await execDockerCmd(
+                    const { stdout, stderr } = await execDockerTries(
                         ['exec' , containerId, 'pm', 'install' , '--user','0', '-r', installTarget]
                     );
                     logger.info(`Installed package ${task.packageName} on container ${containerId}.\nstdout: ${stdout}\nstderr: ${stderr}`);
@@ -204,10 +204,24 @@ var processTasksDocker = async function(tasks, logger) {
                     logger.info(`Uninstalled package ${task.packageName} on container ${containerId}.\nstdout: ${stdout}\nstderr: ${stderr}`);
                     task.status = 1;
                 } else {
-                    const { stdout, stderr } = await execDockerCmd(
-                        ['exec' , containerId, 'pm', 'uninstall' , '--user','0',task.packageName]
-                    );
-                    logger.info(`Uninstalled package ${task.packageName} on container ${containerId}.\nstdout: ${stdout}\nstderr: ${stderr}`);
+                    let execRes;
+                    try {
+                        execRes = await execDockerTries(
+                            ['exec' , containerId, 'pm', 'uninstall' , '--user','0',task.packageName]
+                        );
+                    } catch (err) {
+                        if (err instanceof ExecCmdError) {
+                            if (err.stdout.indexOf("not installed for 0") >= 0) {
+                                //ignore error if packge is not install
+                                execRes = err;
+                            } else {
+                                throw err;
+                            }
+                        } else {
+                            throw err;
+                        }
+                    }
+                    logger.info(`Uninstalled package ${task.packageName} on container ${containerId}.\nstdout: ${execRes.stdout}\nstderr: ${execRes.stderr}`);
                     task.status = 1;
                 }
             } else if (UPGRADE_TASK.indexOf(task.task) !== -1) {
@@ -228,7 +242,7 @@ var processTasksDocker = async function(tasks, logger) {
                         await fsp.copyFile(apkPath,sessApkPath);
 
                         let installTarget = path.resolve("/system/vendor/apks",task.filename);
-                        const { stdout, stderr } = await execDockerCmd(
+                        const { stdout, stderr } = await execDockerTries(
                             ['exec' , containerId, 'pm', 'install' , '--user','0', '-r', installTarget]
                         );
                         logger.info(`Upgraded package ${task.packageName} on container ${containerId}.\nstdout: ${stdout}\nstderr: ${stderr}`);
@@ -256,6 +270,34 @@ var processTasksDocker = async function(tasks, logger) {
     return({
         errFlag,
         results
+    });
+}
+
+async function execDockerTries(params,options) {
+    let tries = 0;
+    while (tries<10) {
+        try {
+            tries++;
+            const res = await execDockerCmd(params,options);
+            return res;
+        } catch (err) {
+            if (err instanceof ExecCmdError) {
+                //console.log(`processTasksDocker. stdout: ${err.stdout}\n stderr: ${err.stderr}`);
+                if (tries<10 && err.stderr.indexOf("Can't find service: package") >= 0) {
+                    await sleep(5000);
+                    continue;
+                }
+            }
+            throw err;
+        }
+    }
+}
+
+function sleep(ms) {
+    return new Promise((resolve, reject) => {
+        setTimeout( () => {
+            resolve();
+        },ms);
     });
 }
 

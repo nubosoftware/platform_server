@@ -324,6 +324,7 @@ async function attachUserDocker(obj) {
  * @param {*} tmpData mounted data folder
  */
 async function createIPConf(tmpData) {
+    const logger = Common.getLogger(__filename);
     const ethernetDir = path.join(tmpData,'misc/ethernet');
     // create /data/misc/ethernet folder
     await fsp.mkdir(ethernetDir,{recursive: true});
