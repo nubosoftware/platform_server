@@ -318,7 +318,7 @@ var startAudioManager = function () {
         },
         // redirect input of the recorder
         (cb) => {
-            execFile("pacmd", ["move-sink-input", "" + sinkInputRecorderIdx,, "recu" + localid], function(error, stdout, stderr) {
+            execFile("pacmd", ["move-sink-input", "" + sinkInputRecorderIdx, "recu" + localid], function(error, stdout, stderr) {
                 if (error) {
                     console.error("initAudio.pactl.move-sink-input: stdout: " + stdout);
                 }
