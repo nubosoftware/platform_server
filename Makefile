@@ -5,6 +5,7 @@ LINUX_IMG_FULL_PATH:=$(nubo_proj_dir)/nuboplatform/out/target/product/x86_platfo
 LINUX_IMG_FULL_PATH:=/opt/Android-Nougat/linux.img
 
 current_dir := $(shell pwd)
+src_js_files_list := $(shell git ls-tree --name-only HEAD src/*.js)
 
 BASE_TAG := nubo_release_3.2
 BASE_VERSION := 3.2
@@ -37,7 +38,7 @@ img: $(LINUX_IMG_FULL_PATH) dist/pulseaudio-user
 
 deb: $(nubo_proj_dir)/debs/latest/platform-server-$(platform_server_version)-$(platform_server_buildid).deb
 
-$(nubo_proj_dir)/debs/latest/platform-server-$(platform_server_version)-$(platform_server_buildid).deb: dist/pulseaudio-user
+$(nubo_proj_dir)/debs/latest/platform-server-$(platform_server_version)-$(platform_server_buildid).deb: dist/pulseaudio-user dist/restserver.js dist/audiomanager.js
 	NUBO_PROJ_PATH=$(nubo_proj_dir) \
 	PROJ_PATH=$(current_dir) \
 	Version=$(platform_server_version).$(platform_server_buildid) \
@@ -46,7 +47,7 @@ $(nubo_proj_dir)/debs/latest/platform-server-$(platform_server_version)-$(platfo
 
 rpm: $(nubo_proj_dir)/rpms/latest/nuboplatform_server-$(platform_server_version)-$(platform_server_buildid).x86_64.rpm
 
-$(nubo_proj_dir)/rpms/latest/nuboplatform_server-$(platform_server_version)-$(platform_server_buildid).x86_64.rpm: dist/pulseaudio-user
+$(nubo_proj_dir)/rpms/latest/nuboplatform_server-$(platform_server_version)-$(platform_server_buildid).x86_64.rpm: dist/pulseaudio-user dist/restserver.js dist/audiomanager.js
 	NUBO_PROJ_PATH=$(nubo_proj_dir) \
 	PROJ_PATH=$(current_dir) \
 	rpmbuild -v \
@@ -60,9 +61,17 @@ $(nubo_proj_dir)/rpms/latest/nuboplatform_server-$(platform_server_version)-$(pl
 $(LINUX_IMG_FULL_PATH):
 	scp nubo@lab2.nubosoftware.com:N7/linux.img $(LINUX_IMG_FULL_PATH)
 
-dist/pulseaudio-user: src/pulseaudio-user-gst.cpp
-	[ ! -d dist ] && mkdir dist || true
-	g++ $? -o dist/pulseaudio-user -lpulse -lpthread -lpulse-simple `pkg-config --cflags --libs gstreamer-1.0`
+dist:
+	mkdir dist
+
+dist/pulseaudio-user: src/pulseaudio-user-gst.cpp dist
+	g++ $< -o $@ -lpulse -lpthread -lpulse-simple `pkg-config --cflags --libs gstreamer-1.0`
+
+dist/restserver.js: $(src_js_files_list) dist
+	node --max_old_space_size=10240 ./node_modules/webpack/bin/webpack.js --progress=profile --mode production --config webpack.config-restserver.js
+
+dist/audiomanager.js: src/audiomanager.js dist
+	node --max_old_space_size=10240 ./node_modules/webpack/bin/webpack.js --progress=profile --mode production --config webpack.config-audiomanager.js
 
 # docker: deb
 # 	mkdir -p docker_build/debs/

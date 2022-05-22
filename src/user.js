@@ -257,9 +257,6 @@ async function attachUserDocker(obj) {
         await saveUserSessionPromise(unum, session);
         await Audio.initAudio(unum);
 
-        // create the ipconfig.txt
-        await createIPConf(dataDir);
-
         // get user image from registry
         let imageName = `${registryURL}/nubo/${session.params.docker_image}`;
         logger.log('info', `Pulling user image: ${imageName}`, logMeta);
@@ -316,60 +313,6 @@ async function attachUserDocker(obj) {
     await saveUserSessionPromise(unum,session);
 
     return result;
-}
-
-/**
- * Create the ipconfig.txt file and
- * save it to /data/misc/ethernet/ipconfig.txt
- * @param {*} tmpData mounted data folder
- */
-async function createIPConf(tmpData) {
-    const logger = Common.getLogger(__filename);
-    const ethernetDir = path.join(tmpData,'misc/ethernet');
-    // create /data/misc/ethernet folder
-    await fsp.mkdir(ethernetDir,{recursive: true});
-    const filePath = path.join(ethernetDir,'ipconfig.txt');
-    let chunks = [];
-    let writeInt = function(int) {
-        var buf = Buffer.alloc(4);
-        buf.writeInt32BE(int, 0, 4);
-        chunks.push(buf);
-    };
-    let writeString = function(str) {
-        var len = str.length;
-        var buf = Buffer.alloc(len + 2);
-        buf.writeInt16BE(len, 0, 2);
-        buf.write(str, 2, len);
-        chunks.push(buf);
-    }
-    let ipconfig = Common.ipconfig;
-    if (!ipconfig) {
-        logger.console.warn('ipconfig not found in settings');
-        ipconfig = {};
-    }
-    writeInt(3); //Version 3
-
-    writeString("ipAssignment");
-    writeString("UNASSIGNED");
-
-    writeString("id");
-    writeString("eth0");    //1st network
-
-    if (ipconfig.gateway) {
-        writeString("gateway");
-        writeInt(0); // Default route.
-        writeInt(1); // Have a gateway.
-        writeString(ipconfig.gateway);
-    }
-
-    ipconfig.dns.forEach(function(row) {
-        writeString("dns");
-        writeString(row);
-    });
-
-    writeString("eos");
-    const buff = Buffer.concat(chunks);
-    await fsp.writeFile(filePath,buff);
 }
 
 function execCmd(cmd,params) {

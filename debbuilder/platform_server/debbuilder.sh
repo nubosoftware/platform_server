@@ -14,11 +14,7 @@ mkdir -p $BUILD_ROOT/etc/systemd/system
 
 install -m 755 $PROJ_PATH/dist/pulseaudio-user $BUILD_ROOT/opt/platform_server/dist/pulseaudio-user
 
-echo "Run webpack..."
-cd $NUBO_PROJ_PATH/platform_server
-npm run-script build
-cp -a dist/* $BUILD_ROOT/opt/platform_server/dist/.
-cd -
+cp -a $PROJ_PATH/dist/* $BUILD_ROOT/opt/platform_server/dist/
 
 #Copy js files from git project
 #FILES=`git ls-tree --full-tree -r HEAD | awk '$4 ~ /.+\.js$/ {print $4}'`

@@ -11,14 +11,10 @@ var spawn = require('child_process').spawn;
 var fs = require('fs');
 var net = require('net');
 
-var Platform = require('./platform.js');
-
 var localid;
 var nullSinkIn,nullSinkOut;
 var gstRecordProc;
 var pulseaudioUserProc;
-
-var platform = new Platform();
 
 var args = process.argv;
 if (args.length < 3) {
