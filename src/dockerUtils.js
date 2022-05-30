@@ -22,7 +22,9 @@ module.exports = {
     execCmd,
     execDockerCmd,
     ExecCmdError,
-    execInHost
+    execInHost,
+    execDockerWaitAndroid,
+    sleep
 };
 
 
@@ -49,27 +51,57 @@ function execInHost(cmd,params,options) {
 
 function execDockerCmd(params,options) {
     return execInHost('/usr/bin/docker',params,options);
-    /*
-    return new Promise((resolve, reject) => {
-        let opts = {maxBuffer: 1024 * 1024 * 10};
-        if (options) {
-            _.extend(opts, options)
-        }
-        execFile('/usr/bin/docker', params, opts , function (error, stdout, stderr) {
-            if (error) {
-                let e = new ExecCmdError(`${error}`,error,stdout,stderr);
-                reject(e);
-            }
+}
 
-            //logger.info("compileApk: " + stdout);
-            //logger.info("execDockerCmd: app " + "\'" + stdout + "\'");
-            resolve({
-                stdout,
-                stderr
-            });
-            return;
-        });
-    });*/
+/**
+ * Exec doocker command but what until android is up and able to process command
+ * @param {*} params
+ * @param {*} options
+ * @returns
+ */
+async function execDockerWaitAndroid(params,options) {
+    const MAX_TRIES = 120;
+    const WAIT_MS = 1000;
+    const reasons = ["OCI runtime exec failed",
+        "Can't find service",
+        "Cannot access system provider",
+        "NullPointerException",
+        "Failure calling service package"];
+    let tries = 0;
+    while (tries<MAX_TRIES) {
+        try {
+            tries++;
+            const res = await execDockerCmd(params,options);
+            return res;
+        } catch (err) {
+            if (err instanceof ExecCmdError) {
+                //console.log(`processTasksDocker. stdout: ${err.stdout}\n stderr: ${err.stderr}`);
+                if (tries<MAX_TRIES) {
+                    let foundWaitReason = false;
+                    for (const reason of reasons) {
+                        if (err.stderr.indexOf(reason) >= 0 || err.stdout.indexOf(reason) >= 0) {
+                            console.log(`execDockerWaitAndroid. wait for Android to start. stdout: ${err.stdout}, stderr: ${err.stderr}`);
+                            foundWaitReason = true;
+                            break;
+                        }
+                    }
+                    if (foundWaitReason) {
+                        await sleep(WAIT_MS);
+                        continue;
+                    }
+                }
+            }
+            throw err;
+        }
+    }
+}
+
+function sleep(ms) {
+    return new Promise((resolve, reject) => {
+        setTimeout( () => {
+            resolve();
+        },ms);
+    });
 }
 
 async function execCmd(container, cmd) {

@@ -10,7 +10,7 @@ var http = require('./http.js');
 var Common = require('./common.js');
 const path = require('path');
 const { logger } = require('./common.js');
-const { execDockerCmd , ExecCmdError } = require('./dockerUtils');
+const { execDockerCmd , ExecCmdError, execDockerWaitAndroid } = require('./dockerUtils');
 const fsp = fs.promises;
 
 module.exports = {
@@ -183,13 +183,16 @@ var processTasksDocker = async function(tasks, logger) {
                 } else {
                     // instal in mobile
                     // tbd copy to container apks
+                    if (!task.filename) {
+                        task.filename = `${task.packageName}.apk`;
+                    }
                     let apkPath = path.resolve("./apks",task.filename);
                     let sessApkPath = path.resolve(`./sessions/apks_${task.unum}`,task.filename);
                     logger.info(`Copy apk from ${apkPath} to ${sessApkPath}`);
                     await fsp.copyFile(apkPath,sessApkPath);
 
                     let installTarget = path.resolve("/system/vendor/apks",task.filename);
-                    const { stdout, stderr } = await execDockerTries(
+                    const { stdout, stderr } = await execDockerWaitAndroid(
                         ['exec' , containerId, 'pm', 'install' , '--user','0', '-r', installTarget]
                     );
                     logger.info(`Installed package ${task.packageName} on container ${containerId}.\nstdout: ${stdout}\nstderr: ${stderr}`);
@@ -206,7 +209,7 @@ var processTasksDocker = async function(tasks, logger) {
                 } else {
                     let execRes;
                     try {
-                        execRes = await execDockerTries(
+                        execRes = await execDockerWaitAndroid(
                             ['exec' , containerId, 'pm', 'uninstall' , '--user','0',task.packageName]
                         );
                     } catch (err) {
@@ -231,7 +234,7 @@ var processTasksDocker = async function(tasks, logger) {
                 } else {
                     // mobile upgrade
                     // check if package installed
-                    const listRet = await execDockerCmd(
+                    const listRet = await execDockerWaitAndroid(
                         ['exec' , containerId, 'pm', 'list' , 'packages','--user','0', task.packageName]
                     );
                     if (listRet.stdout && listRet.stdout.indexOf(task.packageName) >= 0) {
@@ -242,7 +245,7 @@ var processTasksDocker = async function(tasks, logger) {
                         await fsp.copyFile(apkPath,sessApkPath);
 
                         let installTarget = path.resolve("/system/vendor/apks",task.filename);
-                        const { stdout, stderr } = await execDockerTries(
+                        const { stdout, stderr } = await execDockerWaitAndroid(
                             ['exec' , containerId, 'pm', 'install' , '--user','0', '-r', installTarget]
                         );
                         logger.info(`Upgraded package ${task.packageName} on container ${containerId}.\nstdout: ${stdout}\nstderr: ${stderr}`);
@@ -273,33 +276,6 @@ var processTasksDocker = async function(tasks, logger) {
     });
 }
 
-async function execDockerTries(params,options) {
-    let tries = 0;
-    while (tries<10) {
-        try {
-            tries++;
-            const res = await execDockerCmd(params,options);
-            return res;
-        } catch (err) {
-            if (err instanceof ExecCmdError) {
-                //console.log(`processTasksDocker. stdout: ${err.stdout}\n stderr: ${err.stderr}`);
-                if (tries<10 && err.stderr.indexOf("Can't find service: package") >= 0) {
-                    await sleep(5000);
-                    continue;
-                }
-            }
-            throw err;
-        }
-    }
-}
-
-function sleep(ms) {
-    return new Promise((resolve, reject) => {
-        setTimeout( () => {
-            resolve();
-        },ms);
-    });
-}
 
 var processTasks = function(tasks, logger, callback) {
     if (machineModule.isDockerPlatform()) {

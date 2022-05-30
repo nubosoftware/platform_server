@@ -123,6 +123,7 @@ var filter = {
             "mounts" : {},
             "xml_file_content": {},
             "firewall": {},
+            "platformSettings": {},
         }
     }, {
         "path": "/createNewUserTarGz",

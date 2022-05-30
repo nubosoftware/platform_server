@@ -15,7 +15,7 @@ var http = require('./http.js');
 var Audio = require('./audio.js');
 var ps = require('ps-node');
 const machineModule = require('./machine.js');
-const { docker, pullImage, execDockerCmd, ExecCmdError} = require('./dockerUtils');
+const { docker, pullImage, execDockerCmd, ExecCmdError, execDockerWaitAndroid, sleep} = require('./dockerUtils');
 const {getRules,createChain, deleteRule,insertRule } = require('./ipTables');
 const fsp = fs.promises;
 const path = require('path');
@@ -65,14 +65,15 @@ async function attachUserDocker(obj) {
         mounts: obj.mounts,
         params: obj.session,
         firewall: obj.firewall,
+        platformSettings: obj.platformSettings
         //xml_file_content: obj.xml_file_content
     };
     session.params.localid = unum;
+    session.params.tz = obj.timeZone;
     if (session.login.deviceType == "Desktop") {
 
 
         session.params.linuxUserName = linuxUserName;
-        session.params.tz = obj.timeZone;
         session.params.userPass = makeid(16);
         session.params.locale = `${session.login.lang}_${session.login.countrylang}.UTF-8`;
 
@@ -307,6 +308,30 @@ async function attachUserDocker(obj) {
 
         session.params.containerId = containerID;
         session.params.volumes = [vol_storage.name];
+
+        // wait for launcher to start
+        let started = false;
+        let cnt = 0;
+        let default_launcher;
+        if (session.platformSettings && session.platformSettings.default_launcher) {
+            default_launcher = session.platformSettings.default_launcher;
+        } else {
+            default_launcher = "com.nubo.launcher";
+        }
+        logger.info(`Waiting for launcher (${default_launcher}) to start..`);
+        while (!started && cnt < 200) {
+            cnt++;
+            let resps = await execDockerWaitAndroid(
+                ['exec' , containerID, 'ps', '-A' ]
+            );
+            if (resps.stdout && resps.stdout.indexOf(default_launcher) >= 0) {
+                started = true;
+            } else {
+                sleep(500);
+            }
+        }
+
+
         logger.log('info', `Session created on platform. containerID: ${containerID}`, logMeta);
 
     }
@@ -332,13 +357,6 @@ function execCmd(cmd,params) {
     });
 }
 
-function sleep(ms) {
-    return new Promise((resolve, reject) => {
-        setTimeout( () => {
-            resolve();
-        },ms);
-    });
-}
 
 function makeid(length) {
     var result = '';
