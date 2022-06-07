@@ -78,10 +78,19 @@ dist/audiomanager.js: src/audiomanager.js dist
 # 	cp $(nubo_proj_dir)/debs/latest/platform-server-$(platform_server_version)-$(platform_server_buildid).deb docker_build/debs/platform-server.deb
 # 	cp $(nubo_proj_dir)/debs/latest/nubo-common-3.0-1.deb docker_build/debs/nubo-common.deb
 # 	sudo docker build -t nuboplatformserver:$(platform_server_version)-$(platform_server_buildid) docker_build/.
-
+#
 docker:
-	docker build --build-arg BUILD_VER=$(platform_server_version)-$(platform_server_buildid) --no-cache --pull -f  docker_build/Dockerfile -t nuboplatformserver:$(platform_server_version)-$(platform_server_buildid) .
+	docker build --build-arg BUILD_VER=$(platform_server_version)-$(platform_server_buildid) --no-cache --pull -f docker_build/Dockerfile -t nuboplatformserver:$(platform_server_version)-$(platform_server_buildid) .
 
+push-nubo: docker
+	docker tag nuboplatformserver:$(platform_server_version)-$(platform_server_buildid) docker.nubosoftware.com:5000/nubo/platformserver:$(platform_server_version)-$(platform_server_buildid)
+	docker push docker.nubosoftware.com:5000/nubo/platformserver:$(platform_server_version)-$(platform_server_buildid)
+	docker tag nuboplatformserver:$(platform_server_version)-$(platform_server_buildid) docker.nubosoftware.com:5000/nubo/platformserver:$(platform_server_version)
+	docker push docker.nubosoftware.com:5000/nubo/platformserver:$(platform_server_version)
+
+push-nubo-latest: push-nubo
+	docker tag nuboplatformserver:$(platform_server_version)-$(platform_server_buildid) docker.nubosoftware.com:5000/nubo/platformserver
+	docker push docker.nubosoftware.com:5000/nubo/platformserver
 
 push-hub: docker
 	docker tag nuboplatformserver:$(platform_server_version)-$(platform_server_buildid) nubosoftware/nuboplatformserver:$(platform_server_version)-$(platform_server_buildid)

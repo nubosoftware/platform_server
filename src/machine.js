@@ -163,21 +163,42 @@ async function startDockerPlatformImp(requestObj) {
     let apksFolder = path.resolve("./apks");
     //logger.info(`Mount debs/apks folders..`);
     if (requestObj.nfs.nfs_ip != "local") {
-        await mkdir(debsFolder,{recursive: true});
-        await mountDebsFolder(requestObj.nfs,debsFolder);
-        await mountAPKsFolder(requestObj.nfs,apksFolder);
+        try {
+            await mkdir(debsFolder,{recursive: true});
+            await mountDebsFolder(requestObj.nfs,debsFolder);
+            logger.info(`Debs folder mounted at ${debsFolder}`);
+        } catch (e) {
+            logger.info(`Error mount for deps folder: ${e}`);
+        }
+        try {
+            await mkdir(apksFolder,{recursive: true});
+            await mountAPKsFolder(requestObj.nfs,apksFolder);
+            logger.info(`APKs folder mounted at ${apksFolder}`);
+        } catch (e) {
+            logger.info(`Error mount for apks folder: ${e}`);
+        }
     } else {
         // if it local address do not mount but create a symlink
         try {
-            await fs.promises.unlink(debsFolder);
-            await fs.promises.symlink(debsFolder, path.join(nfs.nfs_path,"debs"));
             await fs.promises.unlink(apksFolder);
-            await fs.promises.symlink(apksFolder, path.join(nfs.nfs_path,"apks"));
+        } catch (err) { }
+        try {
+            await fs.promises.symlink(path.join(requestObj.nfs.nfs_path,"apks"),apksFolder);
+            logger.info(`APKs folder mounted at ${apksFolder}`);
+        } catch (e) {
+            logger.info(`Error create symlink for apks folder: ${e}`);
+        }
+        try {
+            await fs.promises.unlink(debsFolder);
+        } catch (err) { }
+        try {
+            await fs.promises.symlink(path.join(requestObj.nfs.nfs_path,"debs"),debsFolder);
+            logger.info(`Debs folder mounted at ${debsFolder}`);
         } catch (e) {
             logger.info(`Error create symlink for debs folder: ${e}`);
         }
     }
-    logger.info(`Debs folder mounted at ${debsFolder}`);
+
 }
 
 function mountDebsFolder(nfs,dstFolder) {

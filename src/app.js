@@ -187,11 +187,14 @@ var processTasksDocker = async function(tasks, logger) {
                         task.filename = `${task.packageName}.apk`;
                     }
                     let apkPath = path.resolve("./apks",task.filename);
-                    let sessApkPath = path.resolve(`./sessions/apks_${task.unum}`,task.filename);
+                    // let sessApkPath = path.resolve(`./sessions/apks_${task.unum}`,task.filename);
+                    let sessApkPath = "/data/local/tmp/";
                     logger.info(`Copy apk from ${apkPath} to ${sessApkPath}`);
-                    await fsp.copyFile(apkPath,sessApkPath);
+                    // await fsp.copyFile(apkPath,sessApkPath);
+                    let cpres = await execDockerWaitAndroid(['cp',apkPath,`${containerId}:${sessApkPath}`]);
 
-                    let installTarget = path.resolve("/system/vendor/apks",task.filename);
+                    // let installTarget = path.resolve("/system/vendor/apks",task.filename);
+                    let installTarget = path.resolve(sessApkPath,task.filename);
                     const { stdout, stderr } = await execDockerWaitAndroid(
                         ['exec' , containerId, 'pm', 'install' , '--user','0', '-r', installTarget]
                     );
@@ -240,11 +243,14 @@ var processTasksDocker = async function(tasks, logger) {
                     if (listRet.stdout && listRet.stdout.indexOf(task.packageName) >= 0) {
                         logger.info(`Upgrading packge: ${task.packageName}`);
                         let apkPath = path.resolve("./apks",task.filename);
-                        let sessApkPath = path.resolve(`./sessions/apks_${task.unum}`,task.filename);
+                        // let sessApkPath = path.resolve(`./sessions/apks_${task.unum}`,task.filename);
+                        let sessApkPath = "/data/local/tmp/";
                         logger.info(`Copy apk from ${apkPath} to ${sessApkPath}`);
-                        await fsp.copyFile(apkPath,sessApkPath);
+                        // await fsp.copyFile(apkPath,sessApkPath);
+                        let cpres = await execDockerWaitAndroid(['cp',apkPath,`${containerId}:${sessApkPath}`]);
 
-                        let installTarget = path.resolve("/system/vendor/apks",task.filename);
+                        // let installTarget = path.resolve("/system/vendor/apks",task.filename);
+                        let installTarget = path.resolve(sessApkPath,task.filename);
                         const { stdout, stderr } = await execDockerWaitAndroid(
                             ['exec' , containerId, 'pm', 'install' , '--user','0', '-r', installTarget]
                         );
@@ -263,6 +269,11 @@ var processTasksDocker = async function(tasks, logger) {
             logger.error(`processTasksDocker. Error execute task: ${err}`,err);
             if (err instanceof ExecCmdError) {
                 logger.info(`processTasksDocker. stdout: ${err.stdout}\n stderr: ${err.stderr}`);
+                if (err.stdout && err.stdout.indexOf("INSTALL_FAILED_INSUFFICIENT_STORAGE") >= 0) {
+                    err = "INSTALL_FAILED_INSUFFICIENT_STORAGE";
+                } else if (err.stderr && err.stderr.indexOf("but not enough space") >= 0) {
+                    err = "INSTALL_FAILED_INSUFFICIENT_STORAGE";
+                }
             }
             task.status = 0;
             task.statusMsg = `${err}`;

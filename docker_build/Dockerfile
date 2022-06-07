@@ -13,7 +13,16 @@ RUN apt install -y \
     telnet \
     dnsutils \
     net-tools \
-    sudo
+    sudo \
+    pulseaudio \
+    gstreamer1.0-x \
+    gstreamer1.0-tools \
+    gstreamer1.0-plugins-good \
+    gstreamer1.0-plugins-bad \
+    libgstreamer1.0-0 \
+    libgstreamer-plugins-good1.0-0 \
+    libgstreamer-plugins-bad1.0-0 \
+    gstreamer1.0-pulseaudio
 
 # install nodejs
 RUN curl -fsSL https://deb.nodesource.com/setup_16.x | bash -
@@ -57,6 +66,14 @@ RUN npm run build
 
 # remove build dependencies
 RUN rm -rf src webpack.config.js
+
+COPY dist/pulseaudio-user ${TARGET_DIR}/dist/.
+
+# Create a new user nubo
+ARG UID=1000
+ARG GID=1000
+RUN groupadd --gid $GID nubo
+RUN useradd --system --create-home --shell /bin/bash --uid $UID --gid $GID nubo
 
 
 # Docker config

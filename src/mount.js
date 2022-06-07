@@ -237,11 +237,11 @@ function externalMounts(login, session, callback) {
 
 async function linuxMount(session) {
     let login = session.login;
-    let localid = session.params.localid;    
+    let localid = session.params.localid;
     let email = login.email;
     let deviceID = session.params.deviceid;
     let nfs;
-    let nfshomefolder;    
+    let nfshomefolder;
     if (session.nfs) {
         nfs = session.nfs.nfs_ip;
         nfshomefolder = session.nfs.nfs_path;
@@ -250,7 +250,7 @@ async function linuxMount(session) {
     }
     if (nfs != "local") {
         var nfsprefix = nfs + ":" + nfshomefolder + "/";
-        var userDeviceDataFolder = getUserHomeFolder(email) + deviceID + "/";    
+        var userDeviceDataFolder = getUserHomeFolder(email) + deviceID + "/";
         session.params.nfsHomeFolder = nfsprefix + userDeviceDataFolder;
         let nfsSrc = [session.params.nfsHomeFolder];
         session.params.homeFolder = "/rdp/homes/"+session.params.linuxUserName;
@@ -268,11 +268,11 @@ async function linuxMount(session) {
 
 async function mobileMount(session) {
     let login = session.login;
-    let localid = session.params.localid;    
+    let localid = session.params.localid;
     let email = login.email;
     let deviceID = session.params.deviceid;
     let nfs;
-    let nfshomefolder;    
+    let nfshomefolder;
     if (session.nfs) {
         nfs = session.nfs.nfs_ip;
         nfshomefolder = session.nfs.nfs_path;
@@ -281,7 +281,7 @@ async function mobileMount(session) {
     }
     if (nfs != "local") {
         var nfsprefix = nfs + ":" + nfshomefolder + "/";
-        var userDeviceDataFolder = getUserHomeFolder(email) + deviceID + "/";    
+        var userDeviceDataFolder = getUserHomeFolder(email) + deviceID + "/";
         session.params.nfsHomeFolder = nfsprefix + userDeviceDataFolder;
         session.params.nfsStorageFolder = nfsprefix + getUserHomeFolder(email) + "storage/";
         let nfsSrc = [session.params.nfsHomeFolder];
@@ -294,6 +294,7 @@ async function mobileMount(session) {
         // if this a local path we do not need to mount to nfs, just set the properties
         session.params.nfsHomeFolder = "local";
         session.params.homeFolder = path.join(nfshomefolder,getUserHomeFolder(email),deviceID);
+        session.params.storageFolder =  path.join(nfshomefolder,getUserHomeFolder(email),"storage");
     }
 
 }
@@ -308,14 +309,14 @@ function mountHostNfsPromise(nfsSrc, nfsDst, nfsoptions) {
                 resolve();
             }
         });
-    });    
+    });
 }
 
 
-function linuxUMount(dir) {    
+function linuxUMount(dir) {
     return new Promise((resolve,reject) => {
         var dirs = [
-            dir      
+            dir
         ];
         umount(dirs, function(err){
             if (err) {

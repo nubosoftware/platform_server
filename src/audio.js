@@ -27,6 +27,12 @@ function initAudio(localid) {
                         "PULSE_RUNTIME_PATH": "/run/user/1000/pulse"
                     }
                 };
+                if (Common.isDocker) {
+                    pulse_opts.env = {
+                        "HOME": "/home/nubo",
+                    }
+                }
+                logger.info(`initAudio. localid: ${localid}, isDocker: ${Common.isDocker}`);
                 const scriptPath = path.join(__dirname,"audiomanager.js");
                 var child = spawn("node",[scriptPath, localid], pulse_opts);
                 logger.info("Starting ","node",[scriptPath, localid]);

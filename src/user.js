@@ -249,12 +249,26 @@ async function attachUserDocker(obj) {
 
 
         // mount data.img as loop device
-        let loopDeviceNum;
         const imgFilePath = path.join(session.params.homeFolder,'data.img');
 
-        const dataDir = path.resolve(`./sessions/data_${unum}`);
-        await fsp.mkdir(dataDir,{recursive: true});
-        await execCmd('/usr/bin/mount',[imgFilePath, dataDir]);
+        // const dataDir = path.resolve(`./sessions/data_${unum}`);
+        // await fsp.mkdir(dataDir,{recursive: true});
+        // await execCmd('/usr/bin/mount',[imgFilePath, dataDir]);
+        let losetupres =  await execCmd('losetup',["-f",imgFilePath,"--show"]);
+        let loopDeviceNum = losetupres.stdout.trim();
+
+        logger.log('info', `Create local volume for ${loopDeviceNum}`);
+
+        let vol_data = await docker.createVolume({
+            Name: "nubo_" + session.params.localid + "_data",
+            DriverOpts : {
+                device: loopDeviceNum,
+                type: "ext4"
+            }
+        });
+        session.params.loopDevices = [loopDeviceNum];
+        session.params.volumes = [vol_data.name];
+
         await saveUserSessionPromise(unum, session);
         await Audio.initAudio(unum);
 
@@ -265,18 +279,28 @@ async function attachUserDocker(obj) {
 
         // creating container
         const dockerRunDir = path.resolve("./docker_run");
-        const apksDir = path.resolve(`./sessions/apks_${unum}`);
-        await fsp.mkdir(apksDir,{recursive: true});
+        // const apksDir = path.resolve(`./sessions/apks_${unum}`);
+        // await fsp.mkdir(apksDir,{recursive: true});
         logger.info(`Creating session container. dockerRunDir: ${dockerRunDir}`);
         logger.info(`attachUserDocker. session: ${JSON.stringify(session,null,2)}`);
-        let vol_storage = await docker.createVolume({
-            Name: "nubo_" + session.params.localid + "_storage",
-            DriverOpts : {
-                device: session.params.nfsStorageFolder,
-                o: "addr=" + session.nfs.nfs_ip,
-                type: "nfs4"
-            }
-        });
+        let vol_storage;
+        let storage_name;
+        if (session.params.nfsHomeFolder != "local") {
+            logger.log('info', "Create NFS volume for storage");
+            vol_storage = await docker.createVolume({
+                Name: "nubo_" + session.params.localid + "_storage",
+                DriverOpts : {
+                    device: session.params.nfsStorageFolder,
+                    o: "addr=" + session.nfs.nfs_ip,
+                    type: "nfs4"
+                }
+            });
+            storage_name = vol_storage.name;
+            session.params.volumes.push(vol_storage.name);
+        } else {
+            storage_name = session.params.storageFolder;
+            logger.log('info', `Using local folder for storage: ${storage_name}`);
+        }
         let startArgs = [
                 'run', '-d',
                 '--name', 'nubo_' + session.params.localid + "_android",
@@ -287,15 +311,22 @@ async function attachUserDocker(obj) {
         let mountArgs = [
                 //'--mount', 'type=tmpfs,destination=/dev,tmpfs-mode=0755',
                 '-v', '/lib/modules:/system/lib/modules:ro',
-                '-v',`${apksDir}:/system/vendor/apks:ro`,
-                '-v',`${dataDir}:/data`,
-                '-v',`${vol_storage.name}:/data/media`
+                // '-v',`${apksDir}:/system/vendor/apks:ro`,
+                '-v',`${vol_data.name}:/data`,
+                '-v',`${storage_name}:/data/media`
         ];
         if(session.params.audioStreamParams) {
-            mountArgs.push(
-                '-v', `/opt/platform_server/sessions/audio_in_${unum}:/nubo/audio_in`,
-                '-v', `/opt/platform_server/sessions/audio_out_${unum}:/nubo/audio_out`
-            );
+            if (Common.isDocker) {
+                mountArgs.push(
+                    '-v', `/opt/nubo/platform_server/sessions/audio_in_${unum}:/nubo/audio_in:rw,rshared`,
+                    '-v', `/opt/nubo/platform_server/sessions/audio_out_${unum}:/nubo/audio_out:rw,rshared`
+                );
+            } else {
+                mountArgs.push(
+                    '-v', `/opt/platform_server/sessions/audio_in_${unum}:/nubo/audio_in:rw,rshared`,
+                    '-v', `/opt/platform_server/sessions/audio_out_${unum}:/nubo/audio_out:rw,rshared`
+                );
+            }
         }
         let cmdArgs = ['/init'];
         let args = startArgs.concat(mountArgs, imageName, cmdArgs);
@@ -307,7 +338,6 @@ async function attachUserDocker(obj) {
         const containerID = runRes.stdout.trim();
 
         session.params.containerId = containerID;
-        session.params.volumes = [vol_storage.name];
 
         // wait for launcher to start
         let started = false;
@@ -393,6 +423,12 @@ async function detachUserDocker(unum) {
             await vol.remove();
         }
     }
+    if (session.params.loopDevices) {
+        for (const loopdev of session.params.loopDevices) {
+            logger.log('info',`detachUserDocker. remove loop device ${loopdev}`,logMeta);
+            await execCmd('losetup',["-d",loopdev]);
+        }
+    }
 
     if (session.firewall && session.firewall.enabled && session.params.ipAddress) {
         try {
@@ -417,11 +453,11 @@ async function detachUserDocker(unum) {
     if (session.login.deviceType != "Desktop") {
         Audio.deInitAudio(unum);
         // remove apks folder
-        const apksDir = path.resolve(`./sessions/apks_${unum}`);
-        fsp.rm(apksDir,{ recursive: true, force: true });
-        const dataDir = path.resolve(`./sessions/data_${unum}`);
-        await execCmd('/usr/bin/umount',[dataDir]);
-        await fsp.rmdir(dataDir);
+        // const apksDir = path.resolve(`./sessions/apks_${unum}`);
+        // fsp.rm(apksDir,{ recursive: true, force: true });
+        // const dataDir = path.resolve(`./sessions/data_${unum}`);
+        // await execCmd('/usr/bin/umount',[dataDir]);
+        // await fsp.rmdir(dataDir);
     }
     if (session.params.homeFolder && session.params.nfsHomeFolder != "local") {
         logger.info(`detachUserDocker. unmount folder...`);
