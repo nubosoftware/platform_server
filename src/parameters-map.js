@@ -110,6 +110,8 @@ var filter = {
             "session.deviceid": constraints.ExcludeSpecialCharactersRequested,
             "session.appName": {},
             "session.docker_image": {},
+            "session.recording": {},
+            "session.recording_path": {},
             "nfs": {
                 presence: true
             },

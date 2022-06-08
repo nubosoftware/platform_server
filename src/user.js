@@ -328,6 +328,30 @@ async function attachUserDocker(obj) {
                 );
             }
         }
+        if (session.params.recording && session.params.recording_path) {
+            let recordingVolName ;
+            if (session.params.nfsHomeFolder != "local") {
+                let nfslocation = session.nfs.nfs_ip + ":" + session.params.recording_path + "/";
+                logger.log('info', `Create NFS volume for recording at: ${nfslocation}`);
+                let vol = await docker.createVolume({
+                    Name: "nubo_" + session.params.localid + "_recording",
+                    DriverOpts : {
+                        device: nfslocation,
+                        o: "addr=" + session.nfs.nfs_ip,
+                        type: "nfs4"
+                    },
+                    //rw,rshared
+                });
+                recordingVolName = vol.name;
+                session.params.volumes.push(vol.name);
+            } else {
+                recordingVolName = session.params.recording_path;
+                logger.log('info', `Using local folder for recording: ${recordingVolName}`);
+            }
+            mountArgs.push(
+                '-v', `${recordingVolName}:/nubo/recording`
+            );
+        }
         let cmdArgs = ['/init'];
         let args = startArgs.concat(mountArgs, imageName, cmdArgs);
  console.log("start docker args: ", args);
