@@ -242,17 +242,19 @@ function mountAPKsFolder(nfs,dstFolder) {
 
 
 
-async function initMachine() {
+async function deleteOldMachine() {
     try {
         let machineConfStr = await readFile("./machine.conf","utf8");
         let conf = JSON.parse(machineConfStr);
         if (conf.platType == "docker") {
-            logger.info(`Loaded previous started machine with platType: ${conf.platType}`);
-            await startDockerPlatformImp(conf);
+            logger.info(`Found previous started machine with platType: ${conf.platType}`);
+            //await startDockerPlatformImp(conf);
+            machineConf = conf;
+            await deinitMachine(conf);
         }
-        machineConf = conf;
+
     } catch (err) {
-        logger.info(`initMachine cannot load machine details: ${err}`);
+        logger.info(`deleteOldMachine cannot find machine details: ${err}`);
     }
 }
 
@@ -961,7 +963,7 @@ module.exports = {
     startPlatformPost: startPlatformPost,
     killPlatform: killPlatform,
     checkPlatform: checkPlatform,
-    initMachine,
+    deleteOldMachine,
     isDockerPlatform,
     getMachineConf,
     saveMachineConf,

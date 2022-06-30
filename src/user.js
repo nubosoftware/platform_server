@@ -70,326 +70,339 @@ async function attachUserDocker(obj) {
     };
     session.params.localid = unum;
     session.params.tz = obj.timeZone;
-    if (session.login.deviceType == "Desktop") {
+    try {
+        if (session.login.deviceType == "Desktop") {
 
 
-        session.params.linuxUserName = linuxUserName;
-        session.params.userPass = makeid(16);
-        session.params.locale = `${session.login.lang}_${session.login.countrylang}.UTF-8`;
+            session.params.linuxUserName = linuxUserName;
+            session.params.userPass = makeid(16);
+            session.params.locale = `${session.login.lang}_${session.login.countrylang}.UTF-8`;
 
-        logger.log('info', "Mount user home folder");
-        await mount.linuxMount(session);
-        logger.log('info', `User home folder mounted at ${session.params.homeFolder}`, logMeta);
+            logger.log('info', "Mount user home folder");
+            await mount.linuxMount(session);
+            logger.log('info', `User home folder mounted at ${session.params.homeFolder}`, logMeta);
 
-        await saveUserSessionPromise(unum, session);
-
-
-        //let imageName = registryURL + '/nubo/nuboxrdp:latest';
-        let imageName = `${registryURL}/nubo/${session.params.docker_image}`;
-        logger.log('info', `Pulling user image: ${imageName}`, logMeta);
-        await pullImage(imageName);
-
-        logger.info(`Creating session container`);
-        let container;
-        try {
-            container = await docker.createContainer({
-                Image: imageName,
-                AttachStdin: false,
-                AttachStdout: true,
-                AttachStderr: true,
-                Tty: true,
-                OpenStdin: false,
-                StdinOnce: false,
-                HostConfig: {
-                    Binds: [
-                        `${session.params.homeFolder}:/home/${linuxUserName}`
-                    ],
-                    NetworkMode: "net_sess",
-                    //Privileged: true
-                }
-            });
-        } catch (err) {
-            logger.info(`createContainer failed: ${err}`);
-            console.error(err);
-            throw new Error("createContainer failed");
-        }
-        //console.log(`container created: ${JSON.stringify(container,null,2)}`);
-        logger.log('info', `Container created: ${container.id}`, logMeta);
-        //let stream = await container.attach({stream: true, stdout: true, stderr: true});
-        //stream.pipe(process.stdout);
-        let data = await container.start();
-        //console.log(`container started: ${JSON.stringify(data, null, 2)}`);
+            await saveUserSessionPromise(unum, session);
 
 
-        let sesscontainer = await docker.getContainer(container.id);
-        let cinsp = await sesscontainer.inspect();
-        let ipAddress = cinsp.NetworkSettings.Networks["net_sess"].IPAddress;
-        //console.log(`container inspect: ${JSON.stringify(cinsp,null,2)}`);
-        //console.log(`container inspect: ${JSON.stringify(sesscontainer,null,2)}`);
+            //let imageName = registryURL + '/nubo/nuboxrdp:latest';
+            let imageName = `${registryURL}/nubo/${session.params.docker_image}`;
+            logger.log('info', `Pulling user image: ${imageName}`, logMeta);
+            await pullImage(imageName);
 
-        // create firewall rules if needed
-        if (session.firewall && session.firewall.enabled) {
+            logger.info(`Creating session container`);
+            let container;
             try {
-                logger.log('info',`Assign firewall rules`);
-                const NUBO_USER_CHAIN = "NUBO-USER";
-                let chains = await getRules();
-                let rules = chains[NUBO_USER_CHAIN];
-                if (rules) {
-                    console.log(`Found NUBO-USER chain with ${chains["NUBO-USER"].length} items`);
-                } else {
-                    console.log(`NUBO-USER chain not found. Creating new chain`);
-                    await createChain(NUBO_USER_CHAIN);
-                    await insertRule(NUBO_USER_CHAIN,null,['-j','RETURN']); // drop all incoming traffic to ip
-                    let fwdRules = chains['FORWARD'];
-                    let num;
-                    let foundNuboUser = false;
-                    for (const rule of fwdRules) {
-                        if (rule.target == "DOCKER-ISOLATION-STAGE-1") {
-                            num = rule.num + 1;
-                        }
-                        if (rule.target == NUBO_USER_CHAIN) {
-                            foundNuboUser = true;
-                            break;
-                        }
+                container = await docker.createContainer({
+                    Image: imageName,
+                    AttachStdin: false,
+                    AttachStdout: true,
+                    AttachStderr: true,
+                    Tty: true,
+                    OpenStdin: false,
+                    StdinOnce: false,
+                    HostConfig: {
+                        Binds: [
+                            `${session.params.homeFolder}:/home/${linuxUserName}`
+                        ],
+                        NetworkMode: "net_sess",
+                        //Privileged: true
                     }
-                    if (num && !foundNuboUser) {
-                        await insertRule('FORWARD',num,['-j',NUBO_USER_CHAIN]); // go to chain NUBO-USER from FORWARD chain
-                    }
-                    rules = [];
-                }
-
-                // delete old rules of this ip address
-                for (let i = rules.length-1; i>=0 ; i--) {
-                    const rule = rules[i];
-                    if (rule.source == ipAddress || rule.destination == ipAddress)  {
-                        console.log(`Delete rule: ${JSON.stringify(rule)}`);
-                        await deleteRule(NUBO_USER_CHAIN,rule.num);
-                    }
-                }
-
-                // insert default rules -- block all outgoing/incoming traffic
-                await insertRule(NUBO_USER_CHAIN,null,['-d',ipAddress,'-j','DROP']); // drop all incoming traffic to ip
-                await insertRule(NUBO_USER_CHAIN,null,['-d',ipAddress,'-m','conntrack','--ctstate','ESTABLISHED','-j','ACCEPT']); // allow incoming established
-                await insertRule(NUBO_USER_CHAIN,null,['-d',ipAddress,'-p','tcp','--dport','3389','-j','ACCEPT']); // allow incoming rdp connection
-                await insertRule(NUBO_USER_CHAIN,null,['-s',ipAddress,'-j','DROP']); // drop all outgoing traffic from ip
-                await insertRule(NUBO_USER_CHAIN,null,['-s',ipAddress,'-m','conntrack','--ctstate','ESTABLISHED','-j','ACCEPT']); // allow outgoinf established
-                let addedRules = 0;
-                // add aditional outgoing rules
-                for (const rule of session.firewall.rules) {
-                    let ruleparams = ['-s',ipAddress];
-                    if (rule.destination) {
-                        ruleparams.push('-d',rule.destination);
-                    }
-                    if (rule.prot) {
-                        ruleparams.push('-p',rule.prot);
-                    }
-                    if (rule.dport && rule.dport > 0) {
-                        ruleparams.push('--dport',rule.dport);
-                    }
-                    ruleparams.push('-j','ACCEPT');
-                    await insertRule(NUBO_USER_CHAIN,null,ruleparams); // add rule
-                    addedRules++;
-                }
-                logger.info(`Added ${addedRules} custom firewall rules`);
-                //await insertRule(NUBO_USER_CHAIN,null,['-s',ipAddress,'-d','159.89.188.39','-p','tcp','--dport','443','-j','ACCEPT']); // sampe rule to nubo website
-
-
+                });
             } catch (err) {
-                logger.error(`Firewall create error: ${err}`,err);
-                throw new Error(`Firewall create error: ${err}`);
+                logger.info(`createContainer failed: ${err}`);
+                console.error(err);
+                throw new Error("createContainer failed");
             }
-        }
+            //console.log(`container created: ${JSON.stringify(container,null,2)}`);
+            logger.log('info', `Container created: ${container.id}`, logMeta);
+            //let stream = await container.attach({stream: true, stdout: true, stderr: true});
+            //stream.pipe(process.stdout);
+            let data = await container.start();
+            //console.log(`container started: ${JSON.stringify(data, null, 2)}`);
 
 
-        const { stdout, stderr } = await execDockerCmd(
-            ['exec', container.id, '/usr/bin/create_rdp_user.sh',
-                linuxUserName,
-                session.params.userPass,
-                session.params.tz,
-                session.params.locale
-            ]
-        );
-        //console.log(`Crete user. stdout: ${stdout}\n stderr: ${stderr}`);
+            let sesscontainer = await docker.getContainer(container.id);
+            let cinsp = await sesscontainer.inspect();
+            let ipAddress = cinsp.NetworkSettings.Networks["net_sess"].IPAddress;
+            //console.log(`container inspect: ${JSON.stringify(cinsp,null,2)}`);
+            //console.log(`container inspect: ${JSON.stringify(sesscontainer,null,2)}`);
 
-        let xrdpStarted = false;
-        let startTime = Date.now();
-        do {
-            try {
-                await sleep(300);
-                //console.log(`check for supervisord.log`);
-                const logRes = await execDockerCmd(
-                    ['exec', container.id, 'tail', '-10',
-                        '/var/log/supervisor/supervisord.log'
-                    ]
-                );
-                //console.log(`supervisord.log: ${JSON.stringify(logRes,null,2)}`);
-                xrdpStarted = (logRes.stdout.indexOf("spawned: 'xrdp-sesman' with pid") >= 0);
-            } catch (e) {
-                //console.error(e);
+            // create firewall rules if needed
+            if (session.firewall && session.firewall.enabled) {
+                try {
+                    logger.log('info',`Assign firewall rules`);
+                    const NUBO_USER_CHAIN = "NUBO-USER";
+                    let chains = await getRules();
+                    let rules = chains[NUBO_USER_CHAIN];
+                    if (rules) {
+                        console.log(`Found NUBO-USER chain with ${chains["NUBO-USER"].length} items`);
+                    } else {
+                        console.log(`NUBO-USER chain not found. Creating new chain`);
+                        await createChain(NUBO_USER_CHAIN);
+                        await insertRule(NUBO_USER_CHAIN,null,['-j','RETURN']); // drop all incoming traffic to ip
+                        let fwdRules = chains['FORWARD'];
+                        let num;
+                        let foundNuboUser = false;
+                        for (const rule of fwdRules) {
+                            if (rule.target == "DOCKER-ISOLATION-STAGE-1") {
+                                num = rule.num + 1;
+                            }
+                            if (rule.target == NUBO_USER_CHAIN) {
+                                foundNuboUser = true;
+                                break;
+                            }
+                        }
+                        if (num && !foundNuboUser) {
+                            await insertRule('FORWARD',num,['-j',NUBO_USER_CHAIN]); // go to chain NUBO-USER from FORWARD chain
+                        }
+                        rules = [];
+                    }
+
+                    // delete old rules of this ip address
+                    for (let i = rules.length-1; i>=0 ; i--) {
+                        const rule = rules[i];
+                        if (rule.source == ipAddress || rule.destination == ipAddress)  {
+                            console.log(`Delete rule: ${JSON.stringify(rule)}`);
+                            await deleteRule(NUBO_USER_CHAIN,rule.num);
+                        }
+                    }
+
+                    // insert default rules -- block all outgoing/incoming traffic
+                    await insertRule(NUBO_USER_CHAIN,null,['-d',ipAddress,'-j','DROP']); // drop all incoming traffic to ip
+                    await insertRule(NUBO_USER_CHAIN,null,['-d',ipAddress,'-m','conntrack','--ctstate','ESTABLISHED','-j','ACCEPT']); // allow incoming established
+                    await insertRule(NUBO_USER_CHAIN,null,['-d',ipAddress,'-p','tcp','--dport','3389','-j','ACCEPT']); // allow incoming rdp connection
+                    await insertRule(NUBO_USER_CHAIN,null,['-s',ipAddress,'-j','DROP']); // drop all outgoing traffic from ip
+                    await insertRule(NUBO_USER_CHAIN,null,['-s',ipAddress,'-m','conntrack','--ctstate','ESTABLISHED','-j','ACCEPT']); // allow outgoinf established
+                    let addedRules = 0;
+                    // add aditional outgoing rules
+                    for (const rule of session.firewall.rules) {
+                        let ruleparams = ['-s',ipAddress];
+                        if (rule.destination) {
+                            ruleparams.push('-d',rule.destination);
+                        }
+                        if (rule.prot) {
+                            ruleparams.push('-p',rule.prot);
+                        }
+                        if (rule.dport && rule.dport > 0) {
+                            ruleparams.push('--dport',rule.dport);
+                        }
+                        ruleparams.push('-j','ACCEPT');
+                        await insertRule(NUBO_USER_CHAIN,null,ruleparams); // add rule
+                        addedRules++;
+                    }
+                    logger.info(`Added ${addedRules} custom firewall rules`);
+                    //await insertRule(NUBO_USER_CHAIN,null,['-s',ipAddress,'-d','159.89.188.39','-p','tcp','--dport','443','-j','ACCEPT']); // sampe rule to nubo website
+
+
+                } catch (err) {
+                    logger.error(`Firewall create error: ${err}`,err);
+                    throw new Error(`Firewall create error: ${err}`);
+                }
             }
 
 
-        } while (!xrdpStarted && (Date.now() - startTime) < 30000);
+            const { stdout, stderr } = await execDockerCmd(
+                ['exec', container.id, '/usr/bin/create_rdp_user.sh',
+                    linuxUserName,
+                    session.params.userPass,
+                    session.params.tz,
+                    session.params.locale
+                ]
+            );
+            //console.log(`Crete user. stdout: ${stdout}\n stderr: ${stderr}`);
+
+            let xrdpStarted = false;
+            let startTime = Date.now();
+            do {
+                try {
+                    await sleep(300);
+                    //console.log(`check for supervisord.log`);
+                    const logRes = await execDockerCmd(
+                        ['exec', container.id, 'tail', '-10',
+                            '/var/log/supervisor/supervisord.log'
+                        ]
+                    );
+                    //console.log(`supervisord.log: ${JSON.stringify(logRes,null,2)}`);
+                    xrdpStarted = (logRes.stdout.indexOf("spawned: 'xrdp-sesman' with pid") >= 0);
+                } catch (e) {
+                    //console.error(e);
+                }
 
 
-        //console.log(`IP: ${ipAddress}, User: ${linuxUserName}, Password: ${session.params.userPass}`);
-        result.ipAddress = ipAddress;
-        result.linuxUserName = linuxUserName;
-        result.userPass = session.params.userPass;
-        //logger.info(`Session created with active user: ${JSON.stringify(result,null,2)}`);
-        logger.log('info', `Session created on platform. ipAddress: ${ipAddress}, linuxUserName: ${linuxUserName}`, logMeta);
-        session.params.ipAddress = ipAddress;
-        session.params.containerId = container.id;
-    } else { // mobile user with docker
-
-        // mount user folder
-        logger.log('info', "Mount user home folder");
-        await mount.mobileMount(session);
-        logger.log('info', `User home folder mounted at ${session.params.homeFolder}`, logMeta);
+            } while (!xrdpStarted && (Date.now() - startTime) < 30000);
 
 
-        // mount data.img as loop device
-        const imgFilePath = path.join(session.params.homeFolder,'data.img');
+            //console.log(`IP: ${ipAddress}, User: ${linuxUserName}, Password: ${session.params.userPass}`);
+            result.ipAddress = ipAddress;
+            result.linuxUserName = linuxUserName;
+            result.userPass = session.params.userPass;
+            //logger.info(`Session created with active user: ${JSON.stringify(result,null,2)}`);
+            logger.log('info', `Session created on platform. ipAddress: ${ipAddress}, linuxUserName: ${linuxUserName}`, logMeta);
+            session.params.ipAddress = ipAddress;
+            session.params.containerId = container.id;
+        } else { // mobile user with docker
 
-        // const dataDir = path.resolve(`./sessions/data_${unum}`);
-        // await fsp.mkdir(dataDir,{recursive: true});
-        // await execCmd('/usr/bin/mount',[imgFilePath, dataDir]);
-        let losetupres =  await execCmd('losetup',["-f",imgFilePath,"--show"]);
-        let loopDeviceNum = losetupres.stdout.trim();
+            // mount user folder
+            logger.log('info', "Mount user home folder");
+            await mount.mobileMount(session);
+            logger.log('info', `User home folder mounted at ${session.params.homeFolder}`, logMeta);
 
-        logger.log('info', `Create local volume for ${loopDeviceNum}`);
 
-        let vol_data = await docker.createVolume({
-            Name: "nubo_" + session.params.localid + "_data",
-            DriverOpts : {
-                device: loopDeviceNum,
-                type: "ext4"
-            }
-        });
-        session.params.loopDevices = [loopDeviceNum];
-        session.params.volumes = [vol_data.name];
+            // mount data.img as loop device
+            const imgFilePath = path.join(session.params.homeFolder,'data.img');
 
-        await saveUserSessionPromise(unum, session);
-        await Audio.initAudio(unum);
+            // const dataDir = path.resolve(`./sessions/data_${unum}`);
+            // await fsp.mkdir(dataDir,{recursive: true});
+            // await execCmd('/usr/bin/mount',[imgFilePath, dataDir]);
+            let losetupres =  await execCmd('losetup',["-f",imgFilePath,"--show"]);
+            let loopDeviceNum = losetupres.stdout.trim();
 
-        // get user image from registry
-        let imageName = `${registryURL}/nubo/${session.params.docker_image}`;
-        logger.log('info', `Pulling user image: ${imageName}`, logMeta);
-        await pullImage(imageName);
+            logger.log('info', `Create local volume for ${loopDeviceNum}`);
 
-        // creating container
-        const dockerRunDir = path.resolve("./docker_run");
-        // const apksDir = path.resolve(`./sessions/apks_${unum}`);
-        // await fsp.mkdir(apksDir,{recursive: true});
-        logger.info(`Creating session container. dockerRunDir: ${dockerRunDir}`);
-        logger.info(`attachUserDocker. session: ${JSON.stringify(session,null,2)}`);
-        let vol_storage;
-        let storage_name;
-        if (session.params.nfsHomeFolder != "local") {
-            logger.log('info', "Create NFS volume for storage");
-            vol_storage = await docker.createVolume({
-                Name: "nubo_" + session.params.localid + "_storage",
+            let vol_data = await docker.createVolume({
+                Name: "nubo_" + session.params.localid + "_data",
                 DriverOpts : {
-                    device: session.params.nfsStorageFolder,
-                    o: "addr=" + session.nfs.nfs_ip,
-                    type: "nfs4"
+                    device: loopDeviceNum,
+                    type: "ext4"
                 }
             });
-            storage_name = vol_storage.name;
-            session.params.volumes.push(vol_storage.name);
-        } else {
-            storage_name = session.params.storageFolder;
-            logger.log('info', `Using local folder for storage: ${storage_name}`);
-        }
-        let startArgs = [
-                'run', '-d',
-                '--name', 'nubo_' + session.params.localid + "_android",
-                '--privileged', '--security-opt', 'label=disable',
-                '--env-file','env',
-                '--network', 'net_sess',
-        ];
-        let mountArgs = [
-                //'--mount', 'type=tmpfs,destination=/dev,tmpfs-mode=0755',
-                '-v', '/lib/modules:/system/lib/modules:ro',
-                // '-v',`${apksDir}:/system/vendor/apks:ro`,
-                '-v',`${vol_data.name}:/data`,
-                '-v',`${storage_name}:/data/media`
-        ];
-        if(session.params.audioStreamParams) {
-            if (Common.isDocker) {
-                mountArgs.push(
-                    '-v', `/opt/nubo/platform_server/sessions/audio_in_${unum}:/nubo/audio_in:rw,rshared`,
-                    '-v', `/opt/nubo/platform_server/sessions/audio_out_${unum}:/nubo/audio_out:rw,rshared`
-                );
-            } else {
-                mountArgs.push(
-                    '-v', `/opt/platform_server/sessions/audio_in_${unum}:/nubo/audio_in:rw,rshared`,
-                    '-v', `/opt/platform_server/sessions/audio_out_${unum}:/nubo/audio_out:rw,rshared`
-                );
-            }
-        }
-        if (session.params.recording && session.params.recording_path) {
-            let recordingVolName ;
+            session.params.loopDevices = [loopDeviceNum];
+            session.params.volumes = [vol_data.name];
+
+            await saveUserSessionPromise(unum, session);
+            await Audio.initAudio(unum);
+
+            // get user image from registry
+            let imageName = `${registryURL}/nubo/${session.params.docker_image}`;
+            logger.log('info', `Pulling user image: ${imageName}`, logMeta);
+            await pullImage(imageName);
+
+            // creating container
+            const dockerRunDir = path.resolve("./docker_run");
+            // const apksDir = path.resolve(`./sessions/apks_${unum}`);
+            // await fsp.mkdir(apksDir,{recursive: true});
+            logger.info(`Creating session container. dockerRunDir: ${dockerRunDir}`);
+            logger.info(`attachUserDocker. session: ${JSON.stringify(session,null,2)}`);
+            let vol_storage;
+            let storage_name;
             if (session.params.nfsHomeFolder != "local") {
-                let nfslocation = session.nfs.nfs_ip + ":" + session.params.recording_path + "/";
-                logger.log('info', `Create NFS volume for recording at: ${nfslocation}`);
-                let vol = await docker.createVolume({
-                    Name: "nubo_" + session.params.localid + "_recording",
+                logger.log('info', "Create NFS volume for storage");
+                vol_storage = await docker.createVolume({
+                    Name: "nubo_" + session.params.localid + "_storage",
                     DriverOpts : {
-                        device: nfslocation,
+                        device: session.params.nfsStorageFolder,
                         o: "addr=" + session.nfs.nfs_ip,
                         type: "nfs4"
-                    },
-                    //rw,rshared
+                    }
                 });
-                recordingVolName = vol.name;
-                session.params.volumes.push(vol.name);
+                storage_name = vol_storage.name;
+                session.params.volumes.push(vol_storage.name);
             } else {
-                recordingVolName = session.params.recording_path;
-                logger.log('info', `Using local folder for recording: ${recordingVolName}`);
+                storage_name = session.params.storageFolder;
+                logger.log('info', `Using local folder for storage: ${storage_name}`);
             }
-            mountArgs.push(
-                '-v', `${recordingVolName}:/nubo/recording`
+            let startArgs = [
+                    'run', '-d',
+                    '--name', 'nubo_' + session.params.localid + "_android",
+                    '--privileged', '--security-opt', 'label=disable',
+                    '--env-file','env',
+                    '--network', 'net_sess',
+            ];
+            let mountArgs = [
+                    //'--mount', 'type=tmpfs,destination=/dev,tmpfs-mode=0755',
+                    '-v', '/lib/modules:/system/lib/modules:ro',
+                    // '-v',`${apksDir}:/system/vendor/apks:ro`,
+                    '-v',`${vol_data.name}:/data`,
+                    '-v',`${storage_name}:/data/media`
+            ];
+            if(session.params.audioStreamParams) {
+                if (Common.isDocker) {
+                    mountArgs.push(
+                        '-v', `/opt/nubo/platform_server/sessions/audio_in_${unum}:/nubo/audio_in:rw,rshared`,
+                        '-v', `/opt/nubo/platform_server/sessions/audio_out_${unum}:/nubo/audio_out:rw,rshared`
+                    );
+                } else {
+                    mountArgs.push(
+                        '-v', `/opt/platform_server/sessions/audio_in_${unum}:/nubo/audio_in:rw,rshared`,
+                        '-v', `/opt/platform_server/sessions/audio_out_${unum}:/nubo/audio_out:rw,rshared`
+                    );
+                }
+            }
+            if (session.params.recording && session.params.recording_path) {
+                let recordingVolName ;
+                if (session.params.nfsHomeFolder != "local") {
+                    let nfslocation = session.nfs.nfs_ip + ":" + session.params.recording_path + "/";
+                    logger.log('info', `Create NFS volume for recording at: ${nfslocation}`);
+                    let vol = await docker.createVolume({
+                        Name: "nubo_" + session.params.localid + "_recording",
+                        DriverOpts : {
+                            device: nfslocation,
+                            o: "addr=" + session.nfs.nfs_ip,
+                            type: "nfs4"
+                        },
+                        //rw,rshared
+                    });
+                    recordingVolName = vol.name;
+                    session.params.volumes.push(vol.name);
+                } else {
+                    recordingVolName = session.params.recording_path;
+                    logger.log('info', `Using local folder for recording: ${recordingVolName}`);
+                }
+                mountArgs.push(
+                    '-v', `${recordingVolName}:/nubo/recording`
+                );
+            }
+            let cmdArgs = ['/init'];
+            let args = startArgs.concat(mountArgs, imageName, cmdArgs);
+            await saveUserSessionPromise(unum, session);
+            console.log("start docker args: ", args);
+            const runRes = await execDockerCmd(
+                args,{cwd: dockerRunDir}
             );
-        }
-        let cmdArgs = ['/init'];
-        let args = startArgs.concat(mountArgs, imageName, cmdArgs);
- console.log("start docker args: ", args);
-        const runRes = await execDockerCmd(
-            args,{cwd: dockerRunDir}
-        );
 
-        const containerID = runRes.stdout.trim();
+            const containerID = runRes.stdout.trim();
 
-        session.params.containerId = containerID;
+            session.params.containerId = containerID;
+            await saveUserSessionPromise(unum, session);
 
-        // wait for launcher to start
-        let started = false;
-        let cnt = 0;
-        let default_launcher;
-        if (session.platformSettings && session.platformSettings.default_launcher) {
-            default_launcher = session.platformSettings.default_launcher;
-        } else {
-            default_launcher = "com.nubo.launcher";
-        }
-        logger.info(`Waiting for launcher (${default_launcher}) to start..`);
-        while (!started && cnt < 200) {
-            cnt++;
-            let resps = await execDockerWaitAndroid(
-                ['exec' , containerID, 'ps', '-A' ]
-            );
-            if (resps.stdout && resps.stdout.indexOf(default_launcher) >= 0) {
-                started = true;
+            // wait for launcher to start
+            let started = false;
+            let cnt = 0;
+            let default_launcher;
+            if (session.platformSettings && session.platformSettings.default_launcher) {
+                default_launcher = session.platformSettings.default_launcher;
             } else {
-                sleep(500);
+                default_launcher = "com.nubo.launcher";
             }
+            logger.info(`Waiting for launcher (${default_launcher}) to start..`);
+            while (!started && cnt < 200) {
+                cnt++;
+                let resps = await execDockerWaitAndroid(
+                    ['exec' , containerID, 'ps', '-A' ]
+                );
+                if (resps.stdout && resps.stdout.indexOf(default_launcher) >= 0) {
+                    started = true;
+                } else {
+                    sleep(500);
+                }
+            }
+
+
+            logger.log('info', `Session created on platform. containerID: ${containerID}`, logMeta);
+
         }
-
-
-        logger.log('info', `Session created on platform. containerID: ${containerID}`, logMeta);
-
+        await saveUserSessionPromise(unum,session);
+    } catch (err) {
+        logger.error(`attachUserDocker. Error: ${err}`,err);
+        try {
+            await saveUserSessionPromise(unum,session);
+            await detachUserDocker(unum);
+        } catch (e2) {
+            logger.error(`attachUserDocker. detachUserDocker failed: ${e2}`,e2);
+        }
+        throw err;
     }
-    await saveUserSessionPromise(unum,session);
 
     return result;
 }
@@ -437,20 +450,36 @@ async function detachUserDocker(unum) {
     if (session.params.containerId) {
         logger.log('info',`detachUserDocker. Stopping container ${session.params.containerId}`,logMeta);
         let sesscontainer = await docker.getContainer(session.params.containerId);
-        await sesscontainer.stop();
-        await sesscontainer.remove();
+        try {
+            await sesscontainer.stop();
+        } catch (err) {
+            logger.info(`detachUserDocker. Unable to stop container. err: ${err}`);
+        }
+        try {
+            await sesscontainer.remove();
+        } catch (err) {
+            logger.info(`detachUserDocker. Unable to remove container. err: ${err}`);
+        }
     }
     if(session.params.volumes) {
         for(var i in session.params.volumes) {
             logger.log('info',`detachUserDocker. remove volume ${session.params.volumes[i]}`,logMeta);
-            let vol = await docker.getVolume(session.params.volumes[i]);
-            await vol.remove();
+            try {
+                let vol = await docker.getVolume(session.params.volumes[i]);
+                await vol.remove();
+            } catch (err) {
+                logger.info(`detachUserDocker. Unable to remove volume. err: ${err}`);
+            }
         }
     }
     if (session.params.loopDevices) {
         for (const loopdev of session.params.loopDevices) {
             logger.log('info',`detachUserDocker. remove loop device ${loopdev}`,logMeta);
-            await execCmd('losetup',["-d",loopdev]);
+            try {
+                await execCmd('losetup',["-d",loopdev]);
+            } catch (err) {
+                logger.info(`detachUserDocker. Unable to remove loop device. err: ${err}`);
+            }
         }
     }
 
@@ -485,7 +514,11 @@ async function detachUserDocker(unum) {
     }
     if (session.params.homeFolder && session.params.nfsHomeFolder != "local") {
         logger.info(`detachUserDocker. unmount folder...`);
-        await mount.linuxUMount(session.params.homeFolder);
+        try {
+            await mount.linuxUMount(session.params.homeFolder);
+        } catch (err) {
+            logger.info(`detachUserDocker. Unable to unmount folder. err: ${err}`);
+        }
     }
     let machineConf = machineModule.getMachineConf();
     if (session.params.linuxUserName) {
@@ -521,7 +554,7 @@ function attachUser(req, res) {
     var logger = new ThreadedLogger(Common.getLogger(__filename));
     var unum = 0;
     var obj = req.body;
-    logger.logTime("Start process request attachUser");
+    logger.logTime("Start process request attachUser. isDockerPlatform: "+machineModule.isDockerPlatform());
     if (machineModule.isDockerPlatform()) {
         attachUserDocker(obj).then((result) => {
             var resobj = {

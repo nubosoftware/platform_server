@@ -43,7 +43,7 @@ var urlFilterObj = new filterModule.filter([], urlFilterOpts,validate);
 var bodyFilterObj = new filterModule.filter([], bodyFilterOpts,validate);
 var filterFile = "./parameters-map.js";
 
-var refresh_filter = function() {    
+var refresh_filter = function() {
 
     var obj;
     try {
@@ -142,17 +142,17 @@ var mainFunction = function(err, firstTimeLoad) {
         );
     };
 
-    machineModule.initMachine();
+    machineModule.deleteOldMachine();
 
     async.eachSeries(
         Common.listenAddresses,
         initPortListener,
         function(err) {
             // after finish listen - register to management
-            registerPlatform();            
+            registerPlatform();
         }
     );
-     
+
 
     process.on('SIGINT', function() {
         logger.info("Restserver caught SIGINT signal");
@@ -172,7 +172,7 @@ let registerRefreshInterval;
 async function registerPlatform(){
     if (Common.registerParams) {
         const params = Common.registerParams;
-        try {            
+        try {
             let platform_ip = params.platform_ip;
             if (!platform_ip) {
                 platform_ip = await detectIP();
@@ -183,11 +183,11 @@ async function registerPlatform(){
                 headers: {
                     'fe-user': params.user,
                     'fe-pass': params.password
-                }       
+                }
             });
             if (response.data.status == "0" && response.data.platid) {
                 registeredPlatIP = platform_ip;
-                registeredPlatID = response.data.platid;                
+                registeredPlatID = response.data.platid;
                 logger.info(`Platform registered on management (${params.mgmtURL}). platid: ${registeredPlatID}, ip: ${registeredPlatIP}`);
                 startRegisterRefresh();
             } else {
@@ -215,7 +215,7 @@ async function detectIP() {
         headers: {
             'fe-user': params.user,
             'fe-pass': params.password
-        } 
+        }
     });
     const ip = response.request.socket.localAddress;
     logger.info(`Detected local ip address: ${ip} `);
@@ -235,7 +235,7 @@ async function registerRefresh() {
             headers: {
                 'fe-user': params.user,
                 'fe-pass': params.password
-            }       
+            }
         });
         if (response.data.status == "0") {
             //logger.info(`Updated...`);
@@ -258,7 +258,7 @@ function startRegisterRefresh() {
         clearInterval(registerRefreshInterval);
         registerRefreshInterval = null;
     }
-    
+
     registerRefreshInterval = setInterval(registerRefresh,15000);
 }
 
