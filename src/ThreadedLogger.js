@@ -43,7 +43,10 @@ var TreadedLogger = function (moduleLogger) {
         obj.user = function(user) {
             extra_meta.user = user;
         };
-        return obj;
+        obj.log = function(text,meta) {
+            obj.logger.log(text,meta);
+        };
+            return obj;
     })(this);
 };
 

@@ -21,7 +21,8 @@
 #define OP_IN_READ 2
 #define OP_OPEN_INPUT_STREAM 3
 #define OP_PA_CREATE 100
-#define SOCKETPREFIX "/opt/platform_server/sessions/audio"
+//#define SOCKETPREFIX "/opt/platform_server/sessions/audio"
+#define SOCKETPATHFORMAT "./sessions/sess_%d/audio_%s"
 
 void *connection_handler(void *);
 static int unum;
@@ -593,8 +594,20 @@ int parse_args(int argc, char *argv[]) {
 
     server_out_args.userId = unum;
     server_in_args.userId = unum;
-    sprintf(server_out_args.path, "%s_%s_%d", SOCKETPREFIX, "out", unum);
-    sprintf(server_in_args.path, "%s_%s_%d", SOCKETPREFIX, "in", unum);
+    //realpath
+    char relativePath[100];
+
+    sprintf(relativePath, SOCKETPATHFORMAT, unum, "out");
+    p = server_out_args.path;
+    realpath(relativePath,p);
+
+    sprintf(relativePath, SOCKETPATHFORMAT, unum, "in" );
+    p = server_in_args.path;
+    realpath(relativePath,p);
+    syslog(LOG_INFO, "server_out_args.path: %s, server_in_args.path:%s.\n", server_out_args.path,server_in_args.path);
+
+    // sprintf(server_out_args.path, "%s_%s_%d", SOCKETPREFIX, "out", unum);
+    // sprintf(server_in_args.path, "%s_%s_%d", SOCKETPREFIX, "in", unum);
 
     if(argc > 4) {
         gst_data.host = argv[2];

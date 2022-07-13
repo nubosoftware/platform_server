@@ -82,6 +82,11 @@ dist/audiomanager.js: src/audiomanager.js dist
 docker:
 	docker build --build-arg BUILD_VER=$(platform_server_version)-$(platform_server_buildid) --no-cache --pull -f docker_build/Dockerfile -t nuboplatformserver:$(platform_server_version)-$(platform_server_buildid) .
 
+push-test:
+	docker build --build-arg BUILD_VER=$(platform_server_version)-$(platform_server_buildid) -f docker_build/Dockerfile -t nuboplatformserver:test .
+	docker tag nuboplatformserver:test docker.nubosoftware.com:5000/nubo/platformserver:test
+	docker push docker.nubosoftware.com:5000/nubo/platformserver:test
+
 push-nubo: docker
 	docker tag nuboplatformserver:$(platform_server_version)-$(platform_server_buildid) docker.nubosoftware.com:5000/nubo/platformserver:$(platform_server_version)-$(platform_server_buildid)
 	docker push docker.nubosoftware.com:5000/nubo/platformserver:$(platform_server_version)-$(platform_server_buildid)

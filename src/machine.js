@@ -14,13 +14,15 @@ var common = require('./common.js');
 const si = require('systeminformation');
 const { readdir, unlink, writeFile, readFile, mkdir } = require('fs/promises');
 const { logger } = require("./common.js");
-const {docker, execDockerCmd } = require('./dockerUtils');
+const {docker, execDockerCmd, sleep } = require('./dockerUtils');
+const Common = require("./common.js");
 
 
 var flagInitAndroidStatus = 0; // 0: not yet done, 1: in progress, 2: done
 var RESTfull_message = "the platform not yet initialized";
 
 var machineConf = null;
+var machineInitLock = false;
 
 function startPlatformGet(req, res) {
     var resobj = {
@@ -121,12 +123,25 @@ async function startDockerPlatform(req, res) {
     };
     let requestObj = req.body;
     try {
+        if (machineInitLock) {
+            await waitForMachineInitLock();
+        }
+        machineInitLock = true;
+        try {
+            if (machineConf != null) {
+                throw new Error("Platform already initialized");
+            }
+            await startDockerPlatformImp(requestObj);
+            requestObj.unumCnt = 10;
 
-        startDockerPlatformImp(requestObj);
-        requestObj.unumCnt = 10;
+            // write machine conf to file to read in case of restart of platform server
+            await saveMachineConf(requestObj);
 
-        // write machine conf to file to read in case of restart of platform server
-        await saveMachineConf(requestObj);
+            // run refresh session pool
+            await refreshSessionPool();
+        } finally {
+            machineInitLock = false;
+        }
 
 
         resobj.status = 1;
@@ -199,7 +214,31 @@ async function startDockerPlatformImp(requestObj) {
         }
     }
 
+
 }
+
+let refreshPoolTimeout;
+
+async function refreshSessionPool() {
+    try {
+        if (machineConf && Common.sessionPool && Common.sessionPool.size) {
+            if (!machineConf.pooledSessions) {
+                machineConf.pooledSessions = [];
+            }
+            let requiredPooledSessions = Common.sessionPool.size - machineConf.pooledSessions.length;
+            if (requiredPooledSessions > 0) {
+                logger.info(`refreshSessionPool. requiredPooledSessions: ${requiredPooledSessions}`);
+                for (let i=0; i<requiredPooledSessions; i++) {
+                    await require('./user').createPooledSession();
+                }
+            }
+            refreshPoolTimeout = setTimeout(refreshSessionPool,60000);
+        }
+    } catch (err) {
+        logger.error(`refreshSessionPool error: ${err}`,err);
+    }
+}
+
 
 function mountDebsFolder(nfs,dstFolder) {
     return new Promise((resolve, reject) => {
@@ -258,7 +297,22 @@ async function deleteOldMachine() {
     }
 }
 
+async function waitForMachineInitLock(){
+    let waintCnt = 0;
+    while (machineInitLock && waintCnt < 60) {
+        waintCnt++
+        await sleep(1000);
+    }
+    if (machineInitLock) {
+        throw new Error("Waited 1 minute for machineInitLock");
+    }
+}
+
 async function deinitMachine(params) {
+    if (machineInitLock) {
+        await waitForMachineInitLock();
+    }
+    machineInitLock = true;
     try {
         if (!machineConf) {
             throw new Error("machineConf not defined");
@@ -269,20 +323,27 @@ async function deinitMachine(params) {
         if (machineConf.platUID != params.platUID) {
             throw new Error(`platUID mismatch. Current: ${machineConf.platUID}, Requested: ${params.platUID}`);
         }
-        logger.info(`deinitMachine. platid: ${params.platid}, platUID: ${params.platUID}`);
-        await deleteOldSessions(logger);
-        await deleteOldContainers(machineConf);
-        await deleteOldSessionFile(logger);
-        await unlink("./machine.conf");
-        let debsFolder = path.resolve("./debs");
-        if (machineConf.nfs && machineConf.nfs.nfs_ip != "local") {
-            await require('./mount').linuxUMount(debsFolder);
+        try {
+            logger.info(`deinitMachine. platid: ${params.platid}, platUID: ${params.platUID}`);
+            if (refreshPoolTimeout) {
+                clearTimeout(refreshPoolTimeout);
+            }
+            await deleteOldSessions(logger);
+            await deleteOldContainers(machineConf);
+            await deleteOldSessionFile(logger);
+            await unlink("./machine.conf");
+            let debsFolder = path.resolve("./debs");
+            if (machineConf.nfs && machineConf.nfs.nfs_ip != "local") {
+                await require('./mount').linuxUMount(debsFolder);
+            }
+        } catch (err) {
+            logger.info(`deinitMachine error: ${err}`);
+            throw err;
+        } finally {
+            machineConf = null;
         }
-    } catch (err) {
-        logger.info(`deinitMachine error: ${err}`);
-        throw err;
     } finally {
-        machineConf = null;
+        machineInitLock = false;
     }
 }
 
@@ -324,8 +385,11 @@ async function deleteOldSessions(logger) {
                         logger.error("detachUserDocker error", e);
                     }
                     let fullpath = path.join(mainDir, file);
-                    //logger.info(`Found old session file: ${file}, delete it`);
-                    await unlink(fullpath);
+                    try {
+                        await unlink(fullpath);
+                    } catch (e) {
+                        // ignore error: file already deleted
+                    }
                 }
 
             }
@@ -723,6 +787,13 @@ function checkPlatform(req, res) {
     }
     var platform = new Platform(logger);
     let performance;
+    let sessions;
+    if (machineConf) {
+        sessions = machineConf.sessions;
+    }
+    if (!sessions) {
+        sessions = {};
+    }
     async.series( [
         // check the ability to run pm commands on the android shell
         (cb) => {
@@ -784,7 +855,8 @@ function checkPlatform(req, res) {
             resobj = {
                 status: 1,
                 msg: "Platform is alive, no error found",
-                performance
+                performance,
+                sessions
             };
         }
         res.end(JSON.stringify(resobj, null, 2));

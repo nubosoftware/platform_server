@@ -187,8 +187,7 @@ var processTasksDocker = async function(tasks, logger) {
                         task.filename = `${task.packageName}.apk`;
                     }
                     let apkPath = path.resolve("./apks",task.filename);
-                    // let sessApkPath = path.resolve(`./sessions/apks_${task.unum}`,task.filename);
-                    let sessApkPath = "/data/local/tmp/";
+                    let sessApkPath = "/nubo/apks/";
                     logger.info(`Copy apk from ${apkPath} to ${sessApkPath}`);
                     // await fsp.copyFile(apkPath,sessApkPath);
                     let cpres = await execDockerWaitAndroid(['cp',apkPath,`${containerId}:${sessApkPath}`]);
@@ -243,8 +242,7 @@ var processTasksDocker = async function(tasks, logger) {
                     if (listRet.stdout && listRet.stdout.indexOf(task.packageName) >= 0) {
                         logger.info(`Upgrading packge: ${task.packageName}`);
                         let apkPath = path.resolve("./apks",task.filename);
-                        // let sessApkPath = path.resolve(`./sessions/apks_${task.unum}`,task.filename);
-                        let sessApkPath = "/data/local/tmp/";
+                        let sessApkPath = "/nubo/apks/";
                         logger.info(`Copy apk from ${apkPath} to ${sessApkPath}`);
                         // await fsp.copyFile(apkPath,sessApkPath);
                         let cpres = await execDockerWaitAndroid(['cp',apkPath,`${containerId}:${sessApkPath}`]);

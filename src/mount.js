@@ -296,7 +296,11 @@ async function mobileMount(session) {
         session.params.homeFolder = path.join(nfshomefolder,getUserHomeFolder(email),deviceID);
         session.params.storageFolder =  path.join(nfshomefolder,getUserHomeFolder(email),"storage");
     }
+}
 
+async function mountFolder(src,dst) {
+    var nfsoptions = "nolock,hard,intr,vers=4,noatime,async,fsc";
+    await mountHostNfsPromise([src], [dst], nfsoptions);
 }
 
 
@@ -854,5 +858,6 @@ module.exports = {
     mountHostNfs: mountHostNfs,
     linuxMount,
     linuxUMount,
-    mobileMount
+    mobileMount,
+    mountFolder
 };
