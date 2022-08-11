@@ -13,6 +13,7 @@ RUN apt install -y \
     telnet \
     dnsutils \
     net-tools \
+    nfs-common \
     sudo \
     pulseaudio \
     gstreamer1.0-x \
@@ -61,13 +62,12 @@ RUN npm install
 # remove build-essntial
 RUN apt-get --purge autoremove -y build-essential
 
-# build the dist folder
-RUN npm run build
-
 # remove build dependencies
 RUN rm -rf src webpack.config.js
 
-COPY dist/pulseaudio-user ${TARGET_DIR}/dist/.
+COPY dist/audiomanager.js ${TARGET_DIR}/dist/
+COPY dist/pulseaudio-user ${TARGET_DIR}/dist/
+COPY dist/restserver.js ${TARGET_DIR}/dist/
 
 # Create a new user nubo
 ARG UID=1000

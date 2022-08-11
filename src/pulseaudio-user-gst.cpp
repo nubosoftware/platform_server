@@ -386,16 +386,17 @@ static void *handle_out_server(void *handler_obj) {
     while(sa->sock_fd) {
         syslog(LOG_INFO, "%s waiting for client... sock %d\n", __FUNCTION__, sa->sock_fd);
         client_sock = accept(sa->sock_fd, (struct sockaddr *)&addr, &sock_size);
-        syslog(LOG_INFO, "accepted client... sock %d\n", client_sock);
         if (client_sock == -1) {
             res = errno;
             if (res == 11) continue;
             syslog(LOG_ERR, "Could not create client socket, errno=%d\n", errno);
             return NULL;
+        } else {
+            syslog(LOG_INFO, "accepted client... sock %d\n", client_sock);
+            struct thread_args *thread_args = new struct thread_args(client_sock);
+            thread_args->s = s;
+            handler_client(thread_args);
         }
-        struct thread_args *thread_args = new struct thread_args(client_sock);
-        thread_args->s = s;
-        handler_client(thread_args);
     }
     close(sa->sock_fd);
     unlink(sa->path);

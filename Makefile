@@ -79,7 +79,8 @@ dist/audiomanager.js: src/audiomanager.js dist
 # 	cp $(nubo_proj_dir)/debs/latest/nubo-common-3.0-1.deb docker_build/debs/nubo-common.deb
 # 	sudo docker build -t nuboplatformserver:$(platform_server_version)-$(platform_server_buildid) docker_build/.
 #
-docker: dist/pulseaudio-user
+
+docker: dist/audiomanager.js dist/pulseaudio-user dist/restserver.js
 	docker build --build-arg BUILD_VER=$(platform_server_version)-$(platform_server_buildid) --no-cache --pull -f docker_build/Dockerfile -t nuboplatformserver:$(platform_server_version)-$(platform_server_buildid) .
 
 push-test: dist/pulseaudio-user
