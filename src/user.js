@@ -735,6 +735,111 @@ function makeid(length) {
 }
 
 
+
+async function fastDetachUserDocker(unum) {
+    let waitForFullDetach = true;
+    let logger = Common.getLogger(__filename);
+    logger.info(`fastDetachUserDocker. unum: ${unum} `);
+    let session = await loadUserSessionPromise(unum,logger);
+    if (session.params.containerId && session.login.deviceType == "Android") {
+        try {
+            let zygotePid;
+            let resps = await execDockerWaitAndroid(
+                ['exec' , session.params.containerId, 'ps', '-A', '-o' ,'PID,NAME' ]
+            );
+            let lines = resps.stdout.split('\n');
+            for (const line of lines) {
+                let fields = line.trim().split(' ');
+                if (fields[1] == "zygote64") {
+                    zygotePid = fields[0];
+                    break;
+                }
+            }
+            if (!zygotePid) {
+                throw new Error(`zygote64 not found in pooled container`);
+            }
+            logger.info(`zygotePid: ${zygotePid}`);
+            // unmount the data folders
+            await execDockerWaitAndroid(
+                ['exec' , session.params.containerId, 'umount', '-l', '/data/media' ]
+            );
+            await execDockerWaitAndroid(
+                ['exec' , session.params.containerId, 'umount', '-l', '/data' ]
+            );
+            // restart zygote
+            await execDockerWaitAndroid(
+                ['exec' , session.params.containerId, 'kill', `${zygotePid}` ]
+            );
+            if (session.params.loopDevices) {
+                for (const loopdev of session.params.loopDevices) {
+                    logger.log('info',`fastDetachUserDocker. remove loop device ${loopdev}`);
+                    try {
+                        await execCmd('losetup',["-d",loopdev]);
+                    } catch (err) {
+                        logger.info(`fastDetachUserDocker. Unable to remove loop device. err: ${err}`);
+                    }
+                }
+                session.params.loopDevices = [];
+            }
+            if (session.params.homeFolder && session.params.nfsHomeFolder != "local") {
+                logger.info(`fastDetachUserDocker. unmount folder...`);
+                try {
+                    await mount.linuxUMount(session.params.homeFolder);
+                    delete session.params.homeFolder;
+                } catch (err) {
+                    logger.info(`fastDetachUserDocker. Unable to unmount folder. err: ${err}`);
+                }
+            }
+
+            if (session.params.mounts && session.params.mounts.length > 0) {
+                for (const mountedFolder of session.params.mounts) {
+                    try {
+                        logger.info(`fastDetachUserDocker. unmount folder: ${mountedFolder}`);
+                        await mount.linuxUMount(mountedFolder);
+                    } catch (err) {
+                        logger.info(`fastDetachUserDocker. Unable to unmount folder. err: ${err}`);
+                    }
+                }
+                session.params.mounts = [];
+            }
+            await saveUserSessionPromise(unum, session);
+
+            let machineConf = machineModule.getMachineConf();
+            let sessKey = `${session.params.email}_${session.params.deviceid}`;
+            if (machineConf.sessions && machineConf.sessions[sessKey]) {
+                delete machineConf.sessions[sessKey];
+            }
+
+            await machineModule.saveMachineConf(machineConf);
+
+            waitForFullDetach = false;
+
+        } catch (err) {
+            logger.info(`fastDetachUserDocker. Error. err: ${err}`);
+        }
+    } else {
+        logger.info(`fastDetachUserDocker. not found running android.`);
+    }
+
+    if (waitForFullDetach) {
+        logger.info(`fastDetachUserDocker. Waiting for full detach.`);
+        await detachUserDocker(unum);
+    } else {
+        logger.info(`fastDetachUserDocker. Continue detach in the background.`);
+        safeDetachUserDocker(unum);
+    }
+}
+
+
+async function safeDetachUserDocker(unum) {
+    try {
+        detachUserDocker(unum);
+    } catch (err) {
+        let logger = Common.getLogger(__filename);
+        logger.info(`safeDetachUserDocker. error: ${err}`);
+    }
+}
+
 async function detachUserDocker(unum) {
     let logger = Common.getLogger(__filename);
     logger.info(`detachUserDocker. unum: ${unum} `);
@@ -967,18 +1072,20 @@ function detachUser(req, res) {
         return;
     }
     if (machineModule.isDockerPlatform()) {
-        detachUserDocker(unum).then((result) => {
+        fastDetachUserDocker(unum).then((result) => {
             var resobj = {
                 status: 1,
                 message: "User " + unum + " removed"
             };
             res.end(JSON.stringify(resobj,null,2));
+            logger.logTime("Finish process request detachUser");
         }).catch(err => {
             var resobj = {
                 status: 0,
                 error: err
             };
             res.end(JSON.stringify(resobj,null,2));
+            logger.logTime("Finish process request detachUser");
         });
         return;
     } else {

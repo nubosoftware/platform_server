@@ -283,7 +283,9 @@ function mountAPKsFolder(nfs,dstFolder) {
 
 async function deleteOldMachine() {
     try {
-        let machineConfStr = await readFile("./machine.conf","utf8");
+        let confFolder = path.resolve("./conf");
+        await mkdir(confFolder,{recursive: true});
+        let machineConfStr = await readFile(path.join(confFolder,"machine.conf"),"utf8");
         let conf = JSON.parse(machineConfStr);
         if (conf.platType == "docker") {
             logger.info(`Found previous started machine with platType: ${conf.platType}`);
@@ -331,7 +333,7 @@ async function deinitMachine(params) {
             await deleteOldSessions(logger);
             await deleteOldContainers(machineConf);
             await deleteOldSessionFile(logger);
-            await unlink("./machine.conf");
+            await unlink("./conf/machine.conf");
             let debsFolder = path.resolve("./debs");
             if (machineConf.nfs && machineConf.nfs.nfs_ip != "local") {
                 await require('./mount').linuxUMount(debsFolder);
@@ -775,7 +777,7 @@ function getMachineConf() {
 
 async function saveMachineConf(requestObj) {
     machineConf = requestObj;
-    await writeFile("./machine.conf",JSON.stringify(requestObj,null,2));
+    await writeFile("./conf/machine.conf",JSON.stringify(requestObj,null,2));
 }
 
 function checkPlatform(req, res) {
