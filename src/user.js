@@ -41,8 +41,9 @@ const MIN_CREATE_POOL_SESSION_WAIT_MS = 1000 * 60 * 2; // wait two minutes after
 async function createPooledSession() {
     let logger = Common.getLogger(__filename);
     let now = new Date().getTime();
+    let createSessWait = (Common.sessionPool && Common.sessionPool.waitTime != undefined ? Common.sessionPool.waitTime : MIN_CREATE_POOL_SESSION_WAIT_MS);
     let createDiff = now - lastCreateSessionTime;
-    if (createDiff < MIN_CREATE_POOL_SESSION_WAIT_MS) {
+    if (createDiff < createSessWait) {
         logger.info(`createPooledSession. too early to start pooled session after ${(createDiff/1000)} seconds.`);
         return;
     }
@@ -436,17 +437,18 @@ async function attachUserDocker(obj,logger) {
                 //     ['exec' , session.params.containerId, 'ps', '-A', '-o' ,'PID,NAME' ]
                 // );
                 // let lines = resps.stdout.split('\n');
+                // const pName = "system_server"; //"zygote64";
                 // for (const line of lines) {
                 //     let fields = line.trim().split(' ');
-                //     if (fields[1] == "zygote64") {
+                //     if (fields[1] == pName) {
                 //         zygotePid = fields[0];
                 //         break;
                 //     }
                 // }
                 // if (!zygotePid) {
-                //     throw new Error(`zygote64 not found in pooled container`);
+                //     throw new Error(`${pName} not found in pooled container`);
                 // }
-                // logger.logTime(`zygotePid: ${zygotePid}`);
+                // logger.logTime(`${pName} pid: ${zygotePid}`);
 
                 if (!session.params.mounts) {
                     session.params.mounts = [];
@@ -663,28 +665,30 @@ async function attachUserDocker(obj,logger) {
             }
 
 
-
+            // wait for session to start
+            await waitForSessionStart(session.params.containerId,logger);
             // wait for launcher to start
-            let started = false;
-            let cnt = 0;
-            let default_launcher;
-            if (session.platformSettings && session.platformSettings.default_launcher) {
-                default_launcher = session.platformSettings.default_launcher;
-            } else {
-                default_launcher = "com.nubo.launcher";
-            }
-            logger.logTime(`Waiting for launcher (${default_launcher}) to start..`);
-            while (!started && cnt < 200) {
-                cnt++;
-                let resps = await execDockerWaitAndroid(
-                    ['exec' , session.params.containerId, 'ps', '-A' ]
-                );
-                if (resps.stdout && resps.stdout.indexOf(default_launcher) >= 0) {
-                    started = true;
-                } else {
-                    sleep(100);
-                }
-            }
+            // let started = false;
+            // let cnt = 0;
+            // let wait_process;
+            // // if (session.platformSettings && session.platformSettings.default_launcher) {
+            // //     wait_process = session.platformSettings.default_launcher;
+            // // } else {
+            // //     wait_process = "com.nubo.launcher";
+            // // }
+            // wait_process = "com.android.systemui";
+            // logger.logTime(`Waiting for ${wait_process} to start..`);
+            // while (!started && cnt < 200) {
+            //     cnt++;
+            //     let resps = await execDockerWaitAndroid(
+            //         ['exec' , session.params.containerId, 'ps', '-A' ]
+            //     );
+            //     if (resps.stdout && resps.stdout.indexOf(wait_process) >= 0) {
+            //         started = true;
+            //     } else {
+            //         sleep(100);
+            //     }
+            // }
 
 
             logger.log('info', `Session created on platform. containerID: ${session.params.containerId}`, logMeta);
@@ -703,6 +707,36 @@ async function attachUserDocker(obj,logger) {
     }
 
     return result;
+}
+
+async function waitForSessionStart(containerId,logger) {
+    // wait for launcher to start
+    try {
+        let started = false;
+        let cnt = 0;
+        let wait_process;
+        // if (session.platformSettings && session.platformSettings.default_launcher) {
+        //     wait_process = session.platformSettings.default_launcher;
+        // } else {
+        //     wait_process = "com.nubo.launcher";
+        // }
+        wait_process = "com.android.systemui";
+        logger.logTime(`Waiting for ${wait_process} to start..`);
+        while (!started && cnt < 200) {
+            cnt++;
+            let resps = await execDockerWaitAndroid(
+                ['exec' , containerId, 'ps', '-A' ]
+            );
+            if (resps.stdout && resps.stdout.indexOf(wait_process) >= 0) {
+                started = true;
+            } else {
+                sleep(100);
+            }
+        }
+        logger.logTime(`Finish waiting for session to start. started: ${started}`);
+    } catch (err) {
+        logger.error(`waitforSessionStart error: ${err}`,err);
+    }
 }
 
 function execCmd(cmd,params) {

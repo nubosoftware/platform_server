@@ -218,6 +218,7 @@ async function startDockerPlatformImp(requestObj) {
 }
 
 let refreshPoolTimeout;
+const SESSION_POOL_REFRESH_INTERVAL = 60000;
 
 async function refreshSessionPool() {
     try {
@@ -232,7 +233,8 @@ async function refreshSessionPool() {
                     await require('./user').createPooledSession();
                 }
             }
-            refreshPoolTimeout = setTimeout(refreshSessionPool,60000);
+            let refreshInterval = (Common.sessionPool.refreshInterval != undefined ? Common.sessionPool.refreshInterval : SESSION_POOL_REFRESH_INTERVAL);
+            refreshPoolTimeout = setTimeout(refreshSessionPool,refreshInterval);
         }
     } catch (err) {
         logger.error(`refreshSessionPool error: ${err}`,err);
