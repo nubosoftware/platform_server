@@ -76,6 +76,7 @@ async function createPooledSession() {
         let apksPath = path.join(sessPath,'apks');
         await fsp.mkdir(apksPath,{recursive: true});
         await fsp.chown(sessPath,1000,1000);
+        // await fsp.chmod(sessPath,'660');
         session.params.sessPath = sessPath;
         session.params.apksPath = apksPath;
 
@@ -194,8 +195,8 @@ async function attachUserDocker(obj,logger) {
         mounts: obj.mounts,
         params: obj.session,
         firewall: obj.firewall,
-        platformSettings: obj.platformSettings
-        //xml_file_content: obj.xml_file_content
+        platformSettings: obj.platformSettings,
+        xml_file_content: obj.xml_file_content
     };
     let machineConf = machineModule.getMachineConf();
 
@@ -206,7 +207,7 @@ async function attachUserDocker(obj,logger) {
         let pooledSession = await loadUserSessionPromise(unum,logger);
         _.extend(session.params, pooledSession.params);
         session.params.pooledSession = true;
-        logger.info(`attachUserDocker. merged session object: ${JSON.stringify(session,null,2)}`);
+        // logger.info(`attachUserDocker. merged session object: ${JSON.stringify(session,null,2)}`);
     } else {
         // get new unum
         unum = machineConf.unumCnt;
@@ -234,6 +235,7 @@ async function attachUserDocker(obj,logger) {
         email: session.params.email,
         deviceid: session.params.deviceid
     }
+    session.params.sessKey = sessKey;
     await machineModule.saveMachineConf(machineConf);
     try {
         if (session.login.deviceType == "Desktop") {
@@ -453,6 +455,18 @@ async function attachUserDocker(obj,logger) {
                 if (!session.params.mounts) {
                     session.params.mounts = [];
                 }
+
+                if (session.xml_file_content) {
+                    let sessionXMLFile = path.join(session.params.sessPath,"Session.xml");
+                    // logger.info(`Found xml_file_content. write to: ${sessionXMLFile}, xml_file_content: ${session.xml_file_content}`);
+                    await fsp.writeFile(sessionXMLFile,session.xml_file_content);
+                    await fsp.chown(sessionXMLFile,1000,1000);
+                    await fsp.chmod(sessionXMLFile,'600');
+                } else {
+                    let errmsg = `Not found xml_file_content in session params!`;
+                    logger.info(errmsg);
+                    throw new Error(errmsg);
+                }
                 let storagePath = path.join(session.params.sessPath,"storage");
 
                 if (session.params.nfsHomeFolder != "local") {
@@ -528,9 +542,25 @@ async function attachUserDocker(obj,logger) {
                 // );
 
                 // run login script
-                await execDockerWaitAndroid(
-                    ['exec' , session.params.containerId, 'sh', '-e' , '/system/etc/login_user.sh' , `${major}` , `${minor}`  ]
-                );
+                let loginScriptSuccess = false;
+                let loginCnt = 0;
+
+                while (!loginScriptSuccess && loginCnt<10) {
+                    try {
+                        loginCnt++;
+                        await execDockerWaitAndroid(
+                            ['exec' , session.params.containerId, 'sh', '-e' , '/system/etc/login_user.sh' , `${major}` , `${minor}`  ]
+                        );
+                        loginScriptSuccess = true;
+                    } catch (err) {
+                        logger.error(`attachUserDocker. login_user.sh Error: ${err}`);
+                        if (loginCnt<10) {
+                            await sleep(500);
+                        } else {
+                            throw err;
+                        }
+                    }
+                }
 
 
                 logger.logTime(`After restart zygote`);
@@ -562,10 +592,24 @@ async function attachUserDocker(obj,logger) {
                 let apksPath = path.join(sessPath,'apks');
                 await fsp.mkdir(apksPath,{recursive: true});
                 await fsp.chown(sessPath,1000,1000);
+                // await fsp.chmod(sessPath,'660');
                 session.params.sessPath = sessPath;
                 session.params.apksPath = apksPath;
 
                 await saveUserSessionPromise(unum, session);
+
+                if (session.xml_file_content) {
+                    let sessionXMLFile = path.join(session.params.sessPath,"Session.xml");
+                    // logger.info(`Found xml_file_content. write to: ${sessionXMLFile}, xml_file_content: ${session.xml_file_content}`);
+                    await fsp.writeFile(sessionXMLFile,session.xml_file_content);
+                    await fsp.chown(sessionXMLFile,1000,1000);
+                    await fsp.chmod(sessionXMLFile,'600');
+                } else {
+                    let errmsg = `Not found xml_file_content in session params!`;
+                    logger.info(errmsg);
+                    throw new Error(errmsg);
+                }
+
                 if(session.params.audioStreamParams) {
                     await Audio.initAudio(unum);
                 }
@@ -836,14 +880,14 @@ async function fastDetachUserDocker(unum) {
                 }
                 session.params.mounts = [];
             }
-            await saveUserSessionPromise(unum, session);
 
             let machineConf = machineModule.getMachineConf();
-            let sessKey = `${session.params.email}_${session.params.deviceid}`;
-            if (machineConf.sessions && machineConf.sessions[sessKey]) {
-                delete machineConf.sessions[sessKey];
+            if (machineConf.sessions && session.params.sessKey && machineConf.sessions[session.params.sessKey]) {
+                delete machineConf.sessions[session.params.sessKey];
+                delete session.params.sessKey;
             }
 
+            await saveUserSessionPromise(unum, session);
             await machineModule.saveMachineConf(machineConf);
 
             waitForFullDetach = false;
@@ -995,9 +1039,8 @@ async function detachUserDocker(unum) {
         delete machineConf.linuxUserName[session.params.linuxUserName];
         saveMachine = true;
     }
-    let sessKey = `${session.params.email}_${session.params.deviceid}`;
-    if (machineConf.sessions && machineConf.sessions[sessKey]) {
-        delete machineConf.sessions[sessKey];
+    if (machineConf.sessions && session.params.sessKey && machineConf.sessions[session.params.sessKey]) {
+        delete machineConf.sessions[session.params.sessKey];
         saveMachine = true;
     }
     if (saveMachine) {
