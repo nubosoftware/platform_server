@@ -11,6 +11,7 @@
     "axios": "^0.25.0",
     "dockerode": "^3.3.1",
     "jsonwebtoken": "^8.5.1",
+    "moment-timezone": "^0.5.37",
     "pem": "^1.14.4",
     "ps-node": "0.1.6",
     "restify": "^8.5.1",

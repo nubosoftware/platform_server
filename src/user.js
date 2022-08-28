@@ -19,6 +19,7 @@ const { docker, pullImage, execDockerCmd, ExecCmdError, execDockerWaitAndroid, s
 const {getRules,createChain, deleteRule,insertRule } = require('./ipTables');
 const fsp = fs.promises;
 const path = require('path');
+const moment = require('moment-timezone');
 
 
 
@@ -76,9 +77,13 @@ async function createPooledSession() {
         let apksPath = path.join(sessPath,'apks');
         await fsp.mkdir(apksPath,{recursive: true});
         await fsp.chown(sessPath,1000,1000);
-        // await fsp.chmod(sessPath,'660');
+        let platformStartFile = path.join(sessPath,'platformStart.log');
+        await fsp.appendFile(platformStartFile, `${moment().utc().format('YYYY-MM-DD HH:mm:ss')} Creating pooled session\n`, 'utf-8');
+        await fsp.chown(platformStartFile,1000,1000);
+        await fsp.chmod(platformStartFile,'660');
         session.params.sessPath = sessPath;
         session.params.apksPath = apksPath;
+        session.params.platformStartFile = platformStartFile;
 
         logger.info(`Create local data volume for temp session`);
         const imgFilePath = path.join(sessPath,'temp_data.img'); //path.resolve(`./sessions/temp_data_${unum}.img`);
@@ -467,6 +472,9 @@ async function attachUserDocker(obj,logger) {
                     logger.info(errmsg);
                     throw new Error(errmsg);
                 }
+                let platformStartFile = session.params.platformStartFile;
+                await fsp.appendFile(platformStartFile, `${moment().utc().format('YYYY-MM-DD HH:mm:ss')} Starting session\n`, 'utf-8');
+
                 let storagePath = path.join(session.params.sessPath,"storage");
 
                 if (session.params.nfsHomeFolder != "local") {
@@ -592,9 +600,13 @@ async function attachUserDocker(obj,logger) {
                 let apksPath = path.join(sessPath,'apks');
                 await fsp.mkdir(apksPath,{recursive: true});
                 await fsp.chown(sessPath,1000,1000);
-                // await fsp.chmod(sessPath,'660');
+                let platformStartFile = path.join(sessPath,'platformStart.log');
+                await fsp.appendFile(platformStartFile, `${moment().utc().format('YYYY-MM-DD HH:mm:ss')} Starting session\n`, 'utf-8');
+                await fsp.chown(platformStartFile,1000,1000);
+                await fsp.chmod(platformStartFile,'660');
                 session.params.sessPath = sessPath;
                 session.params.apksPath = apksPath;
+                session.params.platformStartFile = platformStartFile;
 
                 await saveUserSessionPromise(unum, session);
 
@@ -710,7 +722,8 @@ async function attachUserDocker(obj,logger) {
 
 
             // wait for session to start
-            await waitForSessionStart(session.params.containerId,logger);
+            await waitForPlatformUserStart(session,logger);
+            // await waitForSessionStart(session.params.containerId,logger);
             // wait for launcher to start
             // let started = false;
             // let cnt = 0;
@@ -751,6 +764,38 @@ async function attachUserDocker(obj,logger) {
     }
 
     return result;
+}
+
+
+async function waitForPlatformUserStart(session,logger) {
+
+    // abort wait after 60 seconds
+    const ac = new AbortController();
+    const { signal } = ac;
+    setTimeout(() => ac.abort(), 60000);
+
+    logger.logTime(`Waiting for platform user to start..`);
+
+    const platformStartFile = session.params.platformStartFile;
+    try {
+        const watcher = fsp.watch(platformStartFile, { signal });
+        let userStarted = false;
+        while (!userStarted) {
+
+            let data = await fsp.readFile(platformStartFile,"utf8");
+            if (data.indexOf("User unlocked") > 0) {
+                userStarted = true;
+                logger.logTime(`Platform user started. \nStart log: \n${data}`);
+                break;
+            }
+            logger.logTime(`Platform user not started yet. Waiting..`);
+            // wait for next change of file
+            await watcher.next();
+        }
+    } catch (err) {
+        logger.error(`waitForPlatformUserStart error: ${err}`,err);
+        return;
+    }
 }
 
 async function waitForSessionStart(containerId,logger) {
