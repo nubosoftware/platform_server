@@ -11,6 +11,7 @@ var Common = require('./common.js');
 const path = require('path');
 const { logger } = require('./common.js');
 const { execDockerCmd , ExecCmdError, execDockerWaitAndroid } = require('./dockerUtils');
+const user = require('./user');
 const fsp = fs.promises;
 
 module.exports = {
@@ -26,6 +27,25 @@ var UPGRADE_TASK = [2, "g", "upgrade"];
 function installApk(req, res) {
     var logger = new ThreadedLogger(Common.getLogger(__filename));
     var apk = req.params.apk;
+    if (machineModule.isDockerPlatform()) {
+        let docker_image = req.params.docker_image;
+        refreshImageDocker(apk,docker_image,logger).then((result) => {
+            //logger.info("Apk " + apk + " installed");
+            resobj = {
+                status: 1,
+                msg: "OK"
+            };
+            res.end(JSON.stringify(resobj, null, 2));
+        }).catch(err => {
+            logger.error(`APK install error: ${err}`,err);
+            resobj = {
+                status: 0,
+                msg: `Error: ${err}`
+            };
+            res.end(JSON.stringify(resobj, null, 2));
+        });
+        return;
+    }
     // Test for path manipulation
     if ((apk.indexOf('..') >= 0) || (apk.indexOf('/data/tmp/') !== 0)) {
         var resobj = {
@@ -86,6 +106,8 @@ var tryInstallApk = function(apkPath, retries, wait, logger, callback) {
     };
     retryInstallApk(apkPath, retries, wait, logger, callback);
 };
+
+
 
 var disableUserZero = function(apkPath,platform,logger, callback) {
     let packagename = path.basename(apkPath, '.apk');
@@ -153,6 +175,71 @@ var installAppInBackgrond = function(containerId,installTarget) {
 
 }
 
+/**
+ * Install APK on all session containers that use the docker_image
+ * @param {*} apk
+ * @param {*} docker_image
+ * @param {*} logger
+ */
+ var refreshImageDocker = async function(apk,docker_image,logger) {
+    logger.info(`refreshImageDocker. docker_image: ${docker_image}`);
+    await require('./user').refreshImagePool(docker_image);
+
+
+    // let sessions = machineConf.sessions;
+    // if (sessions) {
+    //     for (const sessKey in sessions) {
+    //         const unum = sessions[sessKey].localid;
+    //         let sess = await require('./user').loadUserSessionPromise(unum,logger);
+    //         if (sess && sess.params.docker_image == docker_image) {
+    //             sessionsToUpdate.push(sess);
+    //         }
+    //     }
+    // }
+    // for (const session of sessionsToUpdate) {
+    //     const containerId = session.params.containerId;
+    //     const unum = session.params.localid;
+    //     let apkPath = path.resolve("./apks",apk);
+    //     let sessApkPath = "/nubo/apks/";
+    //     logger.info(`Copy apk from ${apkPath} to ${sessApkPath}`);
+    //     let cpres = await execDockerWaitAndroid(['cp',apkPath,`${containerId}:${sessApkPath}`]);
+
+
+
+    //     let installTarget = path.resolve(sessApkPath,apk);
+    //     try {
+    //         //create temp_app dir if needed so app will not be installed in image
+    //         let tempAppDir = path.resolve(session.params.sessPath,"temp_app");
+    //         let exists = await fileExists(tempAppDir);
+    //         if (!exists) {
+    //             await fsp.mkdir(tempAppDir,{recursive: true});
+    //             await fsp.chown(tempAppDir,1000,1000);
+    //             await fsp.chmod(tempAppDir,'777');
+    //             await execDockerWaitAndroid(
+    //                 ['exec' , containerId, 'mount', '--bind', '/nubo/temp_app', '/data/app' ]
+    //             );
+    //         }
+
+    //         logger.info(`Installing apk ${apk} on container ${unum}..`);
+    //         const { stdout, stderr } = await execDockerWaitAndroid(
+    //             ['exec' , containerId, 'pm', 'install' , '--user','0', '-r', installTarget]
+    //         );
+    //     } catch (err) {
+    //         logger.info(`Install apk error on constainer ${unum}: ${err}, stdout: ${err.stdout}, stderr: ${err.stderr}`);
+    //     }
+    // }
+
+}
+
+async function fileExists(filepath) {
+    try {
+        await fsp.access(filepath);
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
+
 var processTasksDocker = async function(tasks, logger) {
     let errFlag = false;
     let results = [];
@@ -182,20 +269,24 @@ var processTasksDocker = async function(tasks, logger) {
                     task.status = 1;
                 } else {
                     // instal in mobile
-                    // tbd copy to container apks
-                    if (!task.filename) {
-                        task.filename = `${task.packageName}.apk`;
-                    }
-                    let apkPath = path.resolve("./apks",task.filename);
-                    let sessApkPath = "/nubo/apks/";
-                    logger.info(`Copy apk from ${apkPath} to ${sessApkPath}`);
-                    // await fsp.copyFile(apkPath,sessApkPath);
-                    let cpres = await execDockerWaitAndroid(['cp',apkPath,`${containerId}:${sessApkPath}`]);
+                    // if (!task.filename) {
+                    //     task.filename = `${task.packageName}.apk`;
+                    // }
+                    // let apkPath = path.resolve("./apks",task.filename);
+                    // let sessApkPath = "/nubo/apks/";
+                    // logger.info(`Copy apk from ${apkPath} to ${sessApkPath}`);
 
-                    // let installTarget = path.resolve("/system/vendor/apks",task.filename);
-                    let installTarget = path.resolve(sessApkPath,task.filename);
+                    // let cpres = await execDockerWaitAndroid(['cp',apkPath,`${containerId}:${sessApkPath}`]);
+
+
+                    // let installTarget = path.resolve(sessApkPath,task.filename);
+                    // const { stdout, stderr } = await execDockerWaitAndroid(
+                    //     ['exec' , containerId, 'pm', 'install' , '--user','0', '-r', installTarget]
+                    // );
+
+                    // enable package
                     const { stdout, stderr } = await execDockerWaitAndroid(
-                        ['exec' , containerId, 'pm', 'install' , '--user','0', '-r', installTarget]
+                        ['exec' , containerId, 'pm', 'enable' , '--user','10', task.packageName]
                     );
                     logger.info(`Installed package ${task.packageName} on container ${containerId}.\nstdout: ${stdout}\nstderr: ${stderr}`);
                     task.status = 1;
@@ -211,8 +302,11 @@ var processTasksDocker = async function(tasks, logger) {
                 } else {
                     let execRes;
                     try {
+                        // execRes = await execDockerWaitAndroid(
+                        //     ['exec' , containerId, 'pm', 'uninstall' , '--user','0',task.packageName]
+                        // );
                         execRes = await execDockerWaitAndroid(
-                            ['exec' , containerId, 'pm', 'uninstall' , '--user','0',task.packageName]
+                            ['exec' , containerId, 'pm', 'disable' , '--user','10',task.packageName]
                         );
                     } catch (err) {
                         if (err instanceof ExecCmdError) {
@@ -239,23 +333,23 @@ var processTasksDocker = async function(tasks, logger) {
                     const listRet = await execDockerWaitAndroid(
                         ['exec' , containerId, 'pm', 'list' , 'packages','--user','0', task.packageName]
                     );
-                    if (listRet.stdout && listRet.stdout.indexOf(task.packageName) >= 0) {
-                        logger.info(`Upgrading packge: ${task.packageName}`);
-                        let apkPath = path.resolve("./apks",task.filename);
-                        let sessApkPath = "/nubo/apks/";
-                        logger.info(`Copy apk from ${apkPath} to ${sessApkPath}`);
-                        // await fsp.copyFile(apkPath,sessApkPath);
-                        let cpres = await execDockerWaitAndroid(['cp',apkPath,`${containerId}:${sessApkPath}`]);
+                    // if (listRet.stdout && listRet.stdout.indexOf(task.packageName) >= 0) {
+                    //     logger.info(`Upgrading packge: ${task.packageName}`);
+                    //     let apkPath = path.resolve("./apks",task.filename);
+                    //     let sessApkPath = "/nubo/apks/";
+                    //     logger.info(`Copy apk from ${apkPath} to ${sessApkPath}`);
+                    //     // await fsp.copyFile(apkPath,sessApkPath);
+                    //     let cpres = await execDockerWaitAndroid(['cp',apkPath,`${containerId}:${sessApkPath}`]);
 
-                        // let installTarget = path.resolve("/system/vendor/apks",task.filename);
-                        let installTarget = path.resolve(sessApkPath,task.filename);
-                        const { stdout, stderr } = await execDockerWaitAndroid(
-                            ['exec' , containerId, 'pm', 'install' , '--user','0', '-r', installTarget]
-                        );
-                        logger.info(`Upgraded package ${task.packageName} on container ${containerId}.\nstdout: ${stdout}\nstderr: ${stderr}`);
-                    } else {
+                    //     // let installTarget = path.resolve("/system/vendor/apks",task.filename);
+                    //     let installTarget = path.resolve(sessApkPath,task.filename);
+                    //     const { stdout, stderr } = await execDockerWaitAndroid(
+                    //         ['exec' , containerId, 'pm', 'install' , '--user','0', '-r', installTarget]
+                    //     );
+                    //     logger.info(`Upgraded package ${task.packageName} on container ${containerId}.\nstdout: ${stdout}\nstderr: ${stderr}`);
+                    // } else {
                         logger.info(`Upgrade. packge: ${task.packageName} is not installed in user: ${listRet.stdout}`);
-                    }
+                    // }
                     task.status = 1;
                 }
             } else {
@@ -344,8 +438,52 @@ var processTasks = function(tasks, logger, callback) {
     );
 };
 
+async function getPackagesListDocker(req,res,logger) {
+    try {
+        let imageName = req.params.imageName;
+        logger.info(`getPackagesListDocker. imageName: ${imageName}`);
+        let session = await require('./user').createPooledSession(imageName,true);
+        if (!session) {
+            throw new Error(`Cannot create pooled session for package list`);
+        }
+        try {
+            logger.info(`getPackagesListDocker. session created..`);
+            const systemPath = path.join(session.params.sessPath,"system");
+            const packagesXml = await fsp.readFile(path.join(systemPath,"packages.xml"),"utf8");
+            const packagesList = await fsp.readFile(path.join(systemPath,"packages.list"),"utf8");
+            const nuboPlatformVersion = await fsp.readFile(path.join(systemPath,"nubo_platform.version"),"utf8");
+            res.end(JSON.stringify({
+                status: 1,
+                data: {
+                    "packages.xml" : packagesXml,
+                    "packages.list" : packagesList,
+                    "nubo_platform.version": nuboPlatformVersion
+                }
+            }));
+        } finally {
+            await require('./user').detachUserDocker(session.params.localid);
+        }
+
+    } catch (err) {
+        logger.error(`getPackagesListDocker error: ${err}`,err);
+        var resobj = {
+            status: 0,
+            msg: `${err}`
+        };
+        res.end(JSON.stringify(resobj, null, 2));
+    }
+}
+
 function getPackagesList(req, res) {
     var logger = new ThreadedLogger(Common.getLogger(__filename));
+    if (machineModule.isDockerPlatform()) {
+        getPackagesListDocker(req,res,logger).then(() => {
+            logger.logTime(`getPackagesListDocker finished`);
+        }).catch(err => {
+            logger.info(`Error in getPackagesList: ${err}`);
+        });
+        return;
+    }
     var filter = req.params.filter;
 
     logger.logTime("Start process request getPackagesList");

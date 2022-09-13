@@ -196,11 +196,11 @@ async function checkDockerConf() {
             settingsFileName = path.join(Common.rootDir,'conf','Settings.json');
             // move file if needed
             const oldfileLocation = path.join(Common.rootDir,'Settings.json');
-            await fileMoveIfNedded(settingsFileName,oldfileLocation);           
+            await fileMoveIfNedded(settingsFileName,oldfileLocation);
         } else {
             Common.isDocker = false;
             settingsFileName = path.join(Common.rootDir,'Settings.json');
-        }  
+        }
         Common._isDockerChecked = true;
         Common.settingsFileName = settingsFileName;
     }
@@ -261,6 +261,7 @@ Common.quit = function() {
 
 parse_configs();
 
+Common.fileExists = fileExists;
 
 
 module.exports = Common;

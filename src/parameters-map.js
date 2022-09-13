@@ -138,7 +138,8 @@ var filter = {
     }, {
         "path": "/installApk",
         "constraints": {
-            "apk": constraints.pathConstrRequested
+            "apk": constraints.pathConstrRequested,
+            "docker_image": {},
         }
     }, {
         "path": "/attachApps",
@@ -161,7 +162,8 @@ var filter = {
     }, {
         "path": "/getPackagesList",
         "constraints": {
-            "filter": constraints.packageNameConstrOptional
+            "filter": constraints.packageNameConstrOptional,
+            "imageName": constraints.pathConstrOptional,
         }
     }, {
         "path": "/refreshMedia",

@@ -222,19 +222,24 @@ const SESSION_POOL_REFRESH_INTERVAL = 60000;
 
 async function refreshSessionPool() {
     try {
-        if (machineConf && Common.sessionPool && Common.sessionPool.size) {
-            if (!machineConf.pooledSessions) {
-                machineConf.pooledSessions = [];
-            }
-            let requiredPooledSessions = Common.sessionPool.size - machineConf.pooledSessions.length;
-            if (requiredPooledSessions > 0) {
-                logger.info(`refreshSessionPool. requiredPooledSessions: ${requiredPooledSessions}`);
-                for (let i=0; i<requiredPooledSessions; i++) {
-                    await require('./user').createPooledSession();
-                }
-            }
-            let refreshInterval = (Common.sessionPool.refreshInterval != undefined ? Common.sessionPool.refreshInterval : SESSION_POOL_REFRESH_INTERVAL);
-            refreshPoolTimeout = setTimeout(refreshSessionPool,refreshInterval);
+        if (machineConf && Common.sessionPool && Common.sessionPool.size && Common.sessionPool.imageName) {
+            // if (!machineConf.pooledSessions) {
+            //     machineConf.pooledSessions = [];
+            // }
+            // let requiredPooledSessions = Common.sessionPool.size - machineConf.pooledSessions.length;
+            // if (requiredPooledSessions > 0) {
+            //     logger.info(`refreshSessionPool. requiredPooledSessions: ${requiredPooledSessions}`);
+            //     for (let i=0; i<requiredPooledSessions; i++) {
+            //         await require('./user').createPooledSession(Common.sessionPool.imageName);
+            //     }
+            // }
+            // let refreshInterval = (Common.sessionPool.refreshInterval != undefined ? Common.sessionPool.refreshInterval : SESSION_POOL_REFRESH_INTERVAL);
+            // refreshPoolTimeout = setTimeout(refreshSessionPool,refreshInterval);
+            require('./user').getOrCreatePool(Common.sessionPool.imageName,{
+                min: Common.sessionPool.size,
+                max: 100,
+                autostart: false,
+            });
         }
     } catch (err) {
         logger.error(`refreshSessionPool error: ${err}`,err);
@@ -332,6 +337,8 @@ async function deinitMachine(params) {
             if (refreshPoolTimeout) {
                 clearTimeout(refreshPoolTimeout);
             }
+            await require('./user').shutdownRunningSessions();
+            await require('./user').deleteAllPools();
             await deleteOldSessions(logger);
             await deleteOldContainers(machineConf);
             await deleteOldSessionFile(logger);
