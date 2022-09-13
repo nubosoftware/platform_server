@@ -291,8 +291,9 @@ async function createPooledSession(_imageName,doNotAddToPull,_lockMachine) {
         let copiedPackagesFile = false;
         if (m && m[1]) {
             let domain = m[1];
+            let packagesListDir;
             try {
-                let packagesListDir = path.resolve("./apks",domain);
+                packagesListDir = path.resolve("./apks",domain);
                 logger.info(`Copy packages files from domain dir: ${packagesListDir}`);
                 await fsp.cp(path.join(packagesListDir,"packages.xml"),path.join(systemDir,"packages.xml"));
                 await fsp.chown(path.join(systemDir,"packages.xml"),1000,1000);
@@ -302,15 +303,22 @@ async function createPooledSession(_imageName,doNotAddToPull,_lockMachine) {
                 await fsp.chown(path.join(systemDir,"nubo_platform.version"),1000,1000);
                 copiedPackagesFile = true;
             } catch (err) {
-                logger.info(`Unable to copy packages files from ${packagesListDir}`);
+                logger.info(`Unable to copy packages files from ${packagesListDir}. error: ${err}`);
             }
         }
 
         if (!copiedPackagesFile) {
             logger.info(`Copy packages files from skel dir`);
-            await fsp.cp(path.join(skelDir,"system","packages.xml"),path.join(systemDir,"packages.xml"));
-            await fsp.cp(path.join(skelDir,"system","packages.list"),path.join(systemDir,"packages.list"));
-            await fsp.cp(path.join(skelDir,"system","nubo_platform.version"),path.join(systemDir,"nubo_platform.version"));
+            try {
+                await fsp.cp(path.join(skelDir,"system","packages.xml"),path.join(systemDir,"packages.xml"));
+                await fsp.chown(path.join(systemDir,"packages.xml"),1000,1000);
+                await fsp.cp(path.join(skelDir,"system","packages.list"),path.join(systemDir,"packages.list"));
+                await fsp.chown(path.join(systemDir,"packages.list"),1000,1000);
+                await fsp.cp(path.join(skelDir,"system","nubo_platform.version"),path.join(systemDir,"nubo_platform.version"));
+                await fsp.chown(path.join(systemDir,"nubo_platform.version"),1000,1000);
+            } catch (err) {
+                logger.info(`Unable to copy packages files from skel dir. error: ${err}`);
+            }
         }
         logger.logTime(`Finish copy pooled session files`);
 
