@@ -106,7 +106,7 @@ async function getSessionFromPool(_imageName) {
     // remove the session from the pool (without closing it)
     // wait 15 seconds before removing from pool
     setTimeout(() => {
-        logger.info(`Removing pooled session from pool: ${_imageName}`);
+        logger.info(`Removing pooled session (${unum}) from pool: ${_imageName}`);
         pool.destroy(session);
     },15000);
 
@@ -119,7 +119,7 @@ async function getSessionFromPool(_imageName) {
 async function refreshImagePool(_imageName) {
     let pool = pools.get(_imageName);
     if (pool) {
-        logger.info(`refreshImagePool. delete pool: ${_imageName}`);
+        logger.info(`refreshImagePool. clear pool: ${_imageName}`);
         await pool.drain();
         await pool.clear();
         pools.delete(_imageName);
@@ -944,6 +944,23 @@ async function attachUserDocker(obj,logger) {
                     // session.params.tempDataDir
 
 
+                    // mount user image
+                    const imageFile =  path.join(session.params.homeFolder,"user.img");
+                    if (!await Common.fileExists(imageFile)) {
+                        logger.info(`Image does not exists - create it`);
+                        await execCmd('dd',["if=/dev/zero", `of=${imageFile}`, "bs=1M", "count=250"]);
+                        await execCmd('mkfs.ext4',[imageFile]);
+                        await execCmd('tune2fs',["-c0","-i0",imageFile]);
+                        logger.info(`Image creted at: ${imageFile}`);
+                    }
+
+                    // mount user.img into /nubo.user_img
+                    const imageMntDir = path.join(session.params.sessPath,"user_img");
+                    await fsp.mkdir(imageMntDir,{recursive: true});
+                    logger.info(`Mounting user image: ${imageFile} to ${imageMntDir}`);
+                    await execCmd('mount',[imageFile,imageMntDir]);
+                    session.params.mounts.push(imageMntDir);
+
                     logger.info(`replacing user 10 folders..`);
                     const srcFolders = [
                         'misc',
@@ -984,7 +1001,7 @@ async function attachUserDocker(obj,logger) {
                     }
 
                     for (let i=0; i<dstFolders.length; i++) {
-                        const src = path.join(session.params.homeFolder,srcFolders[i]);
+                        const src = path.join(imageMntDir,srcFolders[i]);
                         const dst = path.join(session.params.tempDataDir,dstFolders[i]);
                         await mountFolder(src,dst);
                     }
