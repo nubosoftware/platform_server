@@ -59,6 +59,8 @@ function getOrCreatePool(_imageName,opts) {
                 max: 100,
                 autostart: false,
             }
+        } else {
+            opts.autostart = false; //overide paramter as we start the pool
         }
         const sessionPoolFactory = {
             create: async function() {
@@ -174,6 +176,14 @@ async function checkSkelFolder(_imageName) {
         logger.info(`checkSkelFolder. skel folder does not exists: ${skelDir}`);
         await fsp.mkdir(skelDir,{recursive: true});
         await fsp.chown(skelDir,1000,1000);
+        const miscDir = path.join(skelDir,"misc");
+        const ethernetDir = path.join(miscDir,"ethernet");
+        await fsp.mkdir(ethernetDir,{recursive: true});
+        await fsp.chown(miscDir,1000,9998);
+        await fsp.chmod(miscDir,'775');
+        await fsp.chown(ethernetDir,1000,1000);
+        await fsp.chmod(ethernetDir,'775');
+        await fsp.cp( path.resolve(`./docker_run/`,"ipconfig.txt"),path.join(ethernetDir,"ipconfig.txt"));
     }
     // check if user 10 exists
     const userDir = path.join(skelDir,"user","10");

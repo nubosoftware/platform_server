@@ -222,24 +222,12 @@ const SESSION_POOL_REFRESH_INTERVAL = 60000;
 
 async function refreshSessionPool() {
     try {
-        if (machineConf && Common.sessionPool && Common.sessionPool.size && Common.sessionPool.imageName) {
-            // if (!machineConf.pooledSessions) {
-            //     machineConf.pooledSessions = [];
-            // }
-            // let requiredPooledSessions = Common.sessionPool.size - machineConf.pooledSessions.length;
-            // if (requiredPooledSessions > 0) {
-            //     logger.info(`refreshSessionPool. requiredPooledSessions: ${requiredPooledSessions}`);
-            //     for (let i=0; i<requiredPooledSessions; i++) {
-            //         await require('./user').createPooledSession(Common.sessionPool.imageName);
-            //     }
-            // }
-            // let refreshInterval = (Common.sessionPool.refreshInterval != undefined ? Common.sessionPool.refreshInterval : SESSION_POOL_REFRESH_INTERVAL);
-            // refreshPoolTimeout = setTimeout(refreshSessionPool,refreshInterval);
-            require('./user').getOrCreatePool(Common.sessionPool.imageName,{
-                min: Common.sessionPool.size,
-                max: 100,
-                autostart: false,
-            });
+        if (machineConf && Common.sessionPools) {
+            for (const poolConf of Common.sessionPools) {
+                if (poolConf.imageName) {
+                    require('./user').getOrCreatePool(poolConf.imageName,poolConf.options);
+                }
+            }
         }
     } catch (err) {
         logger.error(`refreshSessionPool error: ${err}`,err);
