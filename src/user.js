@@ -283,6 +283,7 @@ async function createPooledSession(_imageName,doNotAddToPull,_lockMachine) {
         }
 
         let tempDataDir = path.join(sessPath,'temp_data_dir');
+        let externalTempDataDir =  path.join(externalSessPath,'temp_data_dir');
         await fsp.mkdir(tempDataDir,{recursive: true});
         await fsp.chown(tempDataDir,1000,1000);
         await fsp.chmod(tempDataDir,'775');
@@ -390,7 +391,7 @@ async function createPooledSession(_imageName,doNotAddToPull,_lockMachine) {
                 '-v', '/lib/modules:/system/lib/modules:ro',
                 // '-v',`${vol_data.name}:/data`,
                 '-v',`${externalSessPath}:/nubo:rw,rshared`,
-                '-v',`${tempDataDir}:/data:rw,rshared`,
+                '-v',`${externalTempDataDir}:/data:rw,rshared`,
 
         ];
         let cmdArgs = ['/init'];
