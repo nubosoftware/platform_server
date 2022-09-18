@@ -1023,6 +1023,41 @@ async function attachUserDocker(obj,logger) {
                     await mountFolder(storageSrc,storageDst);
 
 
+                    //copy files updates
+                    try {
+                        const updatesFolder =  path.join(session.params.homeFolder,"updates");
+                        const updateFilesFile = path.join(updatesFolder,"updates.json");
+                        if (await Common.fileExists(updateFilesFile)) {
+                            const updateFiles = JSON.parse(await fsp.readFile(updateFilesFile,"utf8"));
+                            for (const updateFile of updateFiles) {
+                                try {
+                                    const src = path.join(updatesFolder,updateFile);
+                                    const stats = await fsp.stat(src);
+                                    const dst = path.join(session.params.tempDataDir,updateFile);
+                                    const mode = '0' + (stats.mode & parseInt('777', 8)).toString(8);
+                                    if (stats.isDirectory()) {
+                                        logger.info(`Create folder at: ${dst}, uid: ${stats.uid}, gid: ${stats.gid}, mode: ${mode}`);
+                                        await fsp.mkdir(dst,{recursive: true});
+                                    } else {
+                                        logger.info(`Copy update file from: ${src} to: ${dst}, uid: ${stats.uid}, gid: ${stats.gid}, mode: ${mode}`);
+                                        await fsp.cp(src,dst);
+                                    }
+                                    await fsp.chown(dst,stats.uid,stats.gid);
+                                    await fsp.chmod(dst,mode);
+                                    // await fsp.unlink(src);
+                                } catch (err) {
+                                    logger.error(`Error on update file: ${updateFile}, err: ${err}`,err);
+                                }
+                            }
+                            await fsp.rm(updatesFolder,{recursive: true});
+                        }
+                    } catch (err) {
+                        logger.error(`Error on updated files: ${err}`,err);
+                    }
+
+
+
+
                     logger.info(`Running pm refresh..`);
                     await execDockerWaitAndroid(
                         ['exec' , session.params.containerId, 'pm', 'refresh' , '10'  ]
