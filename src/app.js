@@ -13,6 +13,7 @@ const { logger } = require('./common.js');
 const { execDockerCmd , ExecCmdError, execDockerWaitAndroid } = require('./dockerUtils');
 const user = require('./user');
 const fsp = fs.promises;
+const Lock = require('./lock');
 
 module.exports = {
     installApk: installApk,
@@ -249,6 +250,18 @@ var processTasksDocker = async function(tasks, logger) {
             // load the user session
             let session = await require('./user').loadUserSessionPromise(task.unum,logger);
             const containerId = session.params.containerId;
+            if (session.login.deviceType != "Desktop" && !session.params.readyToInstall) {
+                await require('./user').waitForPlatformStartPhase(session,"SYNC_MANAGER_UNLOCKED user #10",logger);
+                const lockSess = new Lock(`sess_${task.unum}`);
+                try {
+                    await lockSess.acquire();
+                    session = await require('./user').loadUserSessionPromise(task.unum,logger);
+                    session.params.readyToInstall = true;
+                    await require('./user').saveUserSessionPromise(task.unum,session);
+                } finally {
+                    lockSess.release();
+                }
+            }
 
             if (INSTALL_TASK.indexOf(task.task) !== -1) {
                 if (session.login.deviceType == "Desktop") {

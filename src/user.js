@@ -34,13 +34,15 @@ module.exports = {
     receiveSMS: receiveSMS,
     declineCall: declineCall,
     loadUserSessionPromise,
+    saveUserSessionPromise,
     detachUserDocker,
     createPooledSession,
     safeDetachUserDocker,
     getOrCreatePool,
     shutdownRunningSessions,
     deleteAllPools,
-    refreshImagePool
+    refreshImagePool,
+    waitForPlatformStartPhase
 };
 
 let lastCreateSessionTime = 0;
@@ -201,6 +203,17 @@ async function checkSkelFolder(_imageName) {
             );
             logger.info(`checkSkelFolder. user 10 created`);
             await sleep(5000);
+            await execDockerWaitAndroid(
+                ['exec' , containerID, 'am', 'switch-user', '10' ]
+             );
+            logger.info(`checkSkelFolder. user 10 activated`);
+            await sleep(5000);
+            await execDockerWaitAndroid(
+                ['exec' , containerID, 'am', 'switch-user', '0' ]
+            );
+            await sleep(5000);
+            logger.info(`checkSkelFolder. image ready`);
+            await execCmd('sync',[]);
             logger.info(`checkSkelFolder. Copy temp data dir: ${session.params.tempDataDir} back to skel dir: ${skelDir}`);
             await execCmd('cp',["-aT",session.params.tempDataDir,skelDir]);
         } finally {
@@ -409,7 +422,7 @@ async function createPooledSession(_imageName,doNotAddToPull,_lockMachine) {
 
 
         logger.logTime(`Finished container start`);
-        await waitForPlatformUserStart(session,"SystemUserUnlock",logger);
+        await waitForPlatformStartPhase(session,"BOOT_COMPLETED user #0",logger);
 
         // // wait for launcher to start
         // let started = false;
@@ -826,7 +839,7 @@ async function attachUserDocker(obj,logger) {
 
                 if (session.xml_file_content) {
                     let sessionXMLFile = path.join(session.params.sessPath,"Session.xml");
-                    // logger.info(`Found xml_file_content. write to: ${sessionXMLFile}, xml_file_content: ${session.xml_file_content}`);
+                    logger.info(`Found xml_file_content. write to: ${sessionXMLFile}`);
                     await fsp.writeFile(sessionXMLFile,session.xml_file_content);
                     await fsp.chown(sessionXMLFile,1000,1000);
                     await fsp.chmod(sessionXMLFile,'600');
@@ -971,8 +984,9 @@ async function attachUserDocker(obj,logger) {
                     logger.info(`Mounting user image: ${imageFile} to ${imageMntDir}`);
                     await execCmd('mount',[imageFile,imageMntDir]);
                     session.params.mounts.push(imageMntDir);
+                    session.params.userImageFile = imageFile;
 
-                    logger.info(`replacing user 10 folders..`);
+                    logger.logTime(`replacing user 10 folders..`);
                     const srcFolders = [
                         'misc',
                         'misc_ce',
@@ -1002,6 +1016,9 @@ async function attachUserDocker(obj,logger) {
                             logger.info(`User folder does not exists: ${src}. Copy skel folder ${dst} into it.`);
                             await fsp.mkdir(src,{recursive: true});
                             await execCmd('cp',["-aT",dst,src]);
+                            const stats = await fsp.stat(src);
+                            const mode = '0' + (stats.mode & parseInt('777', 8)).toString(8);
+                            //logger.info(`After copy folder. mode: ${mode}, stats: ${JSON.stringify(stats,null,2)}`);
                         }
 
                         logger.info(`Mount user folder ${src} to ${dst}`);
@@ -1021,6 +1038,11 @@ async function attachUserDocker(obj,logger) {
                     const storageSrc = path.join(session.params.mountedStorageFolder,"media");
                     const storageDst = path.join(session.params.tempDataDir,"media","10");
                     await mountFolder(storageSrc,storageDst);
+
+                    // fsync mounted system_ce
+                    logger.logTime(`fsync mounted system_ce`);
+                    await execCmd('sync',[]);
+                    logger.logTime(`fsync finished`);
 
 
                     //copy files updates
@@ -1215,7 +1237,8 @@ async function attachUserDocker(obj,logger) {
 
 
             // wait for session to start
-            await waitForPlatformUserStart(session,"User unlocked",logger);
+            // await waitForPlatformStartPhase(session,"User unlocked",logger);
+            await waitForPlatformStartPhase(session,`BOOT_COMPLETED user #10`,logger);
             // await waitForSessionStart(session.params.containerId,logger);
             // wait for launcher to start
             // let started = false;
@@ -1263,7 +1286,7 @@ async function attachUserDocker(obj,logger) {
 }
 
 
-async function waitForPlatformUserStart(session,waitMsg,logger) {
+async function waitForPlatformStartPhase(session,waitMsg,logger) {
 
     // abort wait after 60 seconds
     const ac = new AbortController();
@@ -1274,7 +1297,7 @@ async function waitForPlatformUserStart(session,waitMsg,logger) {
         waitMsg = "User unlocked";
     }
 
-    logger.logTime(`Waiting for platform user to start..`);
+    logger.logTime(`Waiting for platform start phase: ${waitMsg}..`);
 
     const platformStartFile = session.params.platformStartFile;
     try {
@@ -1285,15 +1308,15 @@ async function waitForPlatformUserStart(session,waitMsg,logger) {
             let data = await fsp.readFile(platformStartFile,"utf8");
             if (data.indexOf(waitMsg) > 0) {
                 userStarted = true;
-                logger.logTime(`Platform user started. \nStart log: \n${data}`);
+                logger.logTime(`Platform phase ready: ${waitMsg}.`);
                 break;
             }
-            logger.logTime(`Platform user not started yet. Waiting..`);
+            // logger.logTime(`Platform user not started yet. Waiting..`);
             // wait for next change of file
             await watcher.next();
         }
     } catch (err) {
-        logger.error(`waitForPlatformUserStart error: ${err}`,err);
+        logger.error(`waitForPlatformStartPhase error: ${err}`,err);
         return;
     }
 }
@@ -1361,7 +1384,8 @@ function makeid(length) {
 
 async function fastDetachUserDocker(unum) {
     let waitForFullDetach = true;
-    let logger = Common.getLogger(__filename);
+    // let logger = Common.getLogger(__filename);
+    let logger = new ThreadedLogger(Common.getLogger(__filename));
     logger.info(`fastDetachUserDocker. unum: ${unum} `);
     const lockSess = new Lock(`sess_${unum}`);
     try {
@@ -1406,14 +1430,20 @@ async function fastDetachUserDocker(unum) {
                     }
                     session.params.loopDevices = [];
                 }
-                if (session.params.homeFolder && session.params.nfsHomeFolder != "local") {
-                    logger.info(`fastDetachUserDocker. unmount folder...`);
-                    try {
-                        await mount.linuxUMount(session.params.homeFolder);
-                        delete session.params.homeFolder;
-                    } catch (err) {
-                        logger.info(`fastDetachUserDocker. Unable to unmount folder. err: ${err}`);
-                    }
+                // if (session.params.homeFolder && session.params.nfsHomeFolder != "local") {
+                //     logger.info(`fastDetachUserDocker. unmount folder...`);
+                //     try {
+                //         await mount.linuxUMount(session.params.homeFolder);
+                //         delete session.params.homeFolder;
+                //     } catch (err) {
+                //         logger.info(`fastDetachUserDocker. Unable to unmount folder. err: ${err}`);
+                //     }
+                // }
+
+                if (session.params.userImageFile) {
+                    logger.logTime(`fastDetachUserDocker. before sync`);
+                    await execCmd('sync',[]);
+                    logger.logTime(`fastDetachUserDocker. after sync`);
                 }
 
                 if (session.params.mounts && session.params.mounts.length > 0) {
@@ -1428,10 +1458,27 @@ async function fastDetachUserDocker(unum) {
                     session.params.mounts = [];
                 }
 
+                if (session.params.homeFolder && session.params.nfsHomeFolder != "local") {
+                    logger.info(`detachUserDocker. unmount homeFolder: ${session.params.homeFolder}`);
+
+                    try {
+                        await mount.linuxUMount(session.params.homeFolder);
+                        session.params.homeFolder = undefined;
+                    } catch (err) {
+                        logger.info(`detachUserDocker. Unable to unmount folder. err: ${err}`);
+                    }
+                }
+
+                if (session.params.userImageFile) {
+                    logger.logTime(`fastDetachUserDocker. before sync`);
+                    await execCmd('sync',[]);
+                    logger.logTime(`fastDetachUserDocker. after sync`);
+                }
+
                 // restart zygote
-                await execDockerWaitAndroid(
-                    ['exec' , session.params.containerId, 'kill', `${zygotePid}` ]
-                );
+                // await execDockerWaitAndroid(
+                //     ['exec' , session.params.containerId, 'kill', `${zygotePid}` ]
+                // );
 
                 const lockMachine1 = new Lock("machine");
                 await lockMachine1.acquire();
