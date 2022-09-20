@@ -1081,6 +1081,10 @@ async function attachUserDocker(obj,logger) {
                     }
 
 
+                    // run am stop-user to close accounts_de
+                    await execDockerWaitAndroid(
+                        ['exec' , session.params.containerId, 'am', 'stop-user', '10' ]
+                    );
 
 
                     logger.info(`Running pm refresh..`);
