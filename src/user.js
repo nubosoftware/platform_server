@@ -211,6 +211,9 @@ async function checkSkelFolder(_imageName) {
             await execDockerWaitAndroid(
                 ['exec' , containerID, 'am', 'switch-user', '0' ]
             );
+            await execDockerWaitAndroid(
+                ['exec' , containerID, 'am', 'stop-user', '10' ]
+            );
             await sleep(5000);
             logger.info(`checkSkelFolder. image ready`);
             await execCmd('sync',[]);
@@ -1040,9 +1043,9 @@ async function attachUserDocker(obj,logger) {
                     await mountFolder(storageSrc,storageDst);
 
                     // fsync mounted system_ce
-                    logger.logTime(`fsync mounted system_ce`);
-                    await execCmd('sync',[]);
-                    logger.logTime(`fsync finished`);
+                    // logger.logTime(`fsync mounted system_ce`);
+                    // await execCmd('sync',[]);
+                    // logger.logTime(`fsync finished`);
 
 
                     //copy files updates
@@ -1411,6 +1414,26 @@ async function fastDetachUserDocker(unum) {
                     throw new Error(`zygote64 not found in pooled container`);
                 }
                 logger.info(`zygotePid: ${zygotePid}`);
+
+
+                logger.logTime(`fastDetachUserDocker. Stop user`);
+
+                // stop user 10
+                await execDockerWaitAndroid(
+                    ['exec' , session.params.containerId, 'am', 'switch-user', '0' ]
+                );
+                await execDockerWaitAndroid(
+                    ['exec' , session.params.containerId, 'am', 'stop-user', '10' ]
+                );
+
+
+                if (session.params.userImageFile && session.params.tempDataDir) {
+                    const syncFile = path.join(session.params.tempDataDir,'system_ce/10/accounts_ce.db');
+                    logger.logTime(`fastDetachUserDocker. before sync: ${syncFile}`);
+                    await execCmd('sync',["-f",syncFile]);
+                    logger.logTime(`fastDetachUserDocker. after sync`);
+                }
+
                 // // unmount the data folders
                 // await execDockerWaitAndroid(
                 //     ['exec' , session.params.containerId, 'umount', '-l', '/data/media' ]
@@ -1440,11 +1463,7 @@ async function fastDetachUserDocker(unum) {
                 //     }
                 // }
 
-                if (session.params.userImageFile) {
-                    logger.logTime(`fastDetachUserDocker. before sync`);
-                    await execCmd('sync',[]);
-                    logger.logTime(`fastDetachUserDocker. after sync`);
-                }
+
 
                 if (session.params.mounts && session.params.mounts.length > 0) {
                     for (const mountedFolder of session.params.mounts) {
@@ -1469,11 +1488,7 @@ async function fastDetachUserDocker(unum) {
                     }
                 }
 
-                if (session.params.userImageFile) {
-                    logger.logTime(`fastDetachUserDocker. before sync`);
-                    await execCmd('sync',[]);
-                    logger.logTime(`fastDetachUserDocker. after sync`);
-                }
+
 
                 // restart zygote
                 // await execDockerWaitAndroid(
