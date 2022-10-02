@@ -63,6 +63,9 @@ function getOrCreatePool(_imageName,opts) {
             }
         } else {
             opts.autostart = false; //overide paramter as we start the pool
+            if (!opts.max) {
+                opts.max = 100;
+            }
         }
         const sessionPoolFactory = {
             create: async function() {
@@ -80,7 +83,7 @@ function getOrCreatePool(_imageName,opts) {
                 }
             }
           };
-        logger.info(`Creating pool for image: ${_imageName}`);
+        logger.info(`Creating pool for image: ${_imageName}, opts: ${JSON.stringify(opts,null,2)}`);
         pool = genericPool.createPool(sessionPoolFactory, opts);
         pools.set(_imageName,pool);
         // before starting the pool check it and start it in the background
@@ -313,7 +316,7 @@ async function createPooledSession(_imageName,doNotAddToPull,_lockMachine) {
         await fsp.mkdir(systemDir,{recursive: true});
         await fsp.chown(systemDir,1000,1000);
 
-        const imageDomainRE = new RegExp("^domain_([a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,})(:[a-zA-Z0-9]{1,61})?$");
+        const imageDomainRE = new RegExp("^domain_([a-zA-Z0-9\.]+)$");
         const m = imageDomainRE.exec(_imageName);
         let copiedPackagesFile = false;
         if (m && m[1]) {
@@ -488,6 +491,7 @@ async function createPooledSession(_imageName,doNotAddToPull,_lockMachine) {
         return session;
     } catch (err) {
         logger.error(`createPooledSession. Error: ${err}`,err);
+        console.error(err);
         try {
             await saveUserSessionPromise(unum,session);
             lockSess.release();
@@ -1089,7 +1093,7 @@ async function attachUserDocker(obj,logger) {
 
                     logger.info(`Running pm refresh..`);
                     await execDockerWaitAndroid(
-                        ['exec' , session.params.containerId, 'pm', 'refresh' , '10'  ]
+                        ['exec' , session.params.containerId, 'pm', 'refresh' , '10' , session.params.keystoreKey  ]
                     );
 
 
