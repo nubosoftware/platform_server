@@ -316,7 +316,7 @@ async function createPooledSession(_imageName,doNotAddToPull,_lockMachine) {
         await fsp.mkdir(systemDir,{recursive: true});
         await fsp.chown(systemDir,1000,1000);
 
-        const imageDomainRE = new RegExp("^domain_([a-zA-Z0-9\.]+)$");
+        const imageDomainRE = new RegExp("^domain_([a-zA-Z0-9\.]+)");
         const m = imageDomainRE.exec(_imageName);
         let copiedPackagesFile = false;
         if (m && m[1]) {
