@@ -222,6 +222,21 @@ async function checkSkelFolder(_imageName) {
             await execCmd('sync',[]);
             logger.info(`checkSkelFolder. Copy temp data dir: ${session.params.tempDataDir} back to skel dir: ${skelDir}`);
             await execCmd('cp',["-aT",session.params.tempDataDir,skelDir]);
+
+            try {
+                const systemDir = path.join(session.params.sessPath,'system');
+                logger.info(`checkSkelFolder. copy packages files from ${systemDir} to ${path.join(skelDir,"system")}`);
+                await fsp.cp(path.join(systemDir,"packages.xml"),path.join(skelDir,"system","packages.xml"));
+                await fsp.chown(path.join(skelDir,"system","packages.xml"),1000,1000);
+                await fsp.cp(path.join(systemDir,"packages.list"),path.join(skelDir,"system","packages.list"));
+                await fsp.chown(path.join(skelDir,"system","packages.list"),1000,1000);
+                await fsp.cp(path.join(systemDir,"nubo_platform.version"),path.join(skelDir,"system","nubo_platform.version"));
+                await fsp.chown(path.join(skelDir,"system","nubo_platform.version"),1000,1000);
+            } catch (err) {
+                logger.info(`Unable to copy packages files to skel dir. error: ${err}`);
+            }
+
+
         } finally {
             logger.info(`checkSkelFolder. close temporary session`);
             await detachUserDocker(session.params.localid);
