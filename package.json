@@ -6,6 +6,7 @@
   "dependencies": {
     "@nubosoftware/nubo-validateconstraints": "^0.1.12",
     "@nubosoftware/permission-parser": "^0.1.10",
+    "@nubosoftware/winston-syslog": "^2.5.0",
     "accesslog": "0.0.2",
     "async": "^2.0.0-rc.3",
     "axios": "^0.25.0",
@@ -20,8 +21,7 @@
     "underscore": "^1.13.2",
     "unix-dgram": "^2.0.4",
     "validate.js": "^0.13.1",
-    "winston": "3.1.0",
-    "winston-syslog": "^2.1.0"
+    "winston": "3.1.0"
   },
   "devDependencies": {
     "@babel/core": "^7.14.6",

@@ -5,6 +5,7 @@ var path = require('path');
 var async = require('async');
 var _ = require('underscore');
 var fsp = require('fs').promises;
+const os = require('os');
 
 var Common = {
     "sslCerts": {
@@ -25,25 +26,17 @@ try {
 }
 
 const scriptName = (process.argv[1] ? process.argv[1] : "script");
-var loggerName = path.basename(scriptName, '.js') + ".log";
-var exceptionLoggerName = path.basename(scriptName, '.js') + "_exceptions.log";
-console.log("log file: " + loggerName);
+var logger;
 
-const { createLogger , format, transports  } = require('winston');
-const { combine, timestamp, label, printf } = format;
-require('winston-syslog').Syslog;
+function createIntLogger() {
+    var loggerName = path.basename(scriptName, '.js') + ".log";
+    var exceptionLoggerName = path.basename(scriptName, '.js') + "_exceptions.log";
+    console.log("log file: " + loggerName);
 
-const myFormat = printf(info => {
-    return `${info.timestamp} [${info.label}] ${info.level}: ${info.message}`;
-});
+    const { createLogger , format, transports  } = require('winston');
+    const { combine, timestamp, label, printf } = format;
 
-Common.intLogger = createLogger({
-    format: combine(
-        //label({ label:  path.basename(scriptName, '.js') }),
-        timestamp(),
-        myFormat
-    ),
-    transports : [
+    let logTransports = [
         new (transports.Console)({
             name: 'console',
             json : false,
@@ -57,90 +50,119 @@ Common.intLogger = createLogger({
             handleExceptions : true,
             maxsize: 100*1024*1024, //100MB
             maxFiles: 4,
-        }),
-        new transports.Syslog({
-            app_name : "platform_server",
-            handleExceptions : true,
-            localhost: null,
-            protocol: "unix",
-            path: "/dev/log",
-            format: format.json()
         })
-    ],
-    exceptionHandlers : [
-        new (transports.Console)({
-            json : false,
-            timestamp : true
-        }),
-        new transports.File({
-            filename : Common.rootDir + '/log/' + exceptionLoggerName,
-            json : false
-        })
-    ],
-    exitOnError : false
-});
+    ];
+    // require('winston-syslog').Syslog;
 
-let cacheLoggers = {};
-Common.getLogger = (fileName) => {
-    let name = path.basename(scriptName, '.js') + ( fileName ? "_"+path.basename(fileName) : "");
-    if (cacheLoggers[name]) {
-        return cacheLoggers[name];
-    }
-    let moduleLogger = {
-        error: (text, err) => {
-            let msg = text;
-            if (err) {
-                if (err.stack) {
-                    msg += " " + err.stack;
-                } else {
-                    msg += " " + err;
-                }
-            }
-            Common.intLogger.log({
-                level: 'error',
-                message: msg,
-                label: name
-            });
-        },
-        info: (text) => {
-            Common.intLogger.log({
-                level: 'info',
-                message: text,
-                label: name
-            });
-        },
-        warn: (text) => {
-            Common.intLogger.log({
-                level: 'warn',
-                message: text,
-                label: name
-            });
-        },
-        debug: (text) => {
-            Common.intLogger.log({
-                level: 'debug',
-                message: text,
-                label: name
-            });
-        },
-        log: (...args) => {
-            let extra_meta = {label: name};
-            let len = args.length;
-            if(typeof args[len-1] === 'object' && Object.prototype.toString.call(args[len-2]) !== '[object RegExp]') {
-                _.extend(args[len-1], extra_meta);
-            } else {
-                args.push(extra_meta);
-            }
-            Common.intLogger.log.apply(Common.intLogger,args);
-        }
+    let syslogParams = {
+        app_name: "platform_server",
+        handleExceptions: true,
+        localhost: os.hostname(),
+        type: "RFC5424",
+        protocol: 'udp',
+        host: 'nubo-rsyslog',
+        port: 5514,
+        format: format.json()
     };
-    cacheLoggers[name] = moduleLogger;
-    return moduleLogger;
-};
+    if (Common.syslogParams) {
+        _.extend(syslogParams, Common.syslogParams);
+    } else {
+        syslogParams.disable = true;
+    }
+    console.log(`syslogParams.disable: ${syslogParams.disable}`);
+    if (!syslogParams.disable) {
+        let Syslog = require('@nubosoftware/winston-syslog').Syslog;
+        let syslogTransport = new Syslog(syslogParams);
+        logTransports.push(syslogTransport);
+    }
 
-Common.logger = Common.getLogger("");
 
-var logger = Common.getLogger(__filename);
+    const myFormat = printf(info => {
+        return `${info.timestamp} [${info.label}] ${info.level}: ${info.message}`;
+    });
+
+    Common.intLogger = createLogger({
+        format: combine(
+            //label({ label:  path.basename(scriptName, '.js') }),
+            timestamp(),
+            myFormat
+        ),
+        transports : logTransports,
+        exceptionHandlers : [
+            new (transports.Console)({
+                json : false,
+                timestamp : true
+            }),
+            new transports.File({
+                filename : Common.rootDir + '/log/' + exceptionLoggerName,
+                json : false
+            })
+        ],
+        exitOnError : false
+    });
+
+    let cacheLoggers = {};
+    Common.getLogger = (fileName) => {
+        let name = path.basename(scriptName, '.js') + ( fileName ? "_"+path.basename(fileName) : "");
+        if (cacheLoggers[name]) {
+            return cacheLoggers[name];
+        }
+        let moduleLogger = {
+            error: (text, err) => {
+                let msg = text;
+                if (err) {
+                    if (err.stack) {
+                        msg += " " + err.stack;
+                    } else {
+                        msg += " " + err;
+                    }
+                }
+                Common.intLogger.log({
+                    level: 'error',
+                    message: msg,
+                    label: name
+                });
+            },
+            info: (text) => {
+                Common.intLogger.log({
+                    level: 'info',
+                    message: text,
+                    label: name
+                });
+            },
+            warn: (text) => {
+                Common.intLogger.log({
+                    level: 'warn',
+                    message: text,
+                    label: name
+                });
+            },
+            debug: (text) => {
+                Common.intLogger.log({
+                    level: 'debug',
+                    message: text,
+                    label: name
+                });
+            },
+            log: (...args) => {
+                let extra_meta = {label: name};
+                let len = args.length;
+                if(typeof args[len-1] === 'object' && Object.prototype.toString.call(args[len-2]) !== '[object RegExp]') {
+                    _.extend(args[len-1], extra_meta);
+                } else {
+                    args.push(extra_meta);
+                }
+                Common.intLogger.log.apply(Common.intLogger,args);
+            }
+        };
+        cacheLoggers[name] = moduleLogger;
+        return moduleLogger;
+    };
+
+    Common.logger = Common.getLogger("");
+
+    logger = Common.getLogger(__filename);
+}
 
 
 var firstTimeLoad = true;
@@ -228,6 +250,7 @@ function parse_configs() {
             }
 
             if (firstTimeLoad) {
+                createIntLogger(); // re-create logger
                 watcher = fs.watchFile(Common.settingsFileName, {
                     persistent: false,
                     interval: 5007
@@ -247,6 +270,9 @@ function parse_configs() {
         Common.logger.error(`Fatal error: cannot find Settings.json: ${err}`, err);
     });
 }
+
+createIntLogger();
+
 Common.exitJobs = [];
 
 Common.quit = function() {
