@@ -832,6 +832,9 @@ async function attachUserDocker(obj,logger) {
             // }
             // session.params.loopDevices.push(loopDeviceNum);
 
+            let syncAccountsFile;
+            let syncBackupFile;
+
             if (session.params.pooledSession) {
                 // let stats = await fsp.stat(loopDeviceNum);
                 // let major = (stats.rdev >> 8 );
@@ -1018,7 +1021,8 @@ async function attachUserDocker(obj,logger) {
                         'system_ce',
                         'system_de',
                         'user',
-                        'user_de'
+                        'user_de',
+                        'sync'
                     ];
                     const dstFolders = [
                         'misc/user/10',
@@ -1029,7 +1033,8 @@ async function attachUserDocker(obj,logger) {
                         'system_ce/10',
                         'system_de/10',
                         'user/10',
-                        'user_de/10'
+                        'user_de/10',
+                        'system/sync'
                     ];
 
 
@@ -1099,6 +1104,16 @@ async function attachUserDocker(obj,logger) {
                         logger.error(`Error on updated files: ${err}`,err);
                     }
 
+                    // save backup of system/sync/accounts.xml
+                    const syncDir = path.join(session.params.tempDataDir,"system","sync");
+                    syncAccountsFile = path.join(syncDir,"accounts.xml");
+                    syncBackupFile = path.join(syncDir,"accounts-bak.xml");
+                    if (await Common.fileExists(syncAccountsFile)) {
+                        logger.info(`Backup accounts.xml to ${syncBackupFile}`);
+                        await fsp.cp(syncAccountsFile,syncBackupFile);
+                        await fsp.chown(syncBackupFile,1000,1000);
+                    }
+
 
                     // run am stop-user to close accounts_de
                     await execDockerWaitAndroid(
@@ -1117,6 +1132,7 @@ async function attachUserDocker(obj,logger) {
                     await execDockerWaitAndroid(
                         ['exec' , session.params.containerId, 'am', 'switch-user' , '10'  ]
                     );
+
                 // }
 
 
@@ -1265,6 +1281,25 @@ async function attachUserDocker(obj,logger) {
             // wait for session to start
             // await waitForPlatformStartPhase(session,"User unlocked",logger);
             await waitForPlatformStartPhase(session,`BOOT_COMPLETED user #10`,logger);
+
+            // if (syncBackupFile && await Common.fileExists(syncBackupFile)) {
+            //     const syncBackup = await fsp.readFile(syncBackupFile,"utf8");
+            //     const syncAccount = await fsp.readFile(syncAccountsFile,"utf8");
+            //     if (syncBackup != syncAccount) {
+            //         logger.info(`syncBackup != syncAccount\nsyncBackup: ${syncBackup}\nsyncAccount: ${syncAccount}`);
+            //         await fsp.cp(syncBackupFile,syncAccountsFile);
+            //         await fsp.chown(syncAccountsFile,1000,1000);
+            //         await fsp.cp(syncBackupFile,syncAccountsFile+".bak2");
+            //         await fsp.chown(syncAccountsFile+".bak2",1000,1000);
+            //     }
+            //     logger.info(`Running pm refresh 2..`);
+            //     await execDockerWaitAndroid(
+            //         ['exec' , session.params.containerId, 'pm', 'refresh' , '10' , session.params.keystoreKey  ]
+            //     );
+            //     // logger.info(`Delete syncBackupFile..`);
+            //     // await fsp.unlink(syncBackupFile);
+
+            // }
             // await waitForSessionStart(session.params.containerId,logger);
             // wait for launcher to start
             // let started = false;
