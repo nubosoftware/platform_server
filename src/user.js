@@ -42,7 +42,8 @@ module.exports = {
     shutdownRunningSessions,
     deleteAllPools,
     refreshImagePool,
-    waitForPlatformStartPhase
+    waitForPlatformStartPhase,
+    copyUpdatFilesToSession
 };
 
 let lastCreateSessionTime = 0;
@@ -249,6 +250,13 @@ async function checkSkelFolder(_imageName) {
 
 
 
+/**
+ * Create a new session and add it to the pool
+ * @param {*} _imageName
+ * @param {*} doNotAddToPull
+ * @param {*} _lockMachine
+ * @returns
+ */
 async function createPooledSession(_imageName,doNotAddToPull,_lockMachine) {
     let logger = new ThreadedLogger(Common.getLogger(__filename));
     if (!_imageName) {
@@ -439,6 +447,11 @@ async function createPooledSession(_imageName,doNotAddToPull,_lockMachine) {
         const containerID = runRes.stdout.trim();
 
         session.params.containerId = containerID;
+
+        // get container ip
+        let sesscontainer = await docker.getContainer(containerID);
+        let cinsp = await sesscontainer.inspect();
+        session.params.ipAddress = cinsp.NetworkSettings.Networks["net_sess"].IPAddress;
         await saveUserSessionPromise(unum, session);
 
 
@@ -1072,37 +1085,13 @@ async function attachUserDocker(obj,logger) {
                     // logger.logTime(`fsync finished`);
 
 
+                    // add firewall rules
+                    await createFirewallForSession(session,logger);
+
+
                     //copy files updates
-                    try {
-                        const updatesFolder =  path.join(session.params.homeFolder,"updates");
-                        const updateFilesFile = path.join(updatesFolder,"updates.json");
-                        if (await Common.fileExists(updateFilesFile)) {
-                            const updateFiles = JSON.parse(await fsp.readFile(updateFilesFile,"utf8"));
-                            for (const updateFile of updateFiles) {
-                                try {
-                                    const src = path.join(updatesFolder,updateFile);
-                                    const stats = await fsp.stat(src);
-                                    const dst = path.join(session.params.tempDataDir,updateFile);
-                                    const mode = '0' + (stats.mode & parseInt('777', 8)).toString(8);
-                                    if (stats.isDirectory()) {
-                                        logger.info(`Create folder at: ${dst}, uid: ${stats.uid}, gid: ${stats.gid}, mode: ${mode}`);
-                                        await fsp.mkdir(dst,{recursive: true});
-                                    } else {
-                                        logger.info(`Copy update file from: ${src} to: ${dst}, uid: ${stats.uid}, gid: ${stats.gid}, mode: ${mode}`);
-                                        await fsp.cp(src,dst);
-                                    }
-                                    await fsp.chown(dst,stats.uid,stats.gid);
-                                    await fsp.chmod(dst,mode);
-                                    // await fsp.unlink(src);
-                                } catch (err) {
-                                    logger.error(`Error on update file: ${updateFile}, err: ${err}`,err);
-                                }
-                            }
-                            await fsp.rm(updatesFolder,{recursive: true});
-                        }
-                    } catch (err) {
-                        logger.error(`Error on updated files: ${err}`,err);
-                    }
+                    await copyUpdatFilesToSession(session);
+
 
                     // save backup of system/sync/accounts.xml
                     const syncDir = path.join(session.params.tempDataDir,"system","sync");
@@ -1412,6 +1401,56 @@ async function waitForSessionStart(containerId,logger) {
     }
 }
 
+async function copyUpdatFilesToSession(session) {
+    let packageList = [];
+    try {
+        const updatesFolder =  path.join(session.params.homeFolder,"updates");
+        const updateFilesFile = path.join(updatesFolder,"updates.json");
+        if (await Common.fileExists(updateFilesFile)) {
+            const updateFiles = JSON.parse(await fsp.readFile(updateFilesFile,"utf8"));
+            for (const updateFile of updateFiles) {
+                try {
+                    const src = path.join(updatesFolder,updateFile);
+                    const stats = await fsp.stat(src);
+                    const dst = path.join(session.params.tempDataDir,updateFile);
+                    const mode = '0' + (stats.mode & parseInt('777', 8)).toString(8);
+                    if (stats.isDirectory()) {
+                        logger.info(`Create folder at: ${dst}, uid: ${stats.uid}, gid: ${stats.gid}, mode: ${mode}`);
+                        await fsp.mkdir(dst,{recursive: true});
+                    } else {
+                        logger.info(`Copy update file from: ${src} to: ${dst}, uid: ${stats.uid}, gid: ${stats.gid}, mode: ${mode}`);
+                        await fsp.cp(src,dst);
+                        // check if the updateFile is a app restrictions file
+                        // updateFile syntax: "/system/users/10/res_[package name].xml"
+                        var re = new RegExp('/system/users/10/res_([A-Za-z\d_\.]+).xml');
+                        var m = re.exec(updateFile);
+                        if(m) {
+                            let packageName = m[1];
+                            logger.info(`Found updated restriction file: ${packageName}`);
+                            packageList.push(packageName);
+                        }
+                        if (updateFile == "/user/10/com.nubo.nubosettings/startup/startup.json") {
+                            logger.info(`Found updated startup.json file: com.nubo.nubosettings`);
+                            packageList.push("com.nubo.nubosettings");
+                        }
+                    }
+                    await fsp.chown(dst,stats.uid,stats.gid);
+                    await fsp.chmod(dst,mode);
+                    // await fsp.unlink(src);
+                } catch (err) {
+                    logger.error(`Error on update file: ${updateFile}, err: ${err}`,err);
+                }
+            }
+            await fsp.rm(updatesFolder,{recursive: true});
+        }
+    } catch (err) {
+        logger.error(`Error on copyUpdatFilesToSession files: ${err}`,err);
+    }
+    return packageList;
+}
+
+
+
 function execCmd(cmd,params) {
     return new Promise((resolve, reject) => {
         execFile(cmd, params, {maxBuffer: 1024 * 1024 * 10} , function (error, stdout, stderr) {
@@ -1442,6 +1481,96 @@ function makeid(length) {
 }
 
 
+/**
+ * Create firewall rules for new sessionss
+ * @param {*} session
+ */
+async function createFirewallForSession(session,logger) {
+    if (session.firewall && session.firewall.enabled) {
+        try {
+            let ipAddress = session.params.ipAddress;
+            let isDesktop = (session.login.deviceType == "Desktop");
+            if (!ipAddress) {
+                throw new Error("ipAddress not found for session");
+            }
+            logger.log('info',`Assign firewall rules`);
+            const NUBO_USER_CHAIN = "NUBO-USER";
+            let chains = await getRules();
+            let rules = chains[NUBO_USER_CHAIN];
+            if (rules) {
+                console.log(`Found NUBO-USER chain with ${chains["NUBO-USER"].length} items`);
+            } else {
+                console.log(`NUBO-USER chain not found. Creating new chain`);
+                await createChain(NUBO_USER_CHAIN);
+                await insertRule(NUBO_USER_CHAIN,null,['-j','RETURN']); // drop all incoming traffic to ip
+                let fwdRules = chains['FORWARD'];
+                let num;
+                let foundNuboUser = false;
+                for (const rule of fwdRules) {
+                    if (rule.target == "DOCKER-ISOLATION-STAGE-1") {
+                        num = rule.num + 1;
+                    }
+                    if (rule.target == NUBO_USER_CHAIN) {
+                        foundNuboUser = true;
+                        break;
+                    }
+                }
+                if (num && !foundNuboUser) {
+                    await insertRule('FORWARD',num,['-j',NUBO_USER_CHAIN]); // go to chain NUBO-USER from FORWARD chain
+                }
+                rules = [];
+            }
+
+            // delete old rules of this ip address
+            for (let i = rules.length-1; i>=0 ; i--) {
+                const rule = rules[i];
+                if (rule.source == ipAddress || rule.destination == ipAddress)  {
+                    console.log(`Delete rule: ${JSON.stringify(rule)}`);
+                    await deleteRule(NUBO_USER_CHAIN,rule.num);
+                }
+            }
+
+            // insert default rules -- block all outgoing/incoming traffic
+            await insertRule(NUBO_USER_CHAIN,null,['-d',ipAddress,'-j','DROP']); // drop all incoming traffic to ip
+            await insertRule(NUBO_USER_CHAIN,null,['-d',ipAddress,'-m','conntrack','--ctstate','ESTABLISHED','-j','ACCEPT']); // allow incoming established
+            if (isDesktop) {
+                await insertRule(NUBO_USER_CHAIN,null,['-d',ipAddress,'-p','tcp','--dport','3389','-j','ACCEPT']); // allow incoming rdp connection
+            }
+            await insertRule(NUBO_USER_CHAIN,null,['-s',ipAddress,'-j','DROP']); // drop all outgoing traffic from ip
+            await insertRule(NUBO_USER_CHAIN,null,['-s',ipAddress,'-m','conntrack','--ctstate','ESTABLISHED','-j','ACCEPT']); // allow outgoinf established
+            let addedRules = 0;
+
+            // add aditional outgoing rules
+            for (const rule of session.firewall.rules) {
+                let ruleparams = ['-s',ipAddress];
+                if (rule.destination) {
+                    const rangearr = rule.destination.split('-');
+                    if (rangearr.length == 2) {
+                        ruleparams.push('-m','iprange','--dst-range',rule.destination);
+                    } else {
+                        ruleparams.push('-d',rule.destination);
+                    }
+                }
+                if (rule.prot) {
+                    ruleparams.push('-p',rule.prot);
+                }
+                if (rule.dport && rule.dport > 0) {
+                    ruleparams.push('--dport',rule.dport);
+                }
+                ruleparams.push('-j','ACCEPT');
+                await insertRule(NUBO_USER_CHAIN,null,ruleparams); // add rule
+                addedRules++;
+            }
+            logger.info(`Added ${addedRules} custom firewall rules`);
+
+
+        } catch (err) {
+            logger.error(`Firewall create error: ${err}`,err);
+            throw new Error(`Firewall create error: ${err}`);
+        }
+    }
+}
+
 
 async function fastDetachUserDocker(unum) {
     let waitForFullDetach = true;
@@ -1454,7 +1583,7 @@ async function fastDetachUserDocker(unum) {
         logger.info(`remove from runningSessions: ${unum}`);
         runningSessions.delete(unum);
         let session = await loadUserSessionPromise(unum,logger);
-        if (session.params.containerId && session.login.deviceType == "Android") {
+        if (session.params.containerId && session.login.deviceType != "Desktop") {
             try {
                 let zygotePid;
                 let resps = await execDockerWaitAndroid(

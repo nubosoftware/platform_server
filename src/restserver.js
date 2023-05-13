@@ -396,6 +396,7 @@ function buildServerObject(server) {
     server.get("/installApk", appModule.installApk);
     server.post("/attachApps", appModule.attachApps);
     server.get("/getPackagesList", appModule.getPackagesList);
+    server.get("/updateAppRestrictions", appModule.updateAppRestrictions);
     server.post("/refreshMedia", filesModule.refreshMedia);
     server.post("/applyFirewall", firewallModule.post);
     server.get("/createNewUserTarGz", createNewUserTarGzModule.create);

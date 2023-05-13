@@ -18,7 +18,8 @@ const Lock = require('./lock');
 module.exports = {
     installApk: installApk,
     attachApps: attachApps,
-    getPackagesList: getPackagesList
+    getPackagesList: getPackagesList,
+    updateAppRestrictions
 };
 
 var INSTALL_TASK = [1, "i", "install"];
@@ -157,7 +158,37 @@ function attachApps(req, res) {
     );
 }
 
-var detachApps = function(req, res) {
+
+async function updateAppRestrictions(req, res) {
+    var logger = new ThreadedLogger(Common.getLogger(__filename));
+    logger.logTime("Start process request updateAppRestrictions");
+    try {
+        const userModule = require('./user');
+        let unum = req.params.unum;
+        let session = await userModule.loadUserSessionPromise(unum,logger);
+        const containerId = session.params.containerId;
+        let packageNames = await userModule.copyUpdatFilesToSession(session);
+        for (const packageName of packageNames) {
+            logger.info(`updateAppRestrictions. updateAppRestrictions. packageName: ${packageName}`);
+            let execRes = await execDockerWaitAndroid(
+                ['exec' , containerId, 'pm', 'updateAppRestrictions' , '10',packageName]
+            );
+        }
+        var resobj = {
+            status: 1,
+            error: "Updated"
+        };
+        res.end(JSON.stringify(resobj,null,2));
+    } catch (err) {
+        logger.error("updateAppRestrictions error: " + err,err);
+        var resobj = {
+            status: 0,
+            error: `${err}`
+        };
+        res.end(JSON.stringify(resobj,null,2));
+
+    }
+    logger.logTime("Finish process request updateAppRestrictions");
 
 };
 

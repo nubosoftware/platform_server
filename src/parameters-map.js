@@ -132,6 +132,11 @@ var filter = {
         "path": "/createNewUserTarGz",
         "constraints": {}
     }, {
+        "path": "/updateAppRestrictions",
+        "constraints": {
+            "unum": constraints.NaturalNumberConstrRequested,
+        }
+    }, {
         "path": "/detachUser",
         "constraints": {
             "unum": constraints.NaturalNumberConstrRequested
