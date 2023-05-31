@@ -354,6 +354,12 @@ async function createPooledSession(_imageName,doNotAddToPull,_lockMachine) {
                 await fsp.chown(path.join(systemDir,"packages.list"),1000,1000);
                 await fsp.cp(path.join(packagesListDir,"nubo_platform.version"),path.join(systemDir,"nubo_platform.version"));
                 await fsp.chown(path.join(systemDir,"nubo_platform.version"),1000,1000);
+                let nuboPackagesFile = path.join(packagesListDir,"nubo_packages.list");
+                if (await Common.fileExists(nuboPackagesFile)) {
+                    logger.info(`Copy nubo_packages.list from domain dir: ${packagesListDir}`);
+                    await fsp.cp(nuboPackagesFile,path.join(systemDir,"nubo_packages.list"));
+                    await fsp.chown(path.join(systemDir,"nubo_packages.list"),1000,1000);
+                }
                 copiedPackagesFile = true;
             } catch (err) {
                 logger.info(`Unable to copy packages files from ${packagesListDir}. error: ${err}`);
