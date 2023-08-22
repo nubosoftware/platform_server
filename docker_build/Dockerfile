@@ -63,7 +63,7 @@ RUN npm install
 RUN apt-get --purge autoremove -y build-essential
 
 # remove build dependencies
-RUN rm -rf src webpack.config.js
+# RUN rm -rf src webpack.config.js
 
 COPY dist/audiomanager.js ${TARGET_DIR}/dist/
 COPY dist/pulseaudio-user ${TARGET_DIR}/dist/

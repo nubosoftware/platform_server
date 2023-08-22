@@ -572,6 +572,7 @@ async function attachUserDocker(obj,logger) {
         _.extend(session.params, pooledSession.params);
          session.params.pooledSession = true;
     }
+    // logger.info(`attachUserDocker. session.params: ${JSON.stringify(session.params,null,2)}`);
     let linuxUserName;
     let registryURL;
     let lockMachine1 = new Lock("machine");
@@ -915,7 +916,9 @@ async function attachUserDocker(obj,logger) {
                     }
 
                 }
-                if (session.params.recording && session.params.recording_path) {
+                logger.info(`session.params.recording_path: ${session.params.recording_path}`);
+                if (session.params.recording_path) {
+                    // session.params.recording &&
                     let recordingPath = path.join(session.params.sessPath,"recording");
                     if (session.params.nfsHomeFolder != "local") {
                         let nfslocation = session.nfs.nfs_ip + ":" + session.params.recording_path + "/";
