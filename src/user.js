@@ -15,7 +15,7 @@ var http = require('./http.js');
 var Audio = require('./audio.js');
 var ps = require('ps-node');
 const machineModule = require('./machine.js');
-const { docker, pullImage, execDockerCmd, ExecCmdError, execDockerWaitAndroid, sleep} = require('./dockerUtils');
+const { docker, pullImage, execDockerCmd, ExecCmdError, execDockerWaitAndroid, sleep, startAndRedirectToLog} = require('./dockerUtils');
 const {getRules,createChain, deleteRule,insertRule } = require('./ipTables');
 const fsp = fs.promises;
 const path = require('path');
@@ -575,6 +575,7 @@ async function attachUserDocker(obj,logger) {
     // logger.info(`attachUserDocker. session.params: ${JSON.stringify(session.params,null,2)}`);
     let linuxUserName;
     let registryURL;
+    let platid;
     let lockMachine1 = new Lock("machine");
     await lockMachine1.acquire();
     try {
@@ -625,6 +626,7 @@ async function attachUserDocker(obj,logger) {
 
         result.unum = unum;
         registryURL = machineConf.registryURL;
+        platid = machineConf.platid;
 
 
         session.params.localid = unum;
@@ -1110,6 +1112,17 @@ async function attachUserDocker(obj,logger) {
                         logger.info(`Backup accounts.xml to ${syncBackupFile}`);
                         await fsp.cp(syncAccountsFile,syncBackupFile);
                         await fsp.chown(syncBackupFile,1000,1000);
+                    }
+
+                    // redirect logcat to file
+                    if (session.platformSettings.send_logs === true || session.platformSettings.send_logs === "true") {
+                        const timeStr = new Date().toISOString().replace(/:/g,'-');
+                        const logFileName = `logcat_${session.params.email}_${timeStr}.log`;
+                        const logFolder = path.resolve("./syslogs",`platform_${platid}`);
+                        const logcatFile = path.resolve(logFolder,logFileName);
+                        logger.info(`Redirect logcat to file: ${logcatFile}`);
+                        await fsp.mkdir(logFolder,{recursive: true});
+                        startAndRedirectToLog(['exec', session.params.containerId, 'logcat'],logcatFile,logger);
                     }
 
 

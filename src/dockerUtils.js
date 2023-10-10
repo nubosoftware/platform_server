@@ -3,7 +3,7 @@ const Docker = require('dockerode');
 const docker = new Docker({ socketPath: '/var/run/docker.sock' });
 const execFile = require('child_process').execFile;
 const _ = require('underscore');
-
+const fsp = require('fs').promises;
 
 class ExecCmdError extends Error {
     constructor(msg,err,stdout,stderr) {
@@ -24,7 +24,8 @@ module.exports = {
     ExecCmdError,
     execInHost,
     execDockerWaitAndroid,
-    sleep
+    sleep,
+    startAndRedirectToLog
 };
 
 
@@ -51,6 +52,70 @@ function execInHost(cmd,params,options) {
 
 function execDockerCmd(params,options) {
     return execInHost('/usr/bin/docker',params,options);
+}
+
+/**
+ * Start a docker command and redirect stdout and stderr to a log file
+ * @param {*} args
+ * @param {*} logFile
+ * @param {*} logger
+ */
+function startAndRedirectToLog(args, logFile, logger) {
+    const { spawn } = require('child_process');
+    const command = '/usr/bin/docker';
+    try {
+        // get the file name of logFile
+        const logFileName = require('path').basename(logFile);
+
+        // Spawn the process
+        const child = spawn(command, args, {
+            stdio: [
+                'inherit',                   // stdin remains attached to current process
+                'pipe',                      // stdout goes to a pipe
+                'pipe'                       // stderr goes to a pipe
+            ]
+        });
+
+        // Redirect stdout to a file
+        child.stdout.pipe(require('fs').createWriteStream(logFile, { flags: 'a' }));
+        child.stderr.pipe(require('fs').createWriteStream(logFile, { flags: 'a' }));
+
+        // Print 'done' when the process finishes
+        child.on('exit', (code) => {
+            logger.info(`startAndRedirectToLog[${logFileName}]. Child process exited with code ${code}`);
+
+            // compress the log file to zip file
+            createZipFile(logFile, logger);
+
+        });
+        logger.info(`startAndRedirectToLog[${logFileName}]. Child process started with pid ${child.pid}`);
+    } catch (err) {
+        logger.info(`startAndRedirectToLog[${logFileName}]. err: ${err}`);
+    }
+}
+async function createZipFile(logFile, logger) {
+    try {
+        const { createGzip } = require('zlib');
+        const { pipeline } = require('stream');
+        const { promisify } = require('util');
+        const { join } = require('path');
+        const { createReadStream, createWriteStream } = require('fs');
+        const zipFile = logFile + '.zip';
+
+        const gzip = createGzip();
+        const source = createReadStream(logFile);
+        const destination = createWriteStream(zipFile);
+
+        await promisify(pipeline)(source, gzip, destination);
+
+        logger.info(`createZipFile. Log file compressed to ${zipFile}`);
+
+        // delete the log file
+        await fsp.unlink(logFile);
+
+    } catch (err) {
+        logger.info(`createZipFile. err: ${err}`);
+    }
 }
 
 /**

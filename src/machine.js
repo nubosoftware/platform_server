@@ -173,46 +173,70 @@ async function startDockerPlatformImp(requestObj) {
     let sessFolder = path.resolve("./sessions");
     await mkdir(sessFolder,{recursive: true});
 
-    // mount debs adn apks folders
-    let debsFolder = path.resolve("./debs");
-    let apksFolder = path.resolve("./apks");
-    //logger.info(`Mount debs/apks folders..`);
-    if (requestObj.nfs.nfs_ip != "local") {
-        try {
-            await mkdir(debsFolder,{recursive: true});
-            await mountDebsFolder(requestObj.nfs,debsFolder);
-            logger.info(`Debs folder mounted at ${debsFolder}`);
-        } catch (e) {
-            logger.info(`Error mount for deps folder: ${e}`);
-        }
-        try {
-            await mkdir(apksFolder,{recursive: true});
-            await mountAPKsFolder(requestObj.nfs,apksFolder);
-            logger.info(`APKs folder mounted at ${apksFolder}`);
-        } catch (e) {
-            logger.info(`Error mount for apks folder: ${e}`);
-        }
-    } else {
-        // if it local address do not mount but create a symlink
-        try {
-            await fs.promises.unlink(apksFolder);
-        } catch (err) { }
-        try {
-            await fs.promises.symlink(path.join(requestObj.nfs.nfs_path,"apks"),apksFolder);
-            logger.info(`APKs folder mounted at ${apksFolder}`);
-        } catch (e) {
-            logger.info(`Error create symlink for apks folder: ${e}`);
-        }
-        try {
-            await fs.promises.unlink(debsFolder);
-        } catch (err) { }
-        try {
-            await fs.promises.symlink(path.join(requestObj.nfs.nfs_path,"debs"),debsFolder);
-            logger.info(`Debs folder mounted at ${debsFolder}`);
-        } catch (e) {
-            logger.info(`Error create symlink for debs folder: ${e}`);
+    const mounts = ["syslogs","debs","apks"];
+    for (const mount of mounts) {
+        let mountFolderPath = path.resolve("./"+mount);
+        if (requestObj.nfs.nfs_ip != "local") {
+            try {
+                await mkdir(mountFolderPath,{recursive: true});
+                await mountFolder(requestObj.nfs,mount,mountFolderPath);
+                logger.info(`${mount} folder mounted at ${mountFolderPath}`);
+            } catch (e) {
+                logger.info(`Error mount for ${mount} folder: ${e}`);
+            }
+        } else {
+            try {
+                await fs.promises.unlink(mountFolderPath);
+            } catch (err) { }
+            try {
+                await fs.promises.symlink(path.join(requestObj.nfs.nfs_path,mount),mountFolderPath);
+                logger.info(`${mount} folder mounted at ${mountFolderPath}`);
+            } catch (e) {
+                logger.info(`Error create symlink for ${mount} folder: ${e}`);
+            }
         }
     }
+
+    // // mount debs adn apks folders
+    // let debsFolder = path.resolve("./debs");
+    // let apksFolder = path.resolve("./apks");
+    // //logger.info(`Mount debs/apks folders..`);
+    // if (requestObj.nfs.nfs_ip != "local") {
+    //     try {
+    //         await mkdir(debsFolder,{recursive: true});
+    //         await mountDebsFolder(requestObj.nfs,debsFolder);
+    //         logger.info(`Debs folder mounted at ${debsFolder}`);
+    //     } catch (e) {
+    //         logger.info(`Error mount for deps folder: ${e}`);
+    //     }
+    //     try {
+    //         await mkdir(apksFolder,{recursive: true});
+    //         await mountAPKsFolder(requestObj.nfs,apksFolder);
+    //         logger.info(`APKs folder mounted at ${apksFolder}`);
+    //     } catch (e) {
+    //         logger.info(`Error mount for apks folder: ${e}`);
+    //     }
+    // } else {
+    //     // if it local address do not mount but create a symlink
+    //     try {
+    //         await fs.promises.unlink(apksFolder);
+    //     } catch (err) { }
+    //     try {
+    //         await fs.promises.symlink(path.join(requestObj.nfs.nfs_path,"apks"),apksFolder);
+    //         logger.info(`APKs folder mounted at ${apksFolder}`);
+    //     } catch (e) {
+    //         logger.info(`Error create symlink for apks folder: ${e}`);
+    //     }
+    //     try {
+    //         await fs.promises.unlink(debsFolder);
+    //     } catch (err) { }
+    //     try {
+    //         await fs.promises.symlink(path.join(requestObj.nfs.nfs_path,"debs"),debsFolder);
+    //         logger.info(`Debs folder mounted at ${debsFolder}`);
+    //     } catch (e) {
+    //         logger.info(`Error create symlink for debs folder: ${e}`);
+    //     }
+    // }
 
 
 }
@@ -234,6 +258,25 @@ async function refreshSessionPool() {
     }
 }
 
+function mountFolder(nfs,srcFolder,dstFolder) {
+    return new Promise((resolve, reject) => {
+        var nfsoptions = "nolock,hard,intr,noatime,async";
+        var src = [
+            nfs.nfs_ip + ":" + nfs.nfs_path + "/" + srcFolder
+        ];
+        var dst = [
+            dstFolder
+        ];
+        require('./mount.js').mountHostNfs(src, dst, nfsoptions, function (err) {
+            if (err) {
+                logger.error("Cannot mount "+srcFolder+", err: " + err);
+                reject(err);
+                return;
+            }
+            resolve();
+        });
+    });
+}
 
 function mountDebsFolder(nfs,dstFolder) {
     return new Promise((resolve, reject) => {
