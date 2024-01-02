@@ -23,6 +23,7 @@ var RESTfull_message = "the platform not yet initialized";
 
 var machineConf = null;
 var machineInitLock = false;
+var dockerPlatformStarted = false;
 
 function startPlatformGet(req, res) {
     var resobj = {
@@ -115,6 +116,11 @@ function startPlatformPost(req, res) {
         });
 }
 
+
+function isDockerPlatformStarted() {
+    return dockerPlatformStarted;
+}
+
 async function startDockerPlatform(req, res) {
     let resobj = {
         status: 0.,
@@ -137,6 +143,8 @@ async function startDockerPlatform(req, res) {
             // write machine conf to file to read in case of restart of platform server
             await saveMachineConf(requestObj);
 
+            dockerPlatformStarted = true;
+
             // run refresh session pool
             await refreshSessionPool();
         } finally {
@@ -158,6 +166,7 @@ async function startDockerPlatform(req, res) {
 
 async function startDockerPlatformImp(requestObj) {
     //logger.info(`startDockerPlatform. requestObj: ${JSON.stringify(requestObj,null,2)}`);
+    logger.info(`Starting docker platform`);
     let registryURL = requestObj.registryURL;
     if (!registryURL) {
         registryURL = 'lrdp1.nubosoftware.com:5000'; // test env value
@@ -349,7 +358,9 @@ async function waitForMachineInitLock(){
 }
 
 async function deinitMachine(params) {
+    logger.info(`deinitMachine`);
     if (machineInitLock) {
+        logger.info('Waiting for machine previous init lock');
         await waitForMachineInitLock();
     }
     machineInitLock = true;
@@ -368,6 +379,7 @@ async function deinitMachine(params) {
             if (refreshPoolTimeout) {
                 clearTimeout(refreshPoolTimeout);
             }
+            dockerPlatformStarted = false;
             await require('./user').shutdownRunningSessions();
             await require('./user').deleteAllPools();
             await deleteOldSessions(logger);
@@ -468,6 +480,7 @@ function killPlatform(req, res) {
         }
         res.end(JSON.stringify(resobj, null, 2));
     }).catch(err => {
+        logger.info(`deinitMachine error: ${err}`);
         var resobj = {
             status: 1,
             msg: err.toString()
@@ -1081,5 +1094,6 @@ module.exports = {
     isDockerPlatform,
     getMachineConf,
     saveMachineConf,
-    deinitMachine
+    deinitMachine,
+    isDockerPlatformStarted
 };

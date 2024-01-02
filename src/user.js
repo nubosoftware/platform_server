@@ -22,6 +22,7 @@ const path = require('path');
 const moment = require('moment-timezone');
 const Lock = require('./lock');
 const genericPool = require("generic-pool");
+const NuboGLLocal = require('./nuboGLLocal');
 const logger = Common.getLogger(__filename);
 
 
@@ -54,15 +55,28 @@ let pools = new Map();
 
 
 function getOrCreatePool(_imageName,opts) {
+    if (!machineModule.isDockerPlatformStarted()) {
+        logger.info(`getOrCreatePool. docker platform not started!`);
+        throw new Error("getOrCreatePool. docker platform not started");
+    }
     let pool = pools.get(_imageName);
     if (!pool) {
+        const defOpts = {
+            min: 1,
+            max: 100,
+            autostart: false,
+            acquireTimeoutMillis: 60000
+        }
+        let _opts;
         if (!opts) {
-            opts = {
-                min: 1,
-                max: 100,
-                autostart: false,
+            _opts = {
+                ...defOpts
             }
         } else {
+            _opts = {
+                ...defOpts,
+                ...opts
+            }
             opts.autostart = false; //overide paramter as we start the pool
             if (!opts.max) {
                 opts.max = 100;
@@ -84,8 +98,11 @@ function getOrCreatePool(_imageName,opts) {
                 }
             }
           };
-        logger.info(`Creating pool for image: ${_imageName}, opts: ${JSON.stringify(opts,null,2)}`);
-        pool = genericPool.createPool(sessionPoolFactory, opts);
+        logger.info(`Creating pool for image: ${_imageName}, opts: ${JSON.stringify(_opts,null,2)}`);
+        pool = genericPool.createPool(sessionPoolFactory, _opts);
+        pool.on('factoryCreateError', function(err){
+            logger.info(`Pool factoryCreateError: ${err}`);
+        });
         pools.set(_imageName,pool);
         // before starting the pool check it and start it in the background
         checkAndStartPool(pool,_imageName);
@@ -107,19 +124,24 @@ async function checkAndStartPool(pool,_imageName) {
 var runningSessions = new Map();
 
 async function getSessionFromPool(_imageName) {
-    let pool = getOrCreatePool(_imageName);
-    let session = await pool.acquire();
-    let unum = session.params.localid;
-    session.params.takenFromPool = true;
-    // remove the session from the pool (without closing it)
-    // wait 15 seconds before removing from pool
-    setTimeout(() => {
-        logger.info(`Removing pooled session (${unum}) from pool: ${_imageName}`);
-        pool.destroy(session);
-    },15000);
+    try {
+        let pool = getOrCreatePool(_imageName);
+        let session = await pool.acquire();
+        let unum = session.params.localid;
+        session.params.takenFromPool = true;
+        // remove the session from the pool (without closing it)
+        // wait 15 seconds before removing from pool
+        setTimeout(() => {
+            logger.info(`Removing pooled session (${unum}) from pool: ${_imageName}`);
+            pool.destroy(session);
+        },15000);
 
-    runningSessions.set(`u_${unum}`,session);
-    return session;
+        runningSessions.set(`u_${unum}`,session);
+        return session;
+    } catch (err) {
+        logger.info(`Error getting session from the pool: ${err}`);
+        throw new Error(`Unable to aquire session from the pool: ${err}`);
+    }
 }
 
 
@@ -250,6 +272,8 @@ async function checkSkelFolder(_imageName) {
 
 
 
+
+const useNuboGL = false;
 /**
  * Create a new session and add it to the pool
  * @param {*} _imageName
@@ -272,6 +296,7 @@ async function createPooledSession(_imageName,doNotAddToPull,_lockMachine) {
     // }
     let multiUser = (Common.sessionPool && Common.sessionPool.multiUser != undefined ? Common.sessionPool.multiUser : false);
     let unum;
+    let platid;
     let registryURL;
     const lockMachine = (_lockMachine ? _lockMachine : new Lock("machine"));
     await lockMachine.acquire();
@@ -284,6 +309,7 @@ async function createPooledSession(_imageName,doNotAddToPull,_lockMachine) {
         }
         machineConf.unumCnt = unum + 1;
         registryURL = machineConf.registryURL;
+        platid = machineConf.platid;
         await machineModule.saveMachineConf(machineConf);
     } finally {
         lockMachine.release();
@@ -291,7 +317,8 @@ async function createPooledSession(_imageName,doNotAddToPull,_lockMachine) {
 
     let session = {
         params: {
-            localid: unum
+            localid: unum,
+            platid: platid
         },
         login: {
             deviceType: "pool"
@@ -414,7 +441,16 @@ async function createPooledSession(_imageName,doNotAddToPull,_lockMachine) {
 
         // session.params.volumes = [vol_data.name];
         session.params.docker_image = _imageName;
+        session.params.externalSessPath = externalSessPath;
         await saveUserSessionPromise(unum, session);
+
+
+        // create nubo gl server
+        let nuboGLLocal;
+        if (useNuboGL) {
+            nuboGLLocal = new NuboGLLocal(session);
+            nuboGLLocal.init();
+        }
 
         // get user image from registry
         let imageName = `${registryURL}/nubo/${_imageName}`; // nubo-android-10
@@ -462,63 +498,15 @@ async function createPooledSession(_imageName,doNotAddToPull,_lockMachine) {
 
 
         logger.logTime(`Finished container start`);
-        await waitForPlatformStartPhase(session,"BOOT_COMPLETED user #0",logger);
-
-        // // wait for launcher to start
-        // let started = false;
-        // let cnt = 0;
-        // let system_server = "system_server";
-
-        // logger.info(`Waiting for system_server to start..`);
-        // while (!started && cnt < 200) {
-        //     cnt++;
-        //     let resps = await execDockerWaitAndroid(
-        //         ['exec' , containerID, 'ps', '-A' ]
-        //     );
-        //     if (resps.stdout && resps.stdout.indexOf(system_server) >= 0) {
-        //         started = true;
-        //     } else {
-        //         sleep(500);
-        //     }
-        // }
-        // // kill bootanimation to reduce cpu
-        // try {
-        //     await execDockerWaitAndroid(
-        //         ['exec' , containerID, 'pkill', 'bootanimation' ]
-        //     );
-        // } catch(err) {
-        //     logger.info(`pkill bootanimation error: ${err}`);
-        // }
-
-        if (multiUser) {
-            // create new nubo user
-            // logger.info(`Waiting before create-user`);
-            // await sleep(4000);
-            // logger.info(`Running create-user...`);
-            // await execDockerWaitAndroid(
-            //     ['exec' , containerID, 'pm', 'create-user', 'nubo' ]
-            // );
+        const userStarted = await waitForPlatformStartPhase(session,"BOOT_COMPLETED user #0",logger);
+        if (!userStarted) {
+            throw new Error("User #0 not finished boot");
         }
 
-        // if (doNotAddToPull == undefined || !doNotAddToPull) {
-        //     const lockMachine2 = new Lock("machine");
-        //     await lockMachine2.acquire();
-        //     try {
-        //         let machineConf = machineModule.getMachineConf();
-        //         if (!machineConf.pooledSessions) {
-        //             machineConf.pooledSessions = [];
-        //         }
-        //         machineConf.pooledSessions.push(unum);
-        //         await machineModule.saveMachineConf(machineConf);
-        //     } finally {
-        //         lockMachine2.release();
-        //     }
-        // } else {
-        //     logger.info(`Created pooled session without adding to pool`);
-        // }
-
-
-
+        const {stdout,stderr} = await execDockerWaitAndroid(
+            ['exec' , containerID, 'am' ],undefined,2
+        );
+        // console.log(`am stdout: "${stdout}", stderr: "${stderr}"`);
 
 
         logger.logTime(`Pooled session created on platform. unum: ${unum}, containerID: ${containerID}`);
@@ -629,6 +617,7 @@ async function attachUserDocker(obj,logger) {
         platid = machineConf.platid;
 
 
+        session.params.platid = unum;
         session.params.localid = unum;
         session.params.tz = obj.timeZone;
         session.params.createSessionTime = new Date();
@@ -879,6 +868,10 @@ async function attachUserDocker(obj,logger) {
                 //     throw new Error(`${pName} not found in pooled container`);
                 // }
                 // logger.logTime(`${pName} pid: ${zygotePid}`);
+                if (session.params.nuboglListenPort) {
+                    // indicate that this session is using nubogl
+                    result.nuboglListenPort = session.params.nuboglListenPort;
+                }
 
                 if (!session.params.mounts) {
                     session.params.mounts = [];
@@ -1149,6 +1142,16 @@ async function attachUserDocker(obj,logger) {
 
                 logger.logTime(`After init user`);
 
+                if (useNuboGL) {
+                    const nuboGLLocal = NuboGLLocal.getSession(unum);
+                    if (nuboGLLocal) {
+                        logger.info(`Calling nuboGLLocal.afterAndroidStart`);
+                        await nuboGLLocal.afterAndroidStart();
+                    } else {
+                        logger.info(`Not found nuboGLLocal session`);
+                    }
+                }
+
                 if(session.params.audioStreamParams) {
                     await Audio.initAudio(unum);
                 }
@@ -1387,9 +1390,10 @@ async function waitForPlatformStartPhase(session,waitMsg,logger) {
             // wait for next change of file
             await watcher.next();
         }
+        return userStarted;
     } catch (err) {
         logger.error(`waitForPlatformStartPhase error: ${err}`,err);
-        return;
+        return false;
     }
 }
 
@@ -1897,6 +1901,10 @@ async function detachUserDocker(unum) {
             } catch (err) {
                 logger.info(`detachUserDocker. Unable to unmount folder. err: ${err}`);
             }
+        }
+
+        if (useNuboGL) {
+            NuboGLLocal.killSession(unum);
         }
 
 

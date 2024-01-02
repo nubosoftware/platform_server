@@ -124,8 +124,8 @@ async function createZipFile(logFile, logger) {
  * @param {*} options
  * @returns
  */
-async function execDockerWaitAndroid(params,options) {
-    const MAX_TRIES = 120;
+async function execDockerWaitAndroid(params,options,maxTries = 60) {
+    // const MAX_TRIES = 60;
     const WAIT_MS = 1000;
     const reasons = ["OCI runtime exec failed",
         "Can't find service",
@@ -133,7 +133,7 @@ async function execDockerWaitAndroid(params,options) {
         "NullPointerException",
         "Failure calling service package"];
     let tries = 0;
-    while (tries<MAX_TRIES) {
+    while (tries<maxTries) {
         try {
             tries++;
             const res = await execDockerCmd(params,options);
@@ -141,7 +141,7 @@ async function execDockerWaitAndroid(params,options) {
         } catch (err) {
             if (err instanceof ExecCmdError) {
                 //console.log(`processTasksDocker. stdout: ${err.stdout}\n stderr: ${err.stderr}`);
-                if (tries<MAX_TRIES) {
+                if (tries<maxTries) {
                     let foundWaitReason = false;
                     for (const reason of reasons) {
                         if (err.stderr.indexOf(reason) >= 0 || err.stdout.indexOf(reason) >= 0) {
