@@ -7,6 +7,7 @@ RUN apt install -y \
     curl \
     gnupg \
     ca-certificates \
+    lsb-release \
     supervisor \
     rsyslog \
     vim \
