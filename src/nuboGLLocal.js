@@ -72,31 +72,21 @@ class NuboGLLocal {
             const gwRTPPort = 60005;
             const width = 602;
             const height = 1544;
-            //const encoder = "vaapih264enc";
-            // listenPort = 22468; // UDP port to listen for instructions from the gateway
+
+            const encoder =  Common.nuboGL && Common.nuboGL.encoder ? Common.nuboGL.encoder :  "vaapih264enc";
+            const listenPort = 22468 + Number(localid); // UDP port to listen for instructions from the gateway
             // 1 - play , 2 - pause
             var args = [
                 gwRTPHost,
                 gwRTPPort,
-                //listenPort,
                 this.gwRTPSSRC,
                 width,
                 height,
-                //encoder,
+                encoder,
+                listenPort,
             ];
-            this.session.params.nuboglListenPort = 22468; // temporary until we generate the port for each session
+            this.session.params.nuboglListenPort = listenPort;
             // this.session.params.nuboglListenHost
-
-            // WAYLAND_DISPLAY=wayland-0
-            // XAUTHORITY=/run/user/1002/.mutter-Xwaylandauth.KNGNG2
-            // XDG_CONFIG_DIRS=/etc/xdg/xdg-ubuntu:/etc/xdg
-            // XDG_CURRENT_DESKTOP=ubuntu:GNOME
-            // XDG_DATA_DIRS=/usr/share/ubuntu:/home/israel/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share/:/usr/share/:/var/lib/snapd/desktop
-            // XDG_MENU_PREFIX=gnome-
-            // XDG_RUNTIME_DIR=/run/user/1002
-            // XDG_SESSION_CLASS=user
-            // XDG_SESSION_DESKTOP=ubuntu
-            // XDG_SESSION_TYPE=wayland
 
             const nuboglPath = path.resolve(`./bin/nubogl`);
             var child = spawn('stdbuf', ['-oL', '-eL', nuboglPath].concat(args), {
@@ -104,10 +94,12 @@ class NuboGLLocal {
                 // uid : 1000,
                 // gid : 1000,
                 env: {
-                    "DISPLAY": ":0",
-                    "XDG_RUNTIME_DIR": "/run/user/0",
-                    // "XAUTHORITY": "/run/user/1002/gdm/Xauthority",
-                    "XAUTHORITY": "/run/user/1002/.mutter-Xwaylandauth.KNGNG2",
+                    ...process.env,
+                    //"DISPLAY": ":0",
+                    //"XDG_RUNTIME_DIR": "/run/user/0",
+
+                    // "XAUTHORITY": "/home/israel/.Xauthority",
+                    //"XAUTHORITY": "/run/user/1002/.mutter-Xwaylandauth.0U6ZG2",
                     // "GST_VAAPI_ALL_DRIVERS": "1",
                     // "GST_DEBUG": "4",
                 }
@@ -137,8 +129,24 @@ class NuboGLLocal {
         try {
             logger.info(`${this.tag} afterAndroidStart`);
             await this.sendUDPSignal(1);
+            // change resolution: 4 (byte) + width (int32) + height (int32)
         } catch (err) {
             logger.error(`${this.tag} Error in afterAndroidStart: ${err}`);
+        }
+    }
+
+    async changeResolution(width, height) {
+        try {
+            logger.info(`${this.tag} changeResolution. width: ${width}, height: ${height}`);
+            const buf = Buffer.allocUnsafe(9);
+            buf.writeInt8(4);
+            buf.writeInt32LE(width, 1);
+            buf.writeInt32LE(height, 5);
+            const listenPort = this.session.params.nuboglListenPort;
+            const listenHost = "127.0.0.1";//this.session.params.nuboglListenHost;
+            await this.udpSend(buf, listenHost, listenPort);
+        } catch (err) {
+            logger.error(`${this.tag} Error in changeResolution: ${err}`);
         }
     }
 

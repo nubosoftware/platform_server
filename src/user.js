@@ -273,7 +273,7 @@ async function checkSkelFolder(_imageName) {
 
 
 
-const useNuboGL = false;
+// const useNuboGL = false;
 /**
  * Create a new session and add it to the pool
  * @param {*} _imageName
@@ -298,6 +298,7 @@ async function createPooledSession(_imageName,doNotAddToPull,_lockMachine) {
     let unum;
     let platid;
     let registryURL;
+    let useNuboGL = false;
     const lockMachine = (_lockMachine ? _lockMachine : new Lock("machine"));
     await lockMachine.acquire();
     try {
@@ -310,6 +311,8 @@ async function createPooledSession(_imageName,doNotAddToPull,_lockMachine) {
         machineConf.unumCnt = unum + 1;
         registryURL = machineConf.registryURL;
         platid = machineConf.platid;
+        useNuboGL = (machineConf.settings && machineConf.settings.additionalSettings) ? machineConf.settings.additionalSettings.useNuboGL : false;
+        logger.info(`createPooledSession. Creating pooled session. unum: ${unum}, imageName: ${_imageName}, useNuboGL: ${useNuboGL}`);
         await machineModule.saveMachineConf(machineConf);
     } finally {
         lockMachine.release();
@@ -325,6 +328,8 @@ async function createPooledSession(_imageName,doNotAddToPull,_lockMachine) {
         }
     };
 
+    const tag = `createPooledSession[${unum}]`;
+    logger.logTime(`${tag} Start create pooled session.`);
     const lockSess = new Lock(`sess_${unum}`);
     try {
         await lockSess.acquire();
@@ -374,7 +379,7 @@ async function createPooledSession(_imageName,doNotAddToPull,_lockMachine) {
             let packagesListDir;
             try {
                 packagesListDir = path.resolve("./apks",domain);
-                logger.info(`Copy packages files from domain dir: ${packagesListDir}`);
+                logger.info(`${tag} Copy packages files from domain dir: ${packagesListDir}`);
                 await fsp.cp(path.join(packagesListDir,"packages.xml"),path.join(systemDir,"packages.xml"));
                 await fsp.chown(path.join(systemDir,"packages.xml"),1000,1000);
                 await fsp.cp(path.join(packagesListDir,"packages.list"),path.join(systemDir,"packages.list"));
@@ -394,7 +399,7 @@ async function createPooledSession(_imageName,doNotAddToPull,_lockMachine) {
         }
 
         if (!copiedPackagesFile) {
-            logger.info(`Copy packages files from skel dir`);
+            logger.info(`${tag} Copy packages files from skel dir`);
             try {
                 await fsp.cp(path.join(skelDir,"system","packages.xml"),path.join(systemDir,"packages.xml"));
                 await fsp.chown(path.join(systemDir,"packages.xml"),1000,1000);
@@ -406,7 +411,17 @@ async function createPooledSession(_imageName,doNotAddToPull,_lockMachine) {
                 logger.info(`Unable to copy packages files from skel dir. error: ${err}`);
             }
         }
-        logger.logTime(`Finish copy pooled session files`);
+
+
+        if (useNuboGL) {
+            const buildPropSrc = path.resolve(`./docker_run/build.prop`);
+            const buildPropDst = path.join(sessPath,"build.prop");
+            await fsp.cp(buildPropSrc,buildPropDst);
+            await fsp.chown(buildPropDst,0,0);
+            await fsp.chmod(buildPropDst,'600');
+        }
+        //
+        logger.logTime(`${tag} Finish copy pooled session files`);
 
 
 
@@ -451,18 +466,19 @@ async function createPooledSession(_imageName,doNotAddToPull,_lockMachine) {
             nuboGLLocal = new NuboGLLocal(session);
             nuboGLLocal.init();
         }
+        session.params.useNuboGL = useNuboGL;
 
         // get user image from registry
         let imageName = `${registryURL}/nubo/${_imageName}`; // nubo-android-10
-        logger.info(`Pulling user image: ${imageName}`);
+        logger.info(`${tag} Pulling user image: ${imageName}`);
         await pullImage(imageName);
-        logger.logTime(`Finished image pull`);
+        logger.logTime(`${tag} Finished image pull`);
 
 
         // creating container
         const dockerRunDir = path.resolve("./docker_run");
-        logger.info(`Creating session container. dockerRunDir: ${dockerRunDir}`);
-        logger.info(`attachUserDocker. session: ${JSON.stringify(session,null,2)}`);
+        logger.info(`${tag} Creating session container. dockerRunDir: ${dockerRunDir}`);
+        logger.info(`${tag} attachUserDocker. session: ${JSON.stringify(session,null,2)}`);
         let startArgs = [
             'run', '-d',
             '--name', 'nubo_' + session.params.localid + "_android",
@@ -473,11 +489,14 @@ async function createPooledSession(_imageName,doNotAddToPull,_lockMachine) {
 
         let mountArgs = [
                 '-v', '/lib/modules:/system/lib/modules:ro',
-                // '-v',`${vol_data.name}:/data`,
                 '-v',`${externalSessPath}:/nubo:rw,rshared`,
                 '-v',`${externalTempDataDir}:/data:rw,rshared`,
 
         ];
+        // if (useNuboGL) {
+        //     const buildProp = path.resolve(`./docker_run/build.prop`);
+        //     mountArgs.push('-v',`${buildProp}:/system/vendor/build.prop`);
+        // }
         let cmdArgs = ['/init'];
         let args = startArgs.concat(mountArgs, imageName, cmdArgs);
         await saveUserSessionPromise(unum, session);
@@ -497,29 +516,29 @@ async function createPooledSession(_imageName,doNotAddToPull,_lockMachine) {
         await saveUserSessionPromise(unum, session);
 
 
-        logger.logTime(`Finished container start`);
+        logger.logTime(`${tag} Finished container start`);
         const userStarted = await waitForPlatformStartPhase(session,"BOOT_COMPLETED user #0",logger);
         if (!userStarted) {
             throw new Error("User #0 not finished boot");
         }
 
         const {stdout,stderr} = await execDockerWaitAndroid(
-            ['exec' , containerID, 'am' ],undefined,2
+            ['exec' , containerID, 'am', 'get-current-user' ],undefined,2
         );
         // console.log(`am stdout: "${stdout}", stderr: "${stderr}"`);
 
 
-        logger.logTime(`Pooled session created on platform. unum: ${unum}, containerID: ${containerID}`);
+        logger.logTime(`${tag} Pooled session created on platform. containerID: ${containerID}`);
         return session;
     } catch (err) {
-        logger.error(`createPooledSession. Error: ${err}`,err);
+        logger.error(`${tag} Error: ${err}`,err);
         console.error(err);
         try {
             await saveUserSessionPromise(unum,session);
             lockSess.release();
             await detachUserDocker(unum);
         } catch (e2) {
-            logger.error(`createPooledSession. detachUserDocker failed: ${e2}`,e2);
+            logger.error(`${tag} detachUserDocker failed: ${e2}`,e2);
         }
     } finally {
         lockSess.release();
@@ -532,6 +551,8 @@ async function attachUserDocker(obj,logger) {
         logger = new ThreadedLogger(Common.getLogger(__filename));
     }
 
+    const tag = `attachUserDocker[${obj.login.email}]`;
+    logger.logTime(`${tag} Start attachUserDocker`);
     //logger.info(`attachUserDocker. obj: ${JSON.stringify(obj,null,2)}`);
     let result = {
 
@@ -553,10 +574,10 @@ async function attachUserDocker(obj,logger) {
     let unum;
     if (session.login.deviceType != "Desktop") {
         //const pool = getOrCreatePool(session.params.docker_image);
-        logger.info(`attachUserDocker. Getting pooled session`);
+        logger.info(`${tag} Getting pooled session`);
         let pooledSession = await getSessionFromPool(session.params.docker_image);
         unum = pooledSession.params.localid;
-        logger.info(`attachUserDocker. Using pooled session. unum: ${unum}`);
+        logger.info(`${tag} Using pooled session. unum: ${unum}`);
         _.extend(session.params, pooledSession.params);
          session.params.pooledSession = true;
     }
@@ -829,45 +850,16 @@ async function attachUserDocker(obj,logger) {
                 session.params.apksPath = apksPath;
             }
             // mount user folder
-            logger.log('info', "Mount user home folder");
             await mount.mobileMount(session);
-            logger.logTime(`User home folder mounted at ${session.params.homeFolder}`);
+            logger.logTime(`${tag} User home folder mounted at ${session.params.homeFolder}`);
 
-
-            // mount data.img as loop device
-            // const imgFilePath = path.join(session.params.homeFolder,'data.img');
-            // let losetupres =  await execCmd('losetup',["-f",imgFilePath,"--show"]);
-            // let loopDeviceNum = losetupres.stdout.trim();
-            // if (!session.params.loopDevices) {
-            //     session.params.loopDevices = [];
-            // }
-            // session.params.loopDevices.push(loopDeviceNum);
 
             let syncAccountsFile;
             let syncBackupFile;
 
             if (session.params.pooledSession) {
-                // let stats = await fsp.stat(loopDeviceNum);
-                // let major = (stats.rdev >> 8 );
-                // let minor = (stats.rdev & 0xFF );
+
                 await saveUserSessionPromise(unum, session);
-                // let zygotePid;
-                // let resps = await execDockerWaitAndroid(
-                //     ['exec' , session.params.containerId, 'ps', '-A', '-o' ,'PID,NAME' ]
-                // );
-                // let lines = resps.stdout.split('\n');
-                // const pName = "system_server"; //"zygote64";
-                // for (const line of lines) {
-                //     let fields = line.trim().split(' ');
-                //     if (fields[1] == pName) {
-                //         zygotePid = fields[0];
-                //         break;
-                //     }
-                // }
-                // if (!zygotePid) {
-                //     throw new Error(`${pName} not found in pooled container`);
-                // }
-                // logger.logTime(`${pName} pid: ${zygotePid}`);
                 if (session.params.nuboglListenPort) {
                     // indicate that this session is using nubogl
                     result.nuboglListenPort = session.params.nuboglListenPort;
@@ -877,30 +869,35 @@ async function attachUserDocker(obj,logger) {
                     session.params.mounts = [];
                 }
 
+                // rtpOutHost
+
+                // write Session.xml file in session folder
                 if (session.xml_file_content) {
                     let sessionXMLFile = path.join(session.params.sessPath,"Session.xml");
-                    logger.info(`Found xml_file_content. write to: ${sessionXMLFile}`);
+                    logger.info(`${tag} Found xml_file_content. write to: ${sessionXMLFile}`);
                     await fsp.writeFile(sessionXMLFile,session.xml_file_content);
                     await fsp.chown(sessionXMLFile,1000,1000);
                     await fsp.chmod(sessionXMLFile,'600');
                 } else {
-                    let errmsg = `Not found xml_file_content in session params!`;
+                    let errmsg = `${tag} Not found xml_file_content in session params!`;
                     logger.info(errmsg);
                     throw new Error(errmsg);
                 }
+
+                // write starting session in platformStartFile
                 let platformStartFile = session.params.platformStartFile;
                 await fsp.appendFile(platformStartFile, `${moment().utc().format('YYYY-MM-DD HH:mm:ss')} Starting session\n`, 'utf-8');
 
+                // mount storage folder
                 let storagePath = path.join(session.params.sessPath,"storage");
-
                 if (session.params.nfsHomeFolder != "local") {
                     logger.log('info', "Mount storage folder");
-                    logger.info(`mount storage. remote: ${session.params.nfsStorageFolder}, local: ${storagePath} `);
+                    logger.info(`${tag} mount storage. remote: ${session.params.nfsStorageFolder}, local: ${storagePath} `);
                     await mount.mountFolder(session.params.nfsStorageFolder,storagePath);
                     session.params.mountedStorageFolder = storagePath;
                     session.params.mounts.push(storagePath);
                 } else {
-                    logger.log('info', `Using local folder for storage: ${session.params.storageFolder}`);
+                    logger.log('info', `${tag} Using local folder for storage: ${session.params.storageFolder}`);
                     try {
                         await fsp.mkdir(storagePath,{recursive: true});
                         await execCmd('mount',["--bind",session.params.storageFolder,storagePath]);
@@ -909,126 +906,58 @@ async function attachUserDocker(obj,logger) {
                     } catch (err) {
                         logger.info(`Unable to mount bind storage folder. err: ${err}`);
                     }
-
                 }
-                logger.info(`session.params.recording_path: ${session.params.recording_path}`);
+
+                // mount recording folder
+                logger.info(`${tag} session.params.recording_path: ${session.params.recording_path}`);
                 if (session.params.recording_path) {
                     // session.params.recording &&
                     let recordingPath = path.join(session.params.sessPath,"recording");
                     if (session.params.nfsHomeFolder != "local") {
                         let nfslocation = session.nfs.nfs_ip + ":" + session.params.recording_path + "/";
-                        logger.log('info', `Mount recording folder from: ${nfslocation}`);
+                        logger.log('info', `${tag} Mount recording folder from: ${nfslocation}`);
                         try {
                             await mount.mountFolder(nfslocation,recordingPath);
                             session.params.mounts.push(recordingPath);
                         } catch (err) {
-                            logger.info(`Unable to mount nfs recording folder. err: ${err}`);
+                            logger.info(`${tag} Unable to mount nfs recording folder. err: ${err}`);
                         }
                     } else {
-                        logger.log('info', `Using local folder for recording: ${session.params.recording_path}`);
+                        logger.log('info', `${tag} Using local folder for recording: ${session.params.recording_path}`);
                         try {
                             await fsp.mkdir(recordingPath,{recursive: true});
                             await execCmd('mount',["--bind",session.params.recording_path,recordingPath]);
                             session.params.mounts.push(recordingPath);
                         } catch (err) {
-                            logger.info(`Unable to mount bind recording folder. err: ${err}`);
+                            logger.info(`${tag} Unable to mount bind recording folder. err: ${err}`);
                         }
                     }
                 }
                 await saveUserSessionPromise(unum, session);
-                logger.logTime(`Create swap user in container ${session.params.containerId} `);
+                logger.logTime(`${tag} Create swap user in container ${session.params.containerId} `);
 
-                // let sessionPendingFile = session.params.sessionPendingFile;
-                // let multiUser = session.params.multiUser;
-                // if (!multiUser && sessionPendingFile) {
-                //     // // create a file for the loop device
-                //     // await execDockerWaitAndroid(
-                //     //     ['exec' , session.params.containerId, 'mknod', '/dev/d.img', 'b' , `${major}` , `${minor}` ]
-                //     // );
 
-                //     // // unmount the temp /data folder
-                //     // await execDockerWaitAndroid(
-                //     //     ['exec' , session.params.containerId, 'umount', '-l', '/data' ]
-                //     // );
-
-                //     // // mount the new data folder
-                //     // await execDockerWaitAndroid(
-                //     //     ['exec' , session.params.containerId, 'mount', '/dev/d.img', '/data' ]
-                //     // );
-
-                //     // // mount the sdcard
-                //     // try {
-                //     //     await execDockerWaitAndroid(
-                //     //         ['exec' , session.params.containerId, 'mount', '--bind', '/nubo/storage', '/data/media' ]
-                //     //     );
-                //     // } catch (err) {
-                //     //     logger.info(`Error mount /data/media: ${err}`);
-                //     // }
-
-                //     // // restart keystore
-                //     // await execDockerWaitAndroid(
-                //     //     ['exec' , session.params.containerId, 'pkill', 'keystore' ]
-                //     // );
-
-                //     // delete the session_pending file
-                //     await execDockerWaitAndroid(
-                //         ['exec' , session.params.containerId, 'sh', '-e' , '/system/etc/login_user.sh' , `${major}` , `${minor}`  ]
-                //     );
-                //     await fsp.unlink(sessionPendingFile);
-
-                // // // restart zygote
-                // // await execDockerWaitAndroid(
-                // //     ['exec' , session.params.containerId, 'kill', `${zygotePid}` ]
-                // // );
-                // } else if (!multiUser) {
-
-                //     // run login script
-                //     let loginScriptSuccess = false;
-                //     let loginCnt = 0;
-
-                //     while (!loginScriptSuccess && loginCnt<10) {
-                //         try {
-                //             loginCnt++;
-                //             await execDockerWaitAndroid(
-                //                 ['exec' , session.params.containerId, 'sh', '-e' , '/system/etc/login_user.sh' , `${major}` , `${minor}`  ]
-                //             );
-                //             loginScriptSuccess = true;
-                //         } catch (err) {
-                //             logger.error(`attachUserDocker. login_user.sh Error: ${err}`);
-                //             if (loginCnt<10) {
-                //                 await sleep(500);
-                //             } else {
-                //                 throw err;
-                //             }
-                //         }
-                //     }
-                // } else { // multiUser == true
-
-                    // let sessHomeFolder = path.join(session.params.sessPath,`home`);
-                    // await fsp.mkdir(sessHomeFolder,{recursive: true});
-                    // await execCmd('mount',["--bind",session.params.homeFolder,nuboHomeFolder]);
-                    // session.params.tempDataDir
 
 
                     // mount user image
                     const imageFile =  path.join(session.params.homeFolder,"user.img");
                     if (!await Common.fileExists(imageFile)) {
-                        logger.info(`Image does not exists - create it`);
+                        logger.info(`${tag} Image does not exists - create it`);
                         await execCmd('dd',["if=/dev/zero", `of=${imageFile}`, "bs=1M", "count=250"]);
                         await execCmd('mkfs.ext4',[imageFile]);
                         await execCmd('tune2fs',["-c0","-i0",imageFile]);
-                        logger.info(`Image creted at: ${imageFile}`);
+                        logger.info(`${tag} Image creted at: ${imageFile}`);
                     }
 
                     // mount user.img into /nubo.user_img
                     const imageMntDir = path.join(session.params.sessPath,"user_img");
                     await fsp.mkdir(imageMntDir,{recursive: true});
-                    logger.info(`Mounting user image: ${imageFile} to ${imageMntDir}`);
+                    logger.info(`${tag} Mounting user image: ${imageFile} to ${imageMntDir}`);
                     await execCmd('mount',[imageFile,imageMntDir]);
                     session.params.mounts.push(imageMntDir);
                     session.params.userImageFile = imageFile;
 
-                    logger.logTime(`replacing user 10 folders..`);
+                    logger.logTime(`${tag} replacing user 10 folders..`);
                     const srcFolders = [
                         'misc',
                         'misc_ce',
@@ -1057,7 +986,7 @@ async function attachUserDocker(obj,logger) {
 
                     let mountFolder = async function (src,dst) {
                         if (!await Common.fileExists(src)) {
-                            logger.info(`User folder does not exists: ${src}. Copy skel folder ${dst} into it.`);
+                            logger.info(`${tag} User folder does not exists: ${src}. Copy skel folder ${dst} into it.`);
                             await fsp.mkdir(src,{recursive: true});
                             await execCmd('cp',["-aT",dst,src]);
                             const stats = await fsp.stat(src);
@@ -1065,7 +994,7 @@ async function attachUserDocker(obj,logger) {
                             //logger.info(`After copy folder. mode: ${mode}, stats: ${JSON.stringify(stats,null,2)}`);
                         }
 
-                        logger.info(`Mount user folder ${src} to ${dst}`);
+                        logger.info(`${tag} Mount user folder ${src} to ${dst}`);
                         await fsp.rm(dst,{recursive: true});
                         await fsp.mkdir(dst,{recursive: true});
                         await execCmd('mount',["--bind",src,dst]);
@@ -1102,7 +1031,7 @@ async function attachUserDocker(obj,logger) {
                     syncAccountsFile = path.join(syncDir,"accounts.xml");
                     syncBackupFile = path.join(syncDir,"accounts-bak.xml");
                     if (await Common.fileExists(syncAccountsFile)) {
-                        logger.info(`Backup accounts.xml to ${syncBackupFile}`);
+                        logger.info(`${tag}  Backup accounts.xml to ${syncBackupFile}`);
                         await fsp.cp(syncAccountsFile,syncBackupFile);
                         await fsp.chown(syncBackupFile,1000,1000);
                     }
@@ -1113,9 +1042,17 @@ async function attachUserDocker(obj,logger) {
                         const logFileName = `logcat_${session.params.email}_${timeStr}.log`;
                         const logFolder = path.resolve("./syslogs",`platform_${platid}`);
                         const logcatFile = path.resolve(logFolder,logFileName);
-                        logger.info(`Redirect logcat to file: ${logcatFile}`);
+                        logger.info(`${tag} Redirect logcat to file: ${logcatFile}`);
                         await fsp.mkdir(logFolder,{recursive: true});
                         startAndRedirectToLog(['exec', session.params.containerId, 'logcat'],logcatFile,logger);
+                    }
+
+                    if (session.params.useNuboGL && session.params.width && session.params.height) {
+                        const nuboGLLocal = NuboGLLocal.getSession(unum);
+                        if (nuboGLLocal) {
+                            logger.info(`Calling nuboGLLocal.changeResolution. w: ${session.params.width}, h: ${session.params.height}`);
+                            await nuboGLLocal.changeResolution(session.params.width,session.params.height);
+                        }
                     }
 
 
@@ -1125,14 +1062,14 @@ async function attachUserDocker(obj,logger) {
                     );
 
 
-                    logger.info(`Running pm refresh..`);
+                    logger.logTime(`${tag}  Running pm refresh..`);
                     await execDockerWaitAndroid(
                         ['exec' , session.params.containerId, 'pm', 'refresh' , '10' , session.params.keystoreKey  ]
                     );
 
 
 
-                    logger.info(`Running am switch-user..`);
+                    logger.logTime(`${tag} Running am switch-user..`);
                     await execDockerWaitAndroid(
                         ['exec' , session.params.containerId, 'am', 'switch-user' , '10'  ]
                     );
@@ -1140,17 +1077,15 @@ async function attachUserDocker(obj,logger) {
                 // }
 
 
-                logger.logTime(`After init user`);
+                logger.logTime(`${tag} After init user`);
 
-                if (useNuboGL) {
-                    const nuboGLLocal = NuboGLLocal.getSession(unum);
-                    if (nuboGLLocal) {
-                        logger.info(`Calling nuboGLLocal.afterAndroidStart`);
-                        await nuboGLLocal.afterAndroidStart();
-                    } else {
-                        logger.info(`Not found nuboGLLocal session`);
-                    }
-                }
+                // if (session.params.useNuboGL) {
+                //     const nuboGLLocal = NuboGLLocal.getSession(unum);
+                //     if (nuboGLLocal) {
+                //         logger.info(`Calling nuboGLLocal.afterAndroidStart`);
+                //         await nuboGLLocal.afterAndroidStart();
+                //     }
+                // }
 
                 if(session.params.audioStreamParams) {
                     await Audio.initAudio(unum);
@@ -1339,18 +1274,18 @@ async function attachUserDocker(obj,logger) {
             // }
 
 
-            logger.log('info', `Session created on platform. containerID: ${session.params.containerId}`, logMeta);
+            logger.log('info', `${tag} Session created on platform. containerID: ${session.params.containerId}`, logMeta);
 
         }
         await saveUserSessionPromise(unum,session);
     } catch (err) {
-        logger.error(`attachUserDocker. Error: ${err}`,err);
+        logger.error(`${tag} Error: ${err}`,err);
         try {
             await saveUserSessionPromise(unum,session);
             lockSess.release();
             await detachUserDocker(unum);
         } catch (e2) {
-            logger.error(`attachUserDocker. detachUserDocker failed: ${e2}`,e2);
+            logger.error(`${tag} detachUserDocker failed: ${e2}`,e2);
         }
         throw err;
     } finally {
@@ -1366,7 +1301,7 @@ async function waitForPlatformStartPhase(session,waitMsg,logger) {
     // abort wait after 60 seconds
     const ac = new AbortController();
     const { signal } = ac;
-    setTimeout(() => ac.abort(), 60000);
+    setTimeout(() => ac.abort(), 160000);
 
     if (!waitMsg) {
         waitMsg = "User unlocked";
@@ -1903,7 +1838,7 @@ async function detachUserDocker(unum) {
             }
         }
 
-        if (useNuboGL) {
+        if (session.params.useNuboGL) {
             NuboGLLocal.killSession(unum);
         }
 
