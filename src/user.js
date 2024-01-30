@@ -1047,11 +1047,17 @@ async function attachUserDocker(obj,logger) {
                         startAndRedirectToLog(['exec', session.params.containerId, 'logcat'],logcatFile,logger);
                     }
 
-                    if (session.params.useNuboGL && session.params.width && session.params.height) {
+                    if (session.params.useNuboGL) {
                         const nuboGLLocal = NuboGLLocal.getSession(unum);
                         if (nuboGLLocal) {
-                            logger.info(`Calling nuboGLLocal.changeResolution. w: ${session.params.width}, h: ${session.params.height}`);
-                            await nuboGLLocal.changeResolution(session.params.width,session.params.height);
+                            if (session.params.width && session.params.height) {
+                                logger.info(`Calling nuboGLLocal.changeResolution. w: ${session.params.width}, h: ${session.params.height}`);
+                                await nuboGLLocal.changeResolution(session.params.width,session.params.height);
+                            }
+                            if (session.params.nuboGLAddress) {
+                                logger.info(`Calling nuboGLLocal.setNuboGLAddress. address: ${session.params.nuboGLAddress}`);
+                                await nuboGLLocal.setNuboGLAddress(session.params.nuboGLAddress);
+                            }
                         }
                     }
 

@@ -25,7 +25,8 @@ function initAudio(localid) {
                     env: {
                         "PULSE_SERVER": "unix:/run/user/1000/pulse/native",
                         "PULSE_RUNTIME_PATH": "/run/user/1000/pulse"
-                    }
+                    },
+                    stdio: ['ignore', 'pipe', 'pipe'],
                 };
                 if (Common.isDocker) {
                     pulse_opts.env = {
@@ -33,17 +34,23 @@ function initAudio(localid) {
                     }
                 }
                 logger.info(`initAudio. localid: ${localid}, isDocker: ${Common.isDocker}`);
+                const loggerName = `audio-${localid}`;
+                const stdoutStream = fs.createWriteStream(`${Common.rootDir}/log/${loggerName}-out.log`);
+                const stderrStream = fs.createWriteStream(`${Common.rootDir}/log/${loggerName}-err.log`);
                 const scriptPath = path.join(__dirname,"audiomanager.js");
                 var child = spawn("node",[scriptPath, localid], pulse_opts);
                 logger.info("Starting ","node",[scriptPath, localid]);
                 var userid = localid;
-                child.stdout.on('data', (data) => {
-                    logger.info(`audiomanager.js userid: ${userid}, stdout: ${data}`);
-                });
+                // Pipe child's stdout and stderr to file
+                child.stdout.pipe(stdoutStream);
+                child.stderr.pipe(stderrStream);
+                // child.stdout.on('data', (data) => {
+                //     logger.info(`audiomanager.js userid: ${userid}, stdout: ${data}`);
+                // });
 
-                child.stderr.on('data', (data) => {
-                    logger.info(`audiomanager.js userid: ${userid}, stderr: ${data}`);
-                });
+                // child.stderr.on('data', (data) => {
+                //     logger.info(`audiomanager.js userid: ${userid}, stderr: ${data}`);
+                // });
 
                 child.on('close', (code) => {
                     logger.info(`audiomanager.js userid: ${userid}, child process exited with code ${code}`);

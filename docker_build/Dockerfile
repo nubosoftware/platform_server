@@ -1,4 +1,4 @@
-FROM ubuntu:20.04
+FROM ubuntu:22.04
 ARG BUILD_VER=3.2
 ARG TARGET_DIR=/opt/platform_server
 RUN apt-get -y update
@@ -23,6 +23,7 @@ RUN apt install -y \
     gstreamer1.0-tools \
     gstreamer1.0-plugins-good \
     gstreamer1.0-plugins-bad \
+    gstreamer1.0-vaapi \
     libgstreamer1.0-0 \
     libgstreamer-plugins-good1.0-0 \
     libgstreamer-plugins-bad1.0-0 \

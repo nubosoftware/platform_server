@@ -5,6 +5,8 @@ var logger = Common.getLogger(__filename);
 const path = require('path');
 const spawn = require('child_process').spawn;
 const dgram = require('node:dgram');
+const { add } = require('winston');
+const fs = require('fs');
 
 
 class NuboGLLocal {
@@ -87,7 +89,9 @@ class NuboGLLocal {
             ];
             this.session.params.nuboglListenPort = listenPort;
             // this.session.params.nuboglListenHost
-
+            const loggerName = `nubogl-${localid}`;
+            const stdoutStream = fs.createWriteStream(`${Common.rootDir}/log/${loggerName}-out.log`);
+            const stderrStream = fs.createWriteStream(`${Common.rootDir}/log/${loggerName}-err.log`);
             const nuboglPath = path.resolve(`./bin/nubogl`);
             var child = spawn('stdbuf', ['-oL', '-eL', nuboglPath].concat(args), {
                 cwd: this.session.params.externalSessPath,
@@ -102,15 +106,21 @@ class NuboGLLocal {
                     //"XAUTHORITY": "/run/user/1002/.mutter-Xwaylandauth.0U6ZG2",
                     // "GST_VAAPI_ALL_DRIVERS": "1",
                     // "GST_DEBUG": "4",
-                }
-            });
-            child.stdout.on('data', (data) => {
-                logger.info(`${this.tag} stdout: ${data}`);
+                },
+                stdio: ['inherit', 'pipe', 'pipe'], // Use 'pipe' for stdout and stderr
             });
 
-            child.stderr.on('data', (data) => {
-                logger.info(`${this.tag} stderr: ${data}`);
-            });
+            // Pipe child's stdout and stderr to file
+            child.stdout.pipe(stdoutStream);
+            child.stderr.pipe(stderrStream);
+
+            // child.stdout.on('data', (data) => {
+            //     logger.info(`${this.tag} stdout: ${data}`);
+            // });
+
+            // child.stderr.on('data', (data) => {
+            //     logger.info(`${this.tag} stderr: ${data}`);
+            // });
 
             child.on('close', (code) => {
                 logger.info(`${this.tag} child process exited with code ${code}`);
@@ -149,6 +159,22 @@ class NuboGLLocal {
             logger.error(`${this.tag} Error in changeResolution: ${err}`);
         }
     }
+
+    async setNuboGLAddress(addr) {
+        try {
+            logger.info(`${this.tag} setNuboGLAddress. addr: ${addr}`);
+            const buf = Buffer.allocUnsafe(2 + addr.length);
+            buf.writeInt8(5);
+            buf.writeInt8(addr.length,1);
+            buf.write(addr, 2);
+            const listenPort = this.session.params.nuboglListenPort;
+            const listenHost = "127.0.0.1";
+            await this.udpSend(buf, listenHost, listenPort);
+        } catch (err) {
+            logger.error(`${this.tag} Error in setNuboGLAddress: ${err}`);
+        }
+    }
+
 
     async killSession() {
         try {

@@ -1,0 +1,9 @@
+#
+# ADDITIONAL VENDOR BUILD PROPERTIES
+#
+
+# nubo gl settings
+ro.hardware.gralloc=ranchu
+ro.hardware.egl=emulation
+ro.kernel.qemu.gles=1
+
