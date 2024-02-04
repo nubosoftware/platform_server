@@ -94,7 +94,7 @@ class NuboGLLocal {
             const stderrStream = fs.createWriteStream(`${Common.rootDir}/log/${loggerName}-err.log`);
             const nuboglPath = path.resolve(`./bin/nubogl`);
             var child = spawn('/usr/bin/stdbuf', ['-oL', '-eL', nuboglPath].concat(args), {
-                cwd: this.session.params.externalSessPath,
+                cwd: this.session.params.sessPath,
                 // uid : 1000,
                 // gid : 1000,
                 env: {
