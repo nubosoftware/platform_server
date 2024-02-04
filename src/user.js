@@ -414,7 +414,7 @@ async function createPooledSession(_imageName,doNotAddToPull,_lockMachine) {
 
 
         if (useNuboGL) {
-            const buildPropSrc = path.resolve(`./docker_run/build.prop`);
+            const buildPropSrc = path.resolve(`./bin/nubogl_build.prop`);
             const buildPropDst = path.join(sessPath,"build.prop");
             await fsp.cp(buildPropSrc,buildPropDst);
             await fsp.chown(buildPropDst,0,0);

@@ -74,6 +74,7 @@ RUN apt-get --purge autoremove -y build-essential
 COPY dist/audiomanager.js ${TARGET_DIR}/dist/
 COPY dist/pulseaudio-user ${TARGET_DIR}/dist/
 COPY dist/restserver.js ${TARGET_DIR}/dist/
+COPY bin ${TARGET_DIR}/bin
 
 # Create a new user nubo
 ARG UID=1000
