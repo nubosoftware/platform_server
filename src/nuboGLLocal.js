@@ -15,17 +15,21 @@ class NuboGLLocal {
     child;
     gwRTPSSRC;
     tag;
+    pooled;
 
     static sessions = {};
 
-    constructor(session) {
+    constructor(session,pooled = false) {
         this.session = session;
-        NuboGLLocal.sessions[session.params.localid] = this;
-        this.tag = `NuboGLLocal[${session.params.localid}]`;
+        this.pooled = pooled;
+        const key = `${session.params.localid}${pooled ? '-p' : ''}`;
+        NuboGLLocal.sessions[key] = this;
+        this.tag = `NuboGLLocal[${session.params.localid}${pooled ? '-p' : ''}]`;
     }
 
-    static getSession(localid) {
-        return NuboGLLocal.sessions[localid];
+    static getSession(localid,pooled=false) {
+        const key = `${localid}${pooled ? '-p' : ''}`;
+        return NuboGLLocal.sessions[key];
     }
 
     udpSend(buf,host,port) {
@@ -68,15 +72,26 @@ class NuboGLLocal {
             const platid = this.session.params.platid;
             const localid = this.session.params.localid;
             this.gwRTPSSRC = ((platid & 0xFFFF) << 16 ) | (localid & 0xFFFF);
-            logger.info(`${this.tag} Creating nubo gl local process. platid: ${platid}, localid: ${localid}, gwRTPSSRC: ${this.gwRTPSSRC}`);
 
-            const gwRTPHost = "172.16.80.151";
-            const gwRTPPort = 60005;
-            const width = 602;
-            const height = 1544;
+
+            let gwRTPHost;
+            let gwRTPPort;
+
+            if (this.session.params.nuboGLAddress) {
+                gwRTPHost = this.session.params.nuboGLAddress.split(":")[0];
+                gwRTPPort = this.session.params.nuboGLAddress.split(":")[1];
+            } else {
+                gwRTPHost = "172.16.80.151";
+                gwRTPPort = 60005;
+            }
+            // 1812x2176
+            const width = this.session.params.width ? Number(this.session.params.width) : 540;
+            const height = this.session.params.height ? Number(this.session.params.height) : 960;//1544;
 
             const encoder =  Common.nuboGL && Common.nuboGL.encoder ? Common.nuboGL.encoder :  "vaapih264enc";
             const listenPort = 22468 + Number(localid); // UDP port to listen for instructions from the gateway
+
+            logger.info(`${this.tag} Creating nubo gl local process. platid: ${platid}, localid: ${localid}, gwRTPSSRC: ${this.gwRTPSSRC}, pooled: ${this.pooled}, width: ${width}, height: ${height}, encoder: ${encoder}, listenPort: ${listenPort}`);
             // 1 - play , 2 - pause
             var args = [
                 gwRTPHost,
@@ -89,10 +104,11 @@ class NuboGLLocal {
             ];
             this.session.params.nuboglListenPort = listenPort;
             // this.session.params.nuboglListenHost
-            const loggerName = `nubogl-${localid}`;
+            const loggerName = `nubogl-${localid}${this.pooled ? "-p" : ""}`;
             const stdoutStream = fs.createWriteStream(`${Common.rootDir}/log/${loggerName}-out.log`);
             const stderrStream = fs.createWriteStream(`${Common.rootDir}/log/${loggerName}-err.log`);
             const nuboglPath = path.resolve(`./bin/nubogl`);
+            logger.info(`${this.tag} Spawning nubogl: ${nuboglPath} ${args.join(" ")}`);
             var child = spawn('/usr/bin/stdbuf', ['-oL', '-eL', nuboglPath].concat(args), {
                 cwd: this.session.params.sessPath,
                 // uid : 1000,
@@ -162,6 +178,9 @@ class NuboGLLocal {
 
     async setNuboGLAddress(addr) {
         try {
+            // for debug only: replace the port number :port with :60015
+            // addr = addr.replace(/:\d+$/, ":1234");
+            // remove after debug!!
             logger.info(`${this.tag} setNuboGLAddress. addr: ${addr}`);
             const buf = Buffer.allocUnsafe(2 + addr.length);
             buf.writeInt8(5);
@@ -176,27 +195,42 @@ class NuboGLLocal {
     }
 
 
-    async killSession() {
+    async killSession(wait = false) {
         try {
             const child = this.child;
             if (child) {
-                logger.info(`${this.tag} killing child pid: ${child.pid}`);
+                logger.info(`${this.tag} killing child pid: ${child.pid}, wait: ${wait}`);
+                let waitKillPromise;
+                if (wait) {
+                    waitKillPromise = new Promise((resolve, reject) => {
+                        child.on('close', (code) => {
+                            logger.info(`${this.tag} child process exited with code ${code}`);
+                            this.child = null;
+                            resolve();
+                        });
+                    });
+                }
                 child.kill();
+                if (wait) {
+                    await waitKillPromise;
+                }
+
             }
-            delete NuboGLLocal.sessions[this.session.params.localid];
+            const key = `${this.session.params.localid}${this.pooled ? '-p' : ''}`;
+            delete NuboGLLocal.sessions[key];
             logger.info(`${this.tag} Nubo gl deleted.`);
 
         } catch (err) {
             logger.error(`${this.tag} Error in killSession: ${err}`);
         }
     }
-    static async killSession(localid) {
+    static async killSession(localid,pooled, wait = false) {
         try {
-            const session = NuboGLLocal.getSession(localid);
+            const session = NuboGLLocal.getSession(localid,pooled);
             if (session) {
-                await session.killSession();
+                await session.killSession(wait);
             } else {
-                logger.info(`NuboGLLocal. killSession. session not found. localid: ${localid}`);
+                logger.info(`NuboGLLocal. killSession. session not found. localid: ${localid}, wait: ${wait}`);
             }
         } catch (err) {
             logger.error(`NuboGLLocal Error in killSession: ${err}`);

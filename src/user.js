@@ -52,6 +52,31 @@ const MIN_CREATE_POOL_SESSION_WAIT_MS = 1000 * 60 * 2; // wait two minutes after
 
 let pools = new Map();
 
+let sessionCreateConcurency = -1;
+let sessionCreateConcurencyCounter = 0;
+const MAX_CONCURRENCY_WAIT = 60 * 5; // 5 minutes
+
+async function increaseSessionCreateConcurrency() {
+    if (sessionCreateConcurency === -1) {
+        // initialize sessionCreateConcurency
+        sessionCreateConcurency = Common.sessionCreateConcurency || 1;
+    }
+    let waitCnt = 0;
+    while (sessionCreateConcurencyCounter >= sessionCreateConcurency) {
+        // logger.info(`increaseSessionCreateConcurrency. Waiting for session create concurency. current: ${sessionCreateConcurencyCounter}`);
+        if (waitCnt > MAX_CONCURRENCY_WAIT) {
+            throw new Error("increaseSessionCreateConcurrency. Max wait time reached");
+        }
+        await sleep(1000);
+        waitCnt++;
+    }
+    sessionCreateConcurencyCounter++;
+}
+
+function decreaseSessionCreateConcurrency() {
+    sessionCreateConcurencyCounter--;
+}
+
 
 
 function getOrCreatePool(_imageName,opts) {
@@ -59,6 +84,7 @@ function getOrCreatePool(_imageName,opts) {
         logger.info(`getOrCreatePool. docker platform not started!`);
         throw new Error("getOrCreatePool. docker platform not started");
     }
+
     let pool = pools.get(_imageName);
     if (!pool) {
         const defOpts = {
@@ -82,15 +108,21 @@ function getOrCreatePool(_imageName,opts) {
                 opts.max = 100;
             }
         }
+
         const sessionPoolFactory = {
             create: async function() {
                 logger.info(`sessionPoolFactory. generate pooled session for image ${_imageName}..`);
-                const session = await createPooledSession(_imageName);
-                if (!session) {
-                    throw new Error("Pool session create error");
+                await increaseSessionCreateConcurrency();
+                try {
+                    const session = await createPooledSession(_imageName);
+                    if (!session) {
+                        throw new Error("Pool session create error");
+                    }
+                    logger.info(`sessionPoolFactory. created session: ${session.params.localid}`);
+                    return session;
+                } finally {
+                    decreaseSessionCreateConcurrency();
                 }
-                logger.info(`sessionPoolFactory. created session: ${session.params.localid}`);
-                return session;
             },
             destroy: async function(session) {
                 if (!session.params.takenFromPool) {
@@ -467,6 +499,7 @@ async function createPooledSession(_imageName,doNotAddToPull,_lockMachine) {
             nuboGLLocal.init();
         }
         session.params.useNuboGL = useNuboGL;
+        session.params.pooled = false;
 
         // get user image from registry
         let imageName = `${registryURL}/nubo/${_imageName}`; // nubo-android-10
@@ -579,7 +612,7 @@ async function attachUserDocker(obj,logger) {
         unum = pooledSession.params.localid;
         logger.info(`${tag} Using pooled session. unum: ${unum}`);
         _.extend(session.params, pooledSession.params);
-         session.params.pooledSession = true;
+        session.params.pooledSession = true;
     }
     // logger.info(`attachUserDocker. session.params: ${JSON.stringify(session.params,null,2)}`);
     let linuxUserName;
@@ -638,7 +671,7 @@ async function attachUserDocker(obj,logger) {
         platid = machineConf.platid;
 
 
-        session.params.platid = unum;
+        session.params.platid = platid;
         session.params.localid = unum;
         session.params.tz = obj.timeZone;
         session.params.createSessionTime = new Date();
@@ -1048,17 +1081,72 @@ async function attachUserDocker(obj,logger) {
                     }
 
                     if (session.params.useNuboGL) {
-                        const nuboGLLocal = NuboGLLocal.getSession(unum);
-                        if (nuboGLLocal) {
-                            if (session.params.width && session.params.height) {
-                                logger.info(`Calling nuboGLLocal.changeResolution. w: ${session.params.width}, h: ${session.params.height}`);
-                                await nuboGLLocal.changeResolution(session.params.width,session.params.height);
-                            }
-                            if (session.params.nuboGLAddress) {
-                                logger.info(`Calling nuboGLLocal.setNuboGLAddress. address: ${session.params.nuboGLAddress}`);
-                                await nuboGLLocal.setNuboGLAddress(session.params.nuboGLAddress);
+                        //  restart zygote
+                        let zygotePid;
+                        let resps = await execDockerWaitAndroid(
+                            ['exec' , session.params.containerId, 'ps', '-A', '-o' ,'PID,NAME' ]
+                        );
+                        let lines = resps.stdout.split('\n');
+                        for (const line of lines) {
+                            let fields = line.trim().split(' ');
+                            if (fields[1] == "zygote64") {
+                                zygotePid = fields[0];
+                                break;
                             }
                         }
+                        if (!zygotePid) {
+                            throw new Error(`zygote64 not found in pooled container`);
+                        }
+
+
+                        // delete session.params.platformStartFile file
+                        logger.info(`${tag} Delete platformStartFile: ${session.params.platformStartFile}`);
+                        if (session.params.platformStartFile) {
+                            await fsp.unlink(session.params.platformStartFile);
+                            // re-create the file
+                            await fsp.appendFile(session.params.platformStartFile, `${moment().utc().format('YYYY-MM-DD HH:mm:ss')} Starting session\n`,'utf-8');
+                            await fsp.chown(session.params.platformStartFile,1000,1000);
+                            await fsp.chmod(session.params.platformStartFile,'660');
+                        }
+
+
+                        let nuboGLLocal = NuboGLLocal.getSession(unum,false);
+                        if (nuboGLLocal) {
+                            logger.info(`${tag} Killing pooled nuobGLLocal session`);
+                            await nuboGLLocal.killSession(true);
+                            // if (session.params.width && session.params.height) {
+                            //     logger.info(`Calling nuboGLLocal.changeResolution. w: ${session.params.width}, h: ${session.params.height}`);
+                            //     await nuboGLLocal.changeResolution(session.params.width,session.params.height);
+                            // }
+                            // if (session.params.nuboGLAddress) {
+                            //     logger.info(`Calling nuboGLLocal.setNuboGLAddress. address: ${session.params.nuboGLAddress}`);
+                            //     await nuboGLLocal.setNuboGLAddress(session.params.nuboGLAddress);
+                            // }
+                        }
+                        // start the non-pooled session (with real user properties)
+                        logger.info(`${tag} Starting new nuboGLLocal session`);
+                        session.params.pooled = true;
+                        nuboGLLocal = new NuboGLLocal(session,true);
+                        await nuboGLLocal.init();
+
+
+
+
+
+
+                        logger.info(`${tag} Kill zygote. zygotePid: ${zygotePid}`);
+                        await execDockerWaitAndroid(
+                            ['exec' , session.params.containerId, 'kill', `${zygotePid}` ]
+                        );
+
+
+
+                        const userStarted = await waitForPlatformStartPhase(session,"BOOT_COMPLETED user #0",logger);
+                        if (!userStarted) {
+                            throw new Error("User #0 not finished boot");
+                        }
+
+                        // wait for Andorid re-start
                     }
 
 
@@ -1845,7 +1933,7 @@ async function detachUserDocker(unum) {
         }
 
         if (session.params.useNuboGL) {
-            NuboGLLocal.killSession(unum);
+            NuboGLLocal.killSession(unum,session.params.pooled,false);
         }
 
 
