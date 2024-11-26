@@ -58,6 +58,7 @@ COPY webpack.config.js ${TARGET_DIR}/.
 ADD src ${TARGET_DIR}/src
 WORKDIR ${TARGET_DIR}
 RUN echo "VERSION: ${BUILD_VER}" > version.txt
+RUN echo "BUILD_TIME: $(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> version.txt
 
 # add build essential
 RUN apt install -y build-essential

@@ -26,7 +26,7 @@ var INSTALL_TASK = [1, "i", "install"];
 var UNINSTALL_TASK = [0, "u", "uninstall"];
 var UPGRADE_TASK = [2, "g", "upgrade"];
 
-function installApk(req, res) {
+function installApk(req, res,next) {
     var logger = new ThreadedLogger(Common.getLogger(__filename));
     var apk = req.params.apk;
     if (machineModule.isDockerPlatform()) {
@@ -128,7 +128,7 @@ var disableUserZero = function(apkPath,platform,logger, callback) {
  *  {data: [{packageName, unum, task}, ...]
  *   task: 1,"i", "install" for installation; 0, "u", "uninstall" for uninstallation
  */
-function attachApps(req, res) {
+function attachApps(req, res,next) {
     var logger = new ThreadedLogger(Common.getLogger(__filename));
     logger.logTime("Start process request attachApps");
     var obj = req.body;
@@ -518,7 +518,7 @@ async function getPackagesListDocker(req,res,logger) {
     }
 }
 
-function getPackagesList(req, res) {
+function getPackagesList(req, res,next) {
     var logger = new ThreadedLogger(Common.getLogger(__filename));
     if (machineModule.isDockerPlatform()) {
         getPackagesListDocker(req,res,logger).then(() => {

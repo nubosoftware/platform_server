@@ -17,7 +17,7 @@ function safePathJoin(path1, path2) {
     return path.resolve(path1, targetPath)
 }
 
-function refreshMedia(req, res) {
+function refreshMedia(req, res,next) {
     var logger = new ThreadedLogger(Common.getLogger(__filename));
     logger.logTime("Start process request refreshMedia");
     var platform = new Platform(logger);

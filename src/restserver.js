@@ -4,6 +4,8 @@ var accesslog = require('accesslog');
 var url = require("url");
 var restify = require("restify");
 var fs = require("fs");
+var fsp = fs.promises;
+var path = require("path");
 var async = require("async");
 var Common = require('./common.js');
 var logger = Common.getLogger(__filename);
@@ -172,14 +174,41 @@ let registerRefreshInterval;
 async function registerPlatform(){
     if (Common.registerParams) {
         const params = Common.registerParams;
+        let version, buildTime;
+        try {
+            // Attempt to read version.txt
+            const versionContent = await fsp.readFile(path.join(__dirname, '../version.txt'), 'utf8');
+            const versionLines = versionContent.split('\n');
+            versionLines.forEach(line => {
+                const separatorIndex = line.indexOf(':');
+                if (separatorIndex === -1) return;
+                const key = line.slice(0, separatorIndex).trim();
+                const value = line.slice(separatorIndex + 1).trim();
+                if (key === 'VERSION') {
+                    version = value;
+                } else if (key === 'BUILD_TIME') {
+                    buildTime = value;
+                }
+            });
+        } catch (fileErr) {
+            logger.warn(`mgmtPublicRegistration::registerPromise: Unable to read version.txt: ${fileErr}`);
+            // Keep version and buildTime as undefined
+        }
         try {
             let platform_ip = params.platform_ip;
             if (!platform_ip) {
                 platform_ip = await detectIP();
             }
+            let url = `${params.mgmtURL}/selfRegisterPlatform?platform_ip=${platform_ip}`;
+            if (version) {
+                url += `&version=${encodeURIComponent(version)}`;
+            }
+            if (buildTime) {
+                url += `&buildTime=${encodeURIComponent(buildTime)}`;
+            }
             let response = await axios({
                 method: "get",
-                url: `${params.mgmtURL}/selfRegisterPlatform?platform_ip=${platform_ip}`,
+                url,
                 headers: {
                     'fe-user': params.user,
                     'fe-pass': params.password
@@ -386,7 +415,7 @@ function buildServerObject(server) {
     server.use(accesslogger);
     // server.use(restify.gzipResponse());
     server.use(nocache);
-    server.get("/", function(req, res) { res.end("OK"); });
+    server.get("/", function(req, res,next) { res.end("OK"); });
     server.get("/startPlatform", machineModule.startPlatformGet);
     server.post("/startPlatform", machineModule.startPlatformPost);
     server.post("/killPlatform", machineModule.killPlatform);

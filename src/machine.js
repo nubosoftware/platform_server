@@ -25,7 +25,7 @@ var machineConf = null;
 var machineInitLock = false;
 var dockerPlatformStarted = false;
 
-function startPlatformGet(req, res) {
+function startPlatformGet(req, res,next) {
     var resobj = {
         status: 1,
         msg: RESTfull_message,
@@ -34,7 +34,7 @@ function startPlatformGet(req, res) {
     res.end(JSON.stringify(resobj, null, 2));
 }
 
-function startPlatformPost(req, res) {
+function startPlatformPost(req, res,next) {
     var logger = new ThreadedLogger(common.getLogger(__filename));
     var requestInProgress = true;
 
@@ -121,7 +121,7 @@ function isDockerPlatformStarted() {
     return dockerPlatformStarted;
 }
 
-async function startDockerPlatform(req, res) {
+async function startDockerPlatform(req, res,next) {
     let resobj = {
         status: 0.,
         msg: "Internal error"
@@ -472,7 +472,7 @@ async function deleteOldSessionFile(logger) {
     }
 }
 
-function killPlatform(req, res) {
+function killPlatform(req, res,next) {
     deinitMachine(req.body).then(() => {
         var resobj = {
             status: 0,
@@ -833,7 +833,7 @@ async function saveMachineConf(requestObj) {
     await writeFile("./conf/machine.conf",JSON.stringify(requestObj,null,2));
 }
 
-function checkPlatform(req, res) {
+function checkPlatform(req, res,next) {
     var logger = new ThreadedLogger(common.getLogger(__filename));
     //logger.info("Running checkPlatform");
     let platType = "N7";

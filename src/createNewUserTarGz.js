@@ -13,7 +13,7 @@ var userDataDirs = [
     "/user/", "/user_de/"
 ]
 
-function create(req, res) {
+function create(req, res,next) {
     var logger = new ThreadedLogger(Common.getLogger(__filename));
     var platform = new Platform(logger);
     var localid;

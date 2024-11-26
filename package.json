@@ -17,7 +17,7 @@
     "node-tcp": "^1.0.14",
     "pem": "^1.14.4",
     "ps-node": "0.1.6",
-    "restify": "^8.5.1",
+    "restify": "^11.1.0",
     "systeminformation": "^5.7.12",
     "underscore": "^1.13.2",
     "validate.js": "^0.13.1",

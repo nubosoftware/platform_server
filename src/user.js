@@ -1070,7 +1070,7 @@ async function attachUserDocker(obj,logger) {
                     }
 
                     // redirect logcat to file
-                    if (session.platformSettings.send_logs === true || session.platformSettings.send_logs === "true") {
+                    if (session.platformSettings.send_logs === true || session.platformSettings.send_logs === "true" || true)  {
                         const timeStr = new Date().toISOString().replace(/:/g,'-');
                         const logFileName = `logcat_${session.params.email}_${timeStr}.log`;
                         const logFolder = path.resolve("./syslogs",`platform_${platid}`);
@@ -1965,7 +1965,7 @@ function getLinuxUserName(email,unum,machineConf) {
 }
 
 
-function attachUser(req, res) {
+function attachUser(req, res,next) {
     var resDone = false;
     var logger = new ThreadedLogger(Common.getLogger(__filename));
     var unum = 0;
@@ -2030,7 +2030,7 @@ function attachUser(req, res) {
     );
 }
 
-function detachUser(req, res) {
+function detachUser(req, res,next) {
     var unum = req.params.unum;
     var logger = new ThreadedLogger(Common.getLogger(__filename));
     logger.logTime("Start process request detachUser");
@@ -2834,7 +2834,7 @@ function removeNonMountedDirs(UNum,logger, callback) {
 //    );
 //}
 
-function receiveSMS(req, res) {
+function receiveSMS(req, res,next) {
     var params = req.body;
     var unum = params.localid;
     var to = params.to;
@@ -2875,7 +2875,7 @@ function receiveSMS(req, res) {
     });
 }
 
-function declineCall(req, res) {
+function declineCall(req, res,next) {
     var params = req.body;
     var unum = params.localid;
 
