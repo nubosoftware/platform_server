@@ -61,10 +61,11 @@ async function increaseSessionCreateConcurrency() {
         // initialize sessionCreateConcurency
         sessionCreateConcurency = Common.sessionCreateConcurency || 1;
     }
+    const maxWait = Common.maxConcurrencyWait || MAX_CONCURRENCY_WAIT;
     let waitCnt = 0;
     while (sessionCreateConcurencyCounter >= sessionCreateConcurency) {
         // logger.info(`increaseSessionCreateConcurrency. Waiting for session create concurency. current: ${sessionCreateConcurencyCounter}`);
-        if (waitCnt > MAX_CONCURRENCY_WAIT) {
+        if (waitCnt > maxWait) {
             throw new Error("increaseSessionCreateConcurrency. Max wait time reached");
         }
         await sleep(1000);
@@ -362,7 +363,9 @@ async function createPooledSession(_imageName,doNotAddToPull,_lockMachine) {
 
     const tag = `createPooledSession[${unum}]`;
     logger.logTime(`${tag} Start create pooled session.`);
-    const lockSess = new Lock(`sess_${unum}`);
+    const lockSess = new Lock(`sess_${unum}`, {
+        lockTimeout: Common.sessionLockTimeout || (2 * 60 * 1000)
+    });
     try {
         await lockSess.acquire();
         let sessPath = path.resolve(`./sessions/sess_${unum}`);
@@ -692,7 +695,9 @@ async function attachUserDocker(obj,logger) {
         lockMachine1.release();
     }
 
-    const lockSess = new Lock(`sess_${unum}`);
+    const lockSess = new Lock(`sess_${unum}`, {
+        lockTimeout: Common.sessionLockTimeout || (2 * 60 * 1000)
+    });
     try {
         await lockSess.acquire();
         if (session.login.deviceType == "Desktop") {
@@ -1632,7 +1637,9 @@ async function fastDetachUserDocker(unum) {
     // let logger = Common.getLogger(__filename);
     let logger = new ThreadedLogger(Common.getLogger(__filename));
     logger.info(`fastDetachUserDocker. unum: ${unum} `);
-    const lockSess = new Lock(`sess_${unum}`);
+    const lockSess = new Lock(`sess_${unum}`, {
+        lockTimeout: Common.sessionLockTimeout || (2 * 60 * 1000)
+    });
     try {
         await lockSess.acquire();
         logger.info(`remove from runningSessions: ${unum}`);
@@ -1788,7 +1795,9 @@ async function detachUserDocker(unum) {
     logger.info(`detachUserDocker. unum: ${unum} `);
     logger.info(`remove from runningSessions: ${unum}`);
     runningSessions.delete(`u_${unum}`);
-    const lockSess = new Lock(`sess_${unum}`);
+    const lockSess = new Lock(`sess_${unum}`, {
+        lockTimeout: Common.sessionLockTimeout || (2 * 60 * 1000)
+    });
     try {
         await lockSess.acquire();
         let session = await loadUserSessionPromise(unum,logger);
@@ -2906,4 +2915,3 @@ function declineCall(req, res,next) {
 
 
 }
-

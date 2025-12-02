@@ -283,7 +283,9 @@ var processTasksDocker = async function(tasks, logger) {
             const containerId = session.params.containerId;
             if (session.login.deviceType != "Desktop" && !session.params.readyToInstall) {
                 await require('./user').waitForPlatformStartPhase(session,"SYNC_MANAGER_UNLOCKED user #10",logger);
-                const lockSess = new Lock(`sess_${task.unum}`);
+                const lockSess = new Lock(`sess_${task.unum}`, {
+                    lockTimeout: Common.sessionLockTimeout || (2 * 60 * 1000)
+                });
                 try {
                     await lockSess.acquire();
                     session = await require('./user').loadUserSessionPromise(task.unum,logger);
