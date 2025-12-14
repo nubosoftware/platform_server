@@ -28,7 +28,7 @@
     "@babel/preset-env": "^7.14.7",
     "babel-loader": "^8.2.2",
     "ignore-loader": "^0.1.2",
-    "javascript-obfuscator": "^2.15.5",
+    "javascript-obfuscator": "^4.0.0",
     "webpack": "^5.44.0",
     "webpack-cli": "^4.7.2",
     "webpack-ignore-dynamic-require": "^1.0.0",
