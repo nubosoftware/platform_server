@@ -1075,7 +1075,7 @@ async function attachUserDocker(obj,logger) {
                     }
 
                     // redirect logcat to file
-                    if (session.platformSettings.send_logs === true || session.platformSettings.send_logs === "true" || true)  {
+                    if (session.platformSettings.send_logs === true || session.platformSettings.send_logs === "true")  {
                         const timeStr = new Date().toISOString().replace(/:/g,'-');
                         const logFileName = `logcat_${session.params.email}_${timeStr}.log`;
                         const logFolder = path.resolve("./syslogs",`platform_${platid}`);
