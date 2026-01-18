@@ -1,14 +1,18 @@
 "use strict";
 
 var http = require('http');
-var Common = require('../common.js');
-var StartSessionModule = require('../user.js');
-var ThreadedLogger = require('../ThreadedLogger.js');
+var Common = require('../src/common.js');
+var StartSessionModule = require('../src/user.js');
+var ThreadedLogger = require('../src/ThreadedLogger.js');
 
 var testInput = {
+    "platType": "docker",
     "platid": 10,
+    "platUID": "123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456",
     "gateway": {
-        "internal_ip": "192.168.122.1"
+        "apps_port": 8890,
+        "internal_ip": "192.168.122.1",
+        "controller_port": 8891
     },
     "management":{
         "url": "https://labalex.nubosoftware.com"
@@ -16,7 +20,11 @@ var testInput = {
     "nfs": {
         "nfs_ip": "192.168.122.1",
         "nfs_path": "/srv/nfs/homes/"
+    },
+    "downloadFilesList": [],
+    "settings": {
     }
+    
 };
 
 var mainFunction = function(err, firstTimeLoad) {
