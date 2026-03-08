@@ -1164,7 +1164,7 @@ async function attachUserDocker(obj,logger) {
 
                     // Pre-check runtime-permissions.xml before pm refresh
                     // If the file is corrupted (truncated XML), delete it so Android regenerates defaults
-                    const runtimePermissionsFile = `/Android/data/system/users/10/runtime-permissions.xml`;
+                    const runtimePermissionsFile = path.join(session.params.tempDataDir, 'system/users/10/runtime-permissions.xml');
                     try {
                         const permData = await fsp.readFile(runtimePermissionsFile, 'utf8');
                         if (permData && !permData.trimEnd().endsWith('>')) {
