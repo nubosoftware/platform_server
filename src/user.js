@@ -981,7 +981,8 @@ async function attachUserDocker(obj,logger) {
                     const imageFile =  path.join(session.params.homeFolder,"user.img");
                     if (!await Common.fileExists(imageFile)) {
                         logger.info(`${tag} Image does not exists - create it`);
-                        await execCmd('dd',["if=/dev/zero", `of=${imageFile}`, "bs=1M", "count=250"]);
+                        const userImageSizeMB = Common.userImageSizeMB || 250;
+                        await execCmd('dd',["if=/dev/zero", `of=${imageFile}`, "bs=1M", `count=${userImageSizeMB}`]);
                         await execCmd('mkfs.ext4',[imageFile]);
                         await execCmd('tune2fs',["-c0","-i0",imageFile]);
                         logger.info(`${tag} Image creted at: ${imageFile}`);
@@ -1160,6 +1161,22 @@ async function attachUserDocker(obj,logger) {
                         ['exec' , session.params.containerId, 'am', 'stop-user', '10' ]
                     );
 
+
+                    // Pre-check runtime-permissions.xml before pm refresh
+                    // If the file is corrupted (truncated XML), delete it so Android regenerates defaults
+                    const runtimePermissionsFile = `/Android/data/system/users/10/runtime-permissions.xml`;
+                    try {
+                        const permData = await fsp.readFile(runtimePermissionsFile, 'utf8');
+                        if (permData && !permData.trimEnd().endsWith('>')) {
+                            logger.warn(`${tag} runtime-permissions.xml appears truncated, removing corrupted file so Android regenerates defaults`);
+                            await fsp.unlink(runtimePermissionsFile);
+                        }
+                    } catch (readErr) {
+                        if (readErr.code !== 'ENOENT') {
+                            logger.warn(`${tag} Error reading runtime-permissions.xml: ${readErr.message}`);
+                        }
+                        // ENOENT is fine - file doesn't exist, Android will create it
+                    }
 
                     logger.logTime(`${tag}  Running pm refresh..`);
                     await execDockerWaitAndroid(
