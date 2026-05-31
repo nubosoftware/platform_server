@@ -7,6 +7,7 @@ var Platform = require('./platform.js');
 var ThreadedLogger = require('./ThreadedLogger.js');
 var http = require('./http.js');
 var Common = require('./common.js');
+var { execDockerWaitAndroid } = require('./dockerUtils.js');
 
 module.exports = {
     refreshMedia: refreshMedia
@@ -40,23 +41,27 @@ function refreshMedia(req, res,next) {
     );
 }
 
-var processRefreshMedia = function(obj, logger, callback) {
+var processRefreshMedia = async function(obj, logger, callback) {
     var unum = obj.unum;
     var paths = obj.paths;
-    var platform = new Platform(logger);
-    async.eachSeries(
-        paths,
-        function(path, callback) {
-            var args = ["broadcast", "--user", unum, "-a", "android.intent.action.MEDIA_SCANNER_SCAN_FILE", "-d", safePathJoin("file:/storage/emulated/legacy/" , path)];
-            platform.execFile("am", args, function(err, stdout, stderr) {
+    try {
+        var userModule = require('./user.js');
+        let session = await userModule.loadUserSessionPromise(unum, logger);
+        const containerId = session.params.containerId;
+        for (const p of paths) {
+            try {
+                // inside the session container the Android user is always 10
+                var args = ["exec", containerId, "am", "broadcast", "--user", "10", "-a", "android.intent.action.MEDIA_SCANNER_SCAN_FILE", "-d", safePathJoin("file:/storage/emulated/legacy/" , p)];
+                await execDockerWaitAndroid(args);
+            } catch (err) {
                 // Ignore errors
-                callback(null);
-            });
-        },
-        function(err) {
-            callback(null);
+                logger.info("processRefreshMedia. ignored error for path " + p + ": " + err);
+            }
         }
-    );
+    } catch (err) {
+        logger.error("processRefreshMedia error: " + err);
+    }
+    callback(null);
 };
 
 var validateRefreshMediaRequestObj = function(reqestObj, logger, callback) {
