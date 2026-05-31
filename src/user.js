@@ -2860,7 +2860,7 @@ function removeNonMountedDirs(UNum,logger, callback) {
 //    );
 //}
 
-async function receiveSMS(req, res,next) {
+async function receiveSMS(req, res) {
     var params = req.body;
     var unum = params.localid;
     var to = params.to;
@@ -2904,7 +2904,7 @@ async function receiveSMS(req, res,next) {
     logger.logTime("Finish process request receiveSMS");
 }
 
-async function declineCall(req, res,next) {
+async function declineCall(req, res) {
     var params = req.body;
     var unum = params.localid;
 
