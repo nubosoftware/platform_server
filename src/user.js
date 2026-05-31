@@ -2860,7 +2860,7 @@ function removeNonMountedDirs(UNum,logger, callback) {
 //    );
 //}
 
-function receiveSMS(req, res,next) {
+async function receiveSMS(req, res,next) {
     var params = req.body;
     var unum = params.localid;
     var to = params.to;
@@ -2869,7 +2869,6 @@ function receiveSMS(req, res,next) {
     var pdu = params.pdu;
     var logger = new ThreadedLogger(Common.getLogger(__filename));
     logger.logTime("Start process request receiveSMS");
-    var platform = new Platform(logger);
     var resobj;
     if (!to || !from || !text) {
         resobj = {status: 0, message: "invalid parameters" };
@@ -2883,31 +2882,34 @@ function receiveSMS(req, res,next) {
         res.end(JSON.stringify(resobj,null,2));
         return;
     }
-    var args = ["broadcast", "--user", unum, "-a", "android.intent.action.DATA_SMS_RECEIVED",
-        "--es", "nubo_sms_to",to,
-        "--es", "nubo_sms_from",from,
-        "--es", "nubo_sms_text",text,
-        "--es", "nubo_sms_pdu",pdu ];
-    logger.info("Command: am "+args);
-    platform.execFile("am", args, function(err, stdout, stderr) {
-        if(err) {
-            resobj = {status: 0, error: err};
-        } else {
-            resobj = {status: 1, message: "Message send to user."};
-        }
-        logger.info("err: "+err+", stdout: "+stdout+", stderr: "+stderr);
+    try {
+        let session = await loadUserSessionPromise(unum, logger);
+        const containerId = session.params.containerId;
+        // inside the session container the Android user is always 10
+        var args = ["exec", containerId, "am", "broadcast", "--user", "10", "-a", "android.intent.action.DATA_SMS_RECEIVED",
+            "--es", "nubo_sms_to",to,
+            "--es", "nubo_sms_from",from,
+            "--es", "nubo_sms_text",text,
+            "--es", "nubo_sms_pdu",pdu ];
+        logger.info("Command: docker "+args);
+        const {stdout, stderr} = await execDockerWaitAndroid(args);
+        logger.info("stdout: "+stdout+", stderr: "+stderr);
+        resobj = {status: 1, message: "Message send to user."};
         res.end(JSON.stringify(resobj,null,2));
-        logger.logTime("Finish process request receiveSMS");
-    });
+    } catch (err) {
+        logger.error("receiveSMS error: " + err, err);
+        resobj = {status: 0, error: `${err}`};
+        res.end(JSON.stringify(resobj,null,2));
+    }
+    logger.logTime("Finish process request receiveSMS");
 }
 
-function declineCall(req, res,next) {
+async function declineCall(req, res,next) {
     var params = req.body;
     var unum = params.localid;
 
     var logger = new ThreadedLogger(Common.getLogger(__filename));
     logger.logTime("Start process request declineCall");
-    var platform = new Platform(logger);
     var resobj;
 
     if(isNaN(unum) || (unum <= 0)) {   // is unum does not greater that 0 mean check if unum is number too
@@ -2915,20 +2917,20 @@ function declineCall(req, res,next) {
         res.end(JSON.stringify(resobj,null,2));
         return;
     }
-    var args = ["broadcast", "--user", unum, "-a", "com.nubo.sip.DECLINE_INCOMING_CALL" ];
-    logger.info("Command: am "+args);
-    platform.execFile("am", args, function(err, stdout, stderr) {
-        if(err) {
-            resobj = {status: 0, error: err};
-        } else {
-            resobj = {status: 1, message: "Message send to user."};
-        }
-        logger.info("err: "+err+", stdout: "+stdout+", stderr: "+stderr);
+    try {
+        let session = await loadUserSessionPromise(unum, logger);
+        const containerId = session.params.containerId;
+        // inside the session container the Android user is always 10
+        var args = ["exec", containerId, "am", "broadcast", "--user", "10", "-a", "com.nubo.sip.DECLINE_INCOMING_CALL" ];
+        logger.info("Command: docker "+args);
+        const {stdout, stderr} = await execDockerWaitAndroid(args);
+        logger.info("stdout: "+stdout+", stderr: "+stderr);
+        resobj = {status: 1, message: "Message send to user."};
         res.end(JSON.stringify(resobj,null,2));
-        logger.logTime("Finish process request declineCall");
-    });
-
-
-
-
+    } catch (err) {
+        logger.error("declineCall error: " + err, err);
+        resobj = {status: 0, error: `${err}`};
+        res.end(JSON.stringify(resobj,null,2));
+    }
+    logger.logTime("Finish process request declineCall");
 }
