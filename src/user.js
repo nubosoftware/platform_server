@@ -16,6 +16,7 @@ var Audio = require('./audio.js');
 var ps = require('ps-node');
 const machineModule = require('./machine.js');
 const { docker, pullImage, execDockerCmd, ExecCmdError, execDockerWaitAndroid, sleep, startAndRedirectToLog} = require('./dockerUtils');
+const smsPdu = require('./smsPdu.js');
 const {getRules,createChain, deleteRule,insertRule } = require('./ipTables');
 const fsp = fs.promises;
 const path = require('path');
@@ -2866,11 +2867,10 @@ async function receiveSMS(req, res) {
     var to = params.to;
     var from = params.from;
     var text = params.text;
-    var pdu = params.pdu;
     var logger = new ThreadedLogger(Common.getLogger(__filename));
     logger.logTime("Start process request receiveSMS");
     var resobj;
-    if (!to || !from || !text) {
+    if (!from || !text) {
         resobj = {status: 0, message: "invalid parameters" };
         logger.info("invalid parameters. to: "+to+", from: "+from+", text: "+text);
         res.end(JSON.stringify(resobj,null,2));
@@ -2885,14 +2885,20 @@ async function receiveSMS(req, res) {
     try {
         let session = await loadUserSessionPromise(unum, logger);
         const containerId = session.params.containerId;
-        // inside the session container the Android user is always 10
-        var args = ["exec", containerId, "am", "broadcast", "--user", "10", "-a", "android.intent.action.DATA_SMS_RECEIVED",
-            "--es", "nubo_sms_to",to,
-            "--es", "nubo_sms_from",from,
-            "--es", "nubo_sms_text",text,
-            "--es", "nubo_sms_pdu",pdu ];
-        logger.info("Command: docker "+args);
-        const {stdout, stderr} = await execDockerWaitAndroid(args);
+        // Build the inbound SMS-DELIVER PDU(s) here from the sender/body (the
+        // platform owns the PDU encoding now; any pdu sent by management is
+        // ignored), then inject straight into the nubo user's default SMS app.
+        // Inside the session container the Android user is always 10.
+        const pdus = smsPdu.buildDeliverPdus(from, text, new Date());
+        logger.info("receiveSMS. injecting "+pdus.length+" SMS segment(s) from "+from+" to user 10");
+        var stdout = "", stderr = "";
+        for (const pdu of pdus) {
+            var args = ["exec", containerId, "am", "inject-nubo-sms", "--user", "10", "--pdu", pdu, "--format", "3gpp"];
+            logger.info("Command: docker "+args);
+            const segRes = await execDockerWaitAndroid(args);
+            stdout += segRes.stdout;
+            stderr += segRes.stderr;
+        }
         logger.info("stdout: "+stdout+", stderr: "+stderr);
         resobj = {status: 1, message: "Message send to user."};
         res.end(JSON.stringify(resobj,null,2));
