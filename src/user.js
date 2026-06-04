@@ -2926,8 +2926,14 @@ async function declineCall(req, res) {
     try {
         let session = await loadUserSessionPromise(unum, logger);
         const containerId = session.params.containerId;
-        // inside the session container the Android user is always 10
-        var args = ["exec", containerId, "am", "broadcast", "--user", "10", "-a", "com.nubo.sip.DECLINE_INCOMING_CALL" ];
+        // inside the session container the Android user is always 10.
+        // Start SipService directly rather than sending an implicit broadcast:
+        // since Android 8 implicit broadcasts are not delivered to a manifest
+        // receiver of a backgrounded app ("Background execution not allowed"),
+        // which silently dropped the decline. SipService.onStartCommand handles
+        // the DECLINE_INCOMING_CALL action directly and is immune to that rule.
+        var args = ["exec", containerId, "am", "start-foreground-service", "--user", "10",
+            "-n", "com.nubo.sip/.SipService", "-a", "com.nubo.sip.DECLINE_INCOMING_CALL"];
         logger.info("Command: docker "+args);
         const {stdout, stderr} = await execDockerWaitAndroid(args);
         logger.info("stdout: "+stdout+", stderr: "+stderr);
