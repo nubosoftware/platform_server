@@ -524,12 +524,60 @@ async function createPooledSession(_imageName,doNotAddToPull,_lockMachine) {
             '--network', 'net_sess',
         ];
 
+        // Cap the memory of each Android container so that one phone - or a
+        // host-level event such as building/deploying a new image - cannot
+        // starve the host and make every container's lmkd cascade-kill its
+        // own apps. Opt-in: only applied when androidMemoryLimit is configured
+        // in Settings.json (e.g. "2g"). MUST be paired with useLxcfs (below),
+        // otherwise the kernel cgroup OOM-killer enforces the cap by hard-
+        // killing processes (potentially system_server) instead of letting
+        // Android's lmkd shed low-priority apps gracefully.
+        const androidMemoryLimit = Common.androidMemoryLimit;
+        if (androidMemoryLimit && androidMemoryLimit !== "0") {
+            // Pin swap to the memory limit so the cap is hard and predictable
+            // (the host currently has no swap anyway).
+            const androidMemorySwap = Common.androidMemorySwap || androidMemoryLimit;
+            startArgs.push('--memory', `${androidMemoryLimit}`);
+            startArgs.push('--memory-swap', `${androidMemorySwap}`);
+            logger.info(`${tag} Applying container memory limit: ${androidMemoryLimit} (swap: ${androidMemorySwap})`);
+        }
+
         let mountArgs = [
                 '-v', '/lib/modules:/system/lib/modules:ro',
                 '-v',`${externalSessPath}:/nubo:rw,rshared`,
                 '-v',`${externalTempDataDir}:/data:rw,rshared`,
 
         ];
+
+        // Mount lxcfs-virtualised procfs files so /proc/meminfo inside the
+        // container reflects THIS container's --memory limit instead of the
+        // whole host. Android's lmkd reads /proc/meminfo to decide when to
+        // kill; without this it sees the host's free memory and cascades to
+        // oom_adj 0 under host-wide pressure. Requires lxcfs installed and
+        // running on the host (provides <lxcfsPath>/proc/*). Opt-in.
+        //
+        // Only `meminfo` is required for the lmkd fix and is the one file every
+        // lxcfs build ships. cpuinfo/stat/uptime/swaps/diskstats/loadavg add
+        // CPU/uptime virtualization but are NOT present in all lxcfs versions
+        // (mounting a file that does not exist on the host makes `docker run`
+        // fail), so they are opt-in via the lxcfsProcFiles setting. The
+        // bind-mount source is resolved by the host dockerd, so we must not
+        // stat it from inside this (containerized) platform server.
+        //
+        // We mount each file twice: at /proc/<f> (the natural location) AND at
+        // /lxcfs/<f>. Android's init mounts a FRESH procfs over /proc during
+        // boot, which shadows the /proc/<f> binds - so after boot we re-bind
+        // /lxcfs/<f> over /proc/<f> (see rebind below). /lxcfs is never touched
+        // by Android, so that copy survives and stays container-scoped.
+        if (Common.useLxcfs) {
+            const lxcfsPath = Common.lxcfsPath || "/var/lib/lxcfs";
+            const lxcfsProcFiles = Common.lxcfsProcFiles || ['meminfo'];
+            for (const f of lxcfsProcFiles) {
+                mountArgs.push('-v', `${lxcfsPath}/proc/${f}:/proc/${f}:rw`);
+                mountArgs.push('-v', `${lxcfsPath}/proc/${f}:/lxcfs/${f}:rw`);
+            }
+            logger.info(`${tag} Mounting lxcfs procfs (${lxcfsProcFiles.join(',')}) from ${lxcfsPath} so lmkd sees the container memory limit`);
+        }
         // if (useNuboGL) {
         //     const buildProp = path.resolve(`./docker_run/build.prop`);
         //     mountArgs.push('-v',`${buildProp}:/system/vendor/build.prop`);
@@ -557,6 +605,27 @@ async function createPooledSession(_imageName,doNotAddToPull,_lockMachine) {
         const userStarted = await waitForPlatformStartPhase(session,"BOOT_COMPLETED user #0",logger);
         if (!userStarted) {
             throw new Error("User #0 not finished boot");
+        }
+
+        // Re-apply the lxcfs files over /proc now that Android has booted.
+        // Android's init mounts a fresh procfs on /proc during boot, which
+        // shadows the /proc/<f> binds from `docker run` - so /proc/meminfo
+        // reverts to the host's 8GB view and lmkd cascade-kills under host-wide
+        // pressure. Bind the un-shadowed /lxcfs/<f> copies back over /proc/<f>
+        // so lmkd reads the container-scoped (2GB) view. Best-effort: a failure
+        // here must not abort session creation.
+        if (Common.useLxcfs) {
+            const lxcfsProcFiles = Common.lxcfsProcFiles || ['meminfo'];
+            for (const f of lxcfsProcFiles) {
+                try {
+                    await execDockerCmd(
+                        ['exec', containerID, 'mount', '-o', 'bind', `/lxcfs/${f}`, `/proc/${f}`]
+                    );
+                    logger.info(`${tag} Re-bound lxcfs over /proc/${f} after boot`);
+                } catch (err) {
+                    logger.info(`${tag} Unable to re-bind lxcfs over /proc/${f}: ${err}`);
+                }
+            }
         }
 
         const {stdout,stderr} = await execDockerWaitAndroid(
