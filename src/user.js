@@ -1077,7 +1077,15 @@ async function attachUserDocker(obj,logger) {
                         'system_de',
                         'user',
                         'user_de',
-                        'sync'
+                        'sync',
+                        // NUBO: SMS/MMS are stored by the telephony provider, which is a
+                        // singleUser provider running in user 0 (inside com.android.phone),
+                        // NOT in the nubo user 10. Its DB therefore lives in user 0 storage
+                        // and was lost every session (only user 10 dirs above are persisted).
+                        // FBE is off on this device (ro.crypto.state=unsupported), so the
+                        // provider's CE db falls back to DE -> all messages are in user_de/0.
+                        // Persist that one dir so the SMS history survives sessions.
+                        'telephony_de'
                     ];
                     const dstFolders = [
                         'misc/user/10',
@@ -1089,7 +1097,8 @@ async function attachUserDocker(obj,logger) {
                         'system_de/10',
                         'user/10',
                         'user_de/10',
-                        'system/sync'
+                        'system/sync',
+                        'user_de/0/com.android.providers.telephony'
                     ];
 
 
