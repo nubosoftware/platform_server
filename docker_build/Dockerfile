@@ -29,6 +29,17 @@ RUN apt install -y \
     libgstreamer-plugins-bad1.0-0 \
     gstreamer1.0-pulseaudio
 
+# Remove ImageMagick: it is not used by Nubo. It is pulled in only as a soft
+# (Recommends) dependency of libzbar0, which in turn is a dependency of
+# gstreamer1.0-plugins-bad (used for audio streaming). Purging it does not
+# affect GStreamer/libzbar0. Removes CVE exposure from an unused package.
+RUN apt-get purge -y \
+    libmagickcore-6.q16-6 \
+    libmagickcore-6.q16-6-extra \
+    libmagickwand-6.q16-6 \
+    imagemagick-6-common \
+    && apt-get autoremove -y
+
 # install nodejs
 RUN mkdir -p /etc/apt/keyrings && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
 RUN echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_24.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list
