@@ -1,4 +1,7 @@
 {
+  "engines": {
+    "node": ">=24.22.1"
+  },
   "scripts": {
     "build": "rm -rf dist && node --max_old_space_size=10240 ./node_modules/webpack/bin/webpack.js --progress=profile --mode production",
     "start": "node ./dist/restserver.js"
